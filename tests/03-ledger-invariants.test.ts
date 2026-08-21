@@ -358,6 +358,14 @@ describe('acceptance test 7 — reversal restores the balance exactly', () => {
 
   it('refuses to reverse the same entry twice', async () => {
     const credit = await giveCredit(db, vendor, customer, 500);
+
+    // Extra headroom, deliberately. Reversing the 500 credit takes the balance
+    // to zero, and a second reversal would then be refused for insufficient
+    // balance — which would pass the test while proving nothing about double
+    // reversal. This second credit keeps the balance sufficient so the
+    // one-reversal-per-entry index is what actually rejects it.
+    await giveCredit(db, vendor, customer, 500);
+
     await actAsAdmin(db);
     await postEntry(db, {
       vendorId: vendor.id, customerId: customer.id,

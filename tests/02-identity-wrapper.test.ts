@@ -87,6 +87,15 @@ describe('amendment B — identity wrapper cannot be impersonated', () => {
         `create or replace function auth.uid() returns uuid
            language sql stable as $$ select null::uuid $$`
       );
+
+      // Supabase grants `authenticated` access to the auth schema. Without
+      // mirroring that, the last test in this block fails with "permission
+      // denied for schema auth" — which looks like the policy denying access
+      // but is really the fixture being unrealistic, and would mask whether
+      // the impersonation guard works at all.
+      await db.query('grant usage on schema auth to authenticated, anon');
+      await db.query('grant execute on function auth.uid() to authenticated, anon');
+
       await db.query(migration0002); // re-run: it must now take the auth branch
     });
 

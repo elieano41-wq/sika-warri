@@ -371,3 +371,101 @@ export async function myShopBalances(token: string) {
     token
   )) as Array<{ vendor_id: string; balance_cfa: number; last_activity_at: string | null }>;
 }
+
+// ---------------------------------------------------------------------------
+// Reading balances and history
+//
+// These go through definer functions (migration 0015) rather than plain
+// selects, because a customer cannot read the vendors table and a vendor cannot
+// read the customers table — each row carries names belonging to other people
+// (amendment F). The functions disclose exactly what an existing relationship
+// justifies.
+// ---------------------------------------------------------------------------
+
+export interface ShopRow {
+  vendor_id: string;
+  business_name: string;
+  quartier: string | null;
+  commune: string | null;
+  balance_cfa: number;
+  last_activity_at: string | null;
+  entry_count: number;
+}
+
+/** One row per shop holding this customer's change. Never a total. */
+export async function myShops(token: string, actorUserId: string): Promise<ShopRow[]> {
+  const rows = (await rpc(
+    'customer_shop_balances',
+    { p_actor_user_id: actorUserId },
+    token
+  )) as ShopRow[];
+  return rows ?? [];
+}
+
+export interface EntryRow {
+  id: string;
+  direction: 'credit' | 'debit';
+  kind: string;
+  amount_cfa: number;
+  confirmation_method: string | null;
+  note: string | null;
+  created_at: string;
+  receipt_code: string;
+  running_balance: number;
+}
+
+export async function myShopHistory(
+  token: string,
+  actorUserId: string,
+  vendorId: string
+): Promise<EntryRow[]> {
+  const rows = (await rpc(
+    'customer_shop_history',
+    { p_actor_user_id: actorUserId, p_vendor_id: vendorId, p_limit: 100 },
+    token
+  )) as EntryRow[];
+  return rows ?? [];
+}
+
+export interface ClientRow {
+  customer_id: string;
+  phone: string;
+  your_label: string | null;
+  balance_cfa: number;
+  last_activity_at: string | null;
+  entry_count: number;
+  is_registered: boolean;
+}
+
+/** Who this vendor owes, largest first. */
+export async function myClients(
+  token: string,
+  vendorId: string,
+  actorUserId: string
+): Promise<ClientRow[]> {
+  const rows = (await rpc(
+    'vendor_customers',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId },
+    token
+  )) as ClientRow[];
+  return rows ?? [];
+}
+
+export async function clientHistory(
+  token: string,
+  vendorId: string,
+  customerId: string,
+  actorUserId: string
+): Promise<EntryRow[]> {
+  const rows = (await rpc(
+    'vendor_customer_history',
+    {
+      p_vendor_id: vendorId,
+      p_customer_id: customerId,
+      p_actor_user_id: actorUserId,
+      p_limit: 100,
+    },
+    token
+  )) as EntryRow[];
+  return rows ?? [];
+}

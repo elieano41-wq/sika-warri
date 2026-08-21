@@ -14,7 +14,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  perShop, informationalTotal, captionFor, spendableAt, type ShopBalance,
+  perShop, informationalTotal, captionFor, spendableAt, vendorInCirculation,
+  type ShopBalance,
 } from '../src/lib/balances';
 
 const SRC = path.join(process.cwd(), 'src');
@@ -176,5 +177,76 @@ describe('perShop ordering and shape', () => {
         ['amountCfa', 'lastActivityAt', 'quartier', 'shopName', 'vendorId'].sort()
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The screen itself (build item B)
+// ---------------------------------------------------------------------------
+
+describe('acceptance test 8 — the customer balance screen', () => {
+  const ecran = readFileSync(
+    path.join(SRC, 'screens', 'client', 'MaMonnaie.tsx'), 'utf8'
+  );
+
+  it('renders one card per shop, from perShop', () => {
+    expect(code(ecran)).toMatch(/perShop\(/);
+    // One map over shops, one card each. No grouping or merging step.
+    expect(code(ecran)).toMatch(/shops\.map\(/);
+  });
+
+  it('obtains the total ONLY through informationalTotal', () => {
+    expect(code(ecran)).toMatch(/informationalTotal\(/);
+    // Any local arithmetic here would produce an uncaptioned figure.
+    expect(code(ecran)).not.toMatch(/\.reduce\s*\(/);
+    expect(code(ecran)).not.toMatch(/balance_cfa\s*\+/);
+  });
+
+  it('renders the caption wherever it renders the total', () => {
+    // The amount and its caption come from one object, and both are read in
+    // the same block. If a future edit dropped the caption, the figure would
+    // become a bare "total" — the exact misrepresentation rule 1 forbids.
+    const bloc = /total\s*\?[\s\S]*?total\.caption[\s\S]*?\)/.exec(code(ecran));
+    expect(bloc, 'total is rendered without its caption').not.toBeNull();
+    expect(code(ecran)).toMatch(/total\.amountCfa/);
+  });
+
+  it('labels the total as information, never as spendable', () => {
+    const texte = ecran.replace(/\s+/g, ' ');
+    expect(texte).toMatch(/à titre d'information/i);
+    // Never the words that would imply one usable pot.
+    expect(texte).not.toMatch(/monnaie totale/i);
+    expect(texte).not.toMatch(/total disponible/i);
+    expect(texte).not.toMatch(/utilisable partout/i);
+  });
+
+  it('says each amount stays with its own vendor', () => {
+    const texte = ecran.replace(/\s+/g, ' ');
+    expect(texte).toMatch(/reste chez le\s*commer[çc]ant/i);
+  });
+
+  it('the vendor total is computed by its own named function, not inline', () => {
+    // A vendor's own liability IS a legitimate single figure. Keeping it in
+    // balances.ts means the one file that folds over balances is still the only
+    // one, and the distinction is documented where it is made.
+    const clients = readFileSync(
+      path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8'
+    );
+    expect(code(clients)).toMatch(/vendorInCirculation\(/);
+    expect(code(clients)).not.toMatch(/\.reduce\s*\(/);
+  });
+
+  it('vendorInCirculation sums one vendor only and clamps negatives', () => {
+    const r = vendorInCirculation([
+      { balance_cfa: 2500 }, { balance_cfa: 600 }, { balance_cfa: 0 },
+    ]);
+    expect(r.totalCfa).toBe(3100);
+    expect(r.customerCount).toBe(2);
+
+    // Rule 2 makes a negative impossible; clamping means a bug could never
+    // understate what the vendor owes.
+    const avecNegatif = vendorInCirculation([{ balance_cfa: 1000 }, { balance_cfa: -500 }]);
+    expect(avecNegatif.totalCfa).toBe(1000);
+    expect(avecNegatif.customerCount).toBe(1);
   });
 });

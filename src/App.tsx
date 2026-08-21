@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import * as api from './lib/api';
 import type { Session, VendorProfile, CustomerProfile } from './lib/api';
+import { Bienvenue } from './screens/Bienvenue';
 import { Connexion } from './screens/Connexion';
 import { Inscription } from './screens/Inscription';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
-import { Confirmation } from './screens/client/Confirmation';
+import { EspaceClient } from './screens/client/EspaceClient';
+import { MesClients } from './screens/vendeur/MesClients';
 import { Entete, Message, BoutonPrimaire, BoutonSecondaire, BoutonDiscret, Version } from './components/ui';
 
 const CLE_SESSION = 'sika.session';
@@ -31,7 +33,8 @@ function enregistrerSession(s: Session | null) {
   }
 }
 
-type VueVendeur = 'accueil' | 'garder' | 'utiliser';
+type VueVendeur = 'accueil' | 'garder' | 'utiliser' | 'clients';
+type Porte = 'bienvenue' | 'connexion' | 'inscription';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(chargerSession);
@@ -41,7 +44,8 @@ export default function App() {
   const [avis, setAvis] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
-  const [inscription, setInscription] = useState(false);
+  // First-time visitors land on Bienvenue; anyone with a session skips it.
+  const [porte, setPorte] = useState<Porte>('bienvenue');
 
   // Resolve the profile behind the session. A stored token that no longer
   // works logs the user out rather than leaving a half-loaded screen.
@@ -82,7 +86,7 @@ export default function App() {
   }, [session]);
 
   function inscrit(s: Session) {
-    setInscription(false);
+    setPorte('bienvenue');
     connexion(s, null);
   }
 
@@ -102,8 +106,17 @@ export default function App() {
     enregistrerSession(null);
   }
 
-  if (!session && inscription) {
-    return <Inscription onInscrit={inscrit} onRetour={() => setInscription(false)} />;
+  if (!session && porte === 'bienvenue') {
+    return (
+      <Bienvenue
+        onConnexion={() => setPorte('connexion')}
+        onInscription={() => setPorte('inscription')}
+      />
+    );
+  }
+
+  if (!session && porte === 'inscription') {
+    return <Inscription onInscrit={inscrit} onRetour={() => setPorte('bienvenue')} />;
   }
 
   if (!session) {
@@ -114,7 +127,7 @@ export default function App() {
             <Message ton="erreur">{erreur}</Message>
           </div>
         ) : null}
-        <Connexion onConnecte={connexion} onInscription={() => setInscription(true)} />
+        <Connexion onConnecte={connexion} onInscription={() => setPorte('inscription')} />
       </>
     );
   }
@@ -150,7 +163,7 @@ export default function App() {
             <Message ton="info">{avis}</Message>
           </div>
         ) : null}
-        <Confirmation session={session} client={client} onDeconnexion={deconnexion} />
+        <EspaceClient session={session} client={client} onDeconnexion={deconnexion} />
       </>
     );
   }
@@ -180,6 +193,12 @@ export default function App() {
     );
   }
 
+  if (vue === 'clients') {
+    return (
+      <MesClients session={session} vendeur={vendeur} onTermine={() => setVue('accueil')} />
+    );
+  }
+
   return (
     <div className="ecran">
       <Entete
@@ -194,6 +213,9 @@ export default function App() {
         <div className="pile" style={{ gap: 'var(--espace-4)', marginTop: 'var(--espace-4)' }}>
           <BoutonPrimaire onClick={() => setVue('garder')}>Garder la monnaie</BoutonPrimaire>
           <BoutonSecondaire onClick={() => setVue('utiliser')}>Utiliser la monnaie</BoutonSecondaire>
+          {/* Placed with the two actions rather than in a menu: knowing what you
+              owe is the first thing a shopkeeper needs. */}
+          <BoutonSecondaire onClick={() => setVue('clients')}>Mes clients</BoutonSecondaire>
         </div>
       </div>
 

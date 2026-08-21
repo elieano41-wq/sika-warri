@@ -304,3 +304,37 @@ h2 { font-size: var(--titre-s); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* --------------------------------------------------------------------------
+   List rows — history and clients
+   -------------------------------------------------------------------------- */
+
+/* A tappable carnet. Reset the button chrome the browser adds, keep the card. */
+.carnet--cliquable {
+  border: none;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+}
+.carnet--cliquable:active { background: var(--vert-foret-haut); }
+
+.ligne-histoire,
+.ligne-client {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-4);
+  /* 64px, above the 56px working minimum: these are scanned quickly and tapped
+     with a thumb, often while holding something else. */
+  min-height: 64px;
+  padding: var(--espace-3) var(--espace-4);
+  background: var(--vert-foret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+}
+
+.ligne-client { appearance: none; font: inherit; color: inherit; }
+.ligne-client:active { background: var(--vert-foret-haut); }
+
+/* The history list is read, not tapped, so it carries no press state. */
+.ligne-histoire { background: transparent; border-color: var(--trait); }

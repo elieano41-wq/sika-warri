@@ -65,6 +65,20 @@ async function apiRegister(role, phone, pin, extra = {}) {
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 
+
+/**
+ * Does the page show this amount?
+ *
+ * Amounts render with a non-breaking space, and a literal in this file may be
+ * either kind. Comparing with every space removed sidesteps a class of false
+ * failures that look like missing data.
+ */
+function montantPresent(texte, attendu) {
+  // \s in JavaScript already covers U+00A0 and U+202F, so one class suffices.
+  const nu = (v) => v.replace(/\s/g, '');
+  return nu(texte).includes(nu(attendu));
+}
+
 /** Tap a sequence of digits on the built-in keypad. */
 async function tapDigits(page, digits) {
   for (const d of digits) {
@@ -80,8 +94,36 @@ async function tapDigits(page, digits) {
  * test drives. Registering via the API instead would leave the one screen a new
  * user actually meets completely unexercised.
  */
+/**
+ * Log in through the UI, starting from the landing screen.
+ *
+ * A first-time visitor now lands on Bienvenue rather than a login form, so
+ * reaching the PIN entry means going through the "J'ai déjà un compte" door.
+ */
+async function loginViaUI(page, role, phone, pin) {
+  await page.goto(APP);
+  await page.getByRole('button', { name: "J'ai déjà un compte" }).click();
+  await page.getByRole('heading', { name: 'Connexion' }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: role === 'vendor' ? 'Commerçant' : 'Client' }).click();
+  await tapDigits(page, phone);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+  await tapDigits(page, pin);
+}
+
 async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
   await page.goto(APP);
+
+  // The landing screen. Checked once, on the vendor's device.
+  if (role === 'vendor') {
+    const accueil = (await page.textContent('body')).replace(/\s+/g, ' ');
+    check('landing screen explains the product before asking anything',
+      /Votre monnaie ne se perd plus/i.test(accueil)
+      && /reste chez lui/i.test(accueil), accueil.slice(0, 160));
+    check('landing screen offers BOTH doors',
+      accueil.includes('Créer un compte') && accueil.includes("J'ai déjà un compte"));
+    await page.screenshot({ path: 'artifacts/a1-bienvenue.png' });
+  }
+
   await page.getByRole('button', { name: 'Créer un compte' }).click();
   await page.getByRole('heading', { name: 'Vous êtes ?' }).waitFor({ timeout: 20000 });
 
@@ -312,11 +354,33 @@ try {
   check('le carnet is rendered', (await pv.locator('.carnet').count()) > 0);
   await pv.screenshot({ path: 'artifacts/03-garder-recu.png' });
 
-  // ===== the customer's device is already registered and waiting =========
-  console.log('\n--- customer device, waiting ---');
-  await pc.getByRole('heading', { name: 'Aucune demande' }).waitFor({ timeout: 20000 });
-  check('customer sees no pending request yet', true);
-  await pc.screenshot({ path: 'artifacts/04-client-attente.png' });
+  // ===== the customer's device sits on their balances ====================
+  //
+  // With nothing pending, the customer's home IS their balance screen. The
+  // confirmation view takes over only when a request arrives — ordering by
+  // urgency rather than putting the urgent thing behind a tab.
+  console.log('\n--- customer device, on their balances ---');
+  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 25000 });
+  check('customer home is their balance screen when nothing is pending', true);
+
+  // The credit was recorded on the vendor's device moments ago. This screen
+  // polls every 8 seconds, so waiting for the figure to APPEAR is the actual
+  // behaviour under test: a customer watching their phone should see new change
+  // arrive without touching anything.
+  let apparu = true;
+  try {
+    await pc.waitForFunction(
+      () => document.body.innerText.replace(/\s/g, '').includes('1500'),
+      null,
+      { timeout: 20000 }
+    );
+  } catch {
+    apparu = false;
+  }
+  const avantDebit = await pc.textContent('body');
+  check('the credit appears on the customer screen unprompted', apparu,
+    avantDebit.slice(0, 250));
+  await pc.screenshot({ path: 'artifacts/04-client-ma-monnaie.png' });
 
   // ===== vendor proposes a debit ==========================================
   console.log('\n--- utiliser la monnaie ---');
@@ -367,6 +431,75 @@ try {
     vendeurApres.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/08-vendeur-confirme.png' });
 
+  // ===== Mes clients — the vendor's own book =============================
+  console.log('\n--- mes clients ---');
+  await pv.getByRole('button', { name: 'Terminer' }).click();
+  await pv.getByRole('button', { name: 'Mes clients' }).click();
+  await pv.getByRole('heading', { name: 'Mes clients' }).waitFor({ timeout: 20000 });
+
+  // Wait for the list itself, not just the heading. Asserting on figures while
+  // the fetch is in flight reads the loading placeholder.
+  await pv.locator('.ligne-client').first().waitFor({ timeout: 25000 });
+
+  const livre = (await pv.textContent('body')).replace(/ /g, ' ');
+  check('shows monnaie en circulation', /Monnaie en circulation/i.test(livre));
+  check('shows no misleading 0 F once loaded', !/Monnaie en circulation.?0.?F/i.test(livre));
+  // 1 500 credited, 400 spent, so the vendor still holds 1 100 for one customer.
+  check('circulation figure is 1 100 F', montantPresent(livre, '1 100'), livre.slice(0, 250));
+  check('one customer is listed', livre.includes('1 client concerné'), livre.slice(0, 250));
+  await pv.screenshot({ path: 'artifacts/c1-mes-clients.png' });
+
+  // Search narrows by number.
+  await pv.locator('input.champ__saisie').fill(CUSTOMER_PHONE.slice(0, 6));
+  const trouve = await pv.locator('.ligne-client').count();
+  check('search by number finds the customer', trouve === 1, `matched ${trouve}`);
+
+  await pv.locator('input.champ__saisie').fill('0000000000');
+  const rien = await pv.locator('.ligne-client').count();
+  check('a non-matching search shows nothing rather than everything', rien === 0);
+  await pv.locator('input.champ__saisie').fill('');
+
+  // Drill into that customer's history.
+  await pv.locator('.ligne-client').first().click();
+  await pv.getByRole('heading', { name: 'Détail' }).waitFor({ timeout: 20000 });
+  await pv.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
+  const detail = await pv.textContent('body');
+  check('history shows both the credit and the debit',
+    /Monnaie gard[ée]e/i.test(detail) && /Utilis[ée]e pour un achat/i.test(detail),
+    detail.slice(0, 300));
+  check('history shows a running balance', /reste/i.test(detail));
+  await pv.screenshot({ path: 'artifacts/c2-client-detail.png' });
+
+  // ===== Ma monnaie — the point of the product ===========================
+  console.log('\n--- ma monnaie (acceptance test 8) ---');
+  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 25000 });
+
+  const maMonnaie = (await pc.textContent('body')).replace(/ /g, ' ');
+  check('customer sees the shop by name', maMonnaie.includes('Chez Awa'));
+  check('customer sees their figure at that shop (1 100 F)',
+    montantPresent(maMonnaie, '1 100'), maMonnaie.slice(0, 300));
+  check('states the money stays with the vendor',
+    /reste chez le commer[çc]ant/i.test(maMonnaie));
+
+  // With ONE shop there must be no total at all — repeating the same number
+  // under a "spread across" caption would imply a pool.
+  check('NO informational total with a single shop',
+    !/à titre d'information/i.test(maMonnaie), maMonnaie.slice(0, 300));
+  check('never presents a spendable total',
+    !/monnaie totale/i.test(maMonnaie) && !/total disponible/i.test(maMonnaie));
+  await pc.screenshot({ path: 'artifacts/b1-ma-monnaie.png' });
+
+  // Drill into the shop's history.
+  await pc.locator('.carnet--cliquable').first().click();
+  await pc.getByRole('heading', { name: 'Détail' }).waitFor({ timeout: 20000 });
+  await pc.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
+  const histoireClient = await pc.textContent('body');
+  check('customer history lists their own movements',
+    /Monnaie gard[ée]e/i.test(histoireClient));
+  check('customer is told they can ask for cash back',
+    /rembourser en esp[èe]ces/i.test(histoireClient), histoireClient.slice(0, 300));
+  await pc.screenshot({ path: 'artifacts/b2-boutique-detail.png' });
+
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');
   const etroit = await navigateur.newContext({
@@ -374,7 +507,7 @@ try {
   });
   const pe = await etroit.newPage();
   await pe.goto(APP);
-  await pe.getByRole('button', { name: 'Commerçant' }).click();
+  await pe.getByRole('heading', { name: /Votre monnaie ne se perd plus/ }).waitFor({ timeout: 20000 });
   const deborde320 = await pe.evaluate(() =>
     document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
   );
@@ -386,11 +519,7 @@ try {
   console.log('\n--- offline behaviour ---');
   const horsLigne = await navigateur.newContext({ viewport: TELEPHONE, locale: 'fr-FR' });
   const ph = await horsLigne.newPage();
-  await ph.goto(APP);
-  await ph.getByRole('button', { name: 'Commerçant' }).click();
-  await tapDigits(ph, VENDOR_PHONE);
-  await ph.getByRole('button', { name: 'Continuer' }).click();
-  await tapDigits(ph, VENDOR_PIN);
+  await loginViaUI(ph, 'vendor', VENDOR_PHONE, VENDOR_PIN);
   await ph.getByRole('heading', { name: 'Que faites-vous ?' }).waitFor({ timeout: 20000 });
   await horsLigne.setOffline(true);
   await ph.evaluate(() => window.dispatchEvent(new Event('offline')));

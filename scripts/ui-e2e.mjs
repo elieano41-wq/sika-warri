@@ -72,18 +72,88 @@ async function tapDigits(page, digits) {
   }
 }
 
+/**
+ * Register through the UI, exactly as a shopkeeper standing in their boutique
+ * would — no API shortcut.
+ *
+ * This is the flow that has to work with nobody helping, so it is the flow the
+ * test drives. Registering via the API instead would leave the one screen a new
+ * user actually meets completely unexercised.
+ */
+async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
+  await page.goto(APP);
+  await page.getByRole('button', { name: 'Créer un compte' }).click();
+  await page.getByRole('heading', { name: 'Vous êtes ?' }).waitFor({ timeout: 20000 });
+
+  await page.getByRole('button', { name: role === 'vendor' ? 'Commerçant' : 'Client' }).click();
+
+  // phone
+  await page.getByRole('heading', { name: 'Votre numéro' }).waitFor();
+  await tapDigits(page, phone);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+
+  // name
+  await page
+    .getByRole('heading', { name: role === 'vendor' ? 'Nom de la boutique' : 'Votre prénom' })
+    .waitFor();
+  await page.locator('input.champ__saisie').fill(nom);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+
+  if (role === 'vendor') {
+    // quartier
+    await page.getByRole('heading', { name: 'Votre quartier' }).waitFor();
+    await page.locator('input.champ__saisie').fill(quartier);
+    await page.getByRole('button', { name: 'Continuer' }).click();
+
+    // the disclosure — a real tap, never pre-ticked
+    await page.getByRole('heading', { name: 'À lire avant de continuer' }).waitFor();
+    const texte = (await page.textContent('body')).replace(/\s+/g, ' ');
+    const attendu =
+      "Sika Warri est un service d'enregistrement. Sika Warri ne détient, ne reçoit et ne transfère aucun fonds.";
+    check('the verbatim disclosure is shown in full before signing up',
+      texte.includes(attendu), texte.slice(0, 200));
+
+    const avant = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
+    check('cannot continue without acknowledging the disclosure', avant === true);
+
+    await page.getByRole('button', { name: /J'ai lu et j'accepte/ }).click();
+    const apres = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
+    check('acknowledging enables continue', apres === false);
+    await page.getByRole('button', { name: 'Continuer' }).click();
+  }
+
+  // PIN, with the rules shown before typing
+  await page.getByRole('heading', { name: 'Choisissez votre code' }).waitFor();
+  const regles = (await page.textContent('body')).replace(/\s+/g, ' ');
+  check(`PIN rules explained BEFORE typing (${role})`,
+    /pas 0000/i.test(regles) && /pas 1234/i.test(regles), regles.slice(0, 200));
+  check(`told never to share the code (${role})`,
+    /Ne donnez ce code à personne/i.test(regles));
+
+  // A deliberately weak PIN must be refused before submission, not after.
+  const faible = role === 'vendor' ? '123456' : '1234';
+  await tapDigits(page, faible);
+  const bloque = await page.getByRole('button', { name: 'Créer mon compte' }).isDisabled();
+  check(`a sequential PIN is refused before submitting (${role})`, bloque === true);
+  await page.getByRole('button', { name: 'Tout effacer' }).click();
+
+  await tapDigits(page, pin);
+  await page.getByRole('button', { name: 'Créer mon compte' }).click();
+
+  await page.getByRole('heading', { name: "C'est fait" }).waitFor({ timeout: 30000 });
+  check(`${role} registration completes`, true);
+
+  await page.getByRole('button', { name: 'Commencer' }).click();
+}
+
 // ---------------------------------------------------------------------------
 
 mkdirSync('artifacts', { recursive: true });
 
-console.log(`Registering test accounts on ${BASE_API}`);
-const rv = await apiRegister('vendor', VENDOR_PHONE, VENDOR_PIN, {
-  businessName: 'Chez Awa', quartier: 'Yopougon', commune: 'Abidjan', termsAccepted: true,
-});
-if (rv.body?.ok !== true) throw new Error(`vendor register failed: ${JSON.stringify(rv.body)}`);
-const rc = await apiRegister('customer', CUSTOMER_PHONE, CUSTOMER_PIN);
-if (rc.body?.ok !== true) throw new Error(`customer register failed: ${JSON.stringify(rc.body)}`);
-console.log(`  vendor 225${VENDOR_PHONE}, customer 225${CUSTOMER_PHONE}\n`);
+// Accounts are created THROUGH THE UI below, not through the API. The
+// registration screen is the one screen every new user meets, so shortcutting
+// it in the test would leave it the least exercised part of the app.
+console.log(`Test numbers: vendor 225${VENDOR_PHONE}, customer 225${CUSTOMER_PHONE}\n`);
 
 let serveur = null;
 if (LOCAL) {
@@ -155,17 +225,27 @@ try {
   check('version marker is a real commit, not the fallback',
     sha !== null && sha[1] !== 'inconnu', sha?.[1]);
 
-  // ===== vendor logs in ==================================================
-  console.log('\n--- vendor logs in ---');
-  await pv.getByRole('button', { name: 'Commerçant' }).click();
-  await tapDigits(pv, VENDOR_PHONE);
-  await pv.getByRole('button', { name: 'Continuer' }).click();
-  await tapDigits(pv, VENDOR_PIN);
+  // ===== vendor registers themselves, unaided ============================
+  console.log('\n--- vendor registers, unaided ---');
+  await registerViaUI(pv, 'vendor', {
+    phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: 'Chez Awa', quartier: 'Yopougon',
+  });
 
   await pv.getByRole('heading', { name: 'Que faites-vous ?' }).waitFor({ timeout: 20000 });
   check('vendor reaches the home screen', true);
   check('shop name is shown', (await pv.textContent('body')).includes('Chez Awa'));
   await pv.screenshot({ path: 'artifacts/01-vendeur-accueil.png' });
+
+  // ===== customer registers on the OTHER device ==========================
+  //
+  // Registered separately, on their own device, before the vendor needs them.
+  // Amendment H means a customer who cannot register cannot complete a single
+  // debit, and the vendor is not permitted to register them on their behalf.
+  console.log('\n--- customer registers on a second device ---');
+  await registerViaUI(pc, 'customer', {
+    phone: CUSTOMER_PHONE, pin: CUSTOMER_PIN, nom: 'Awa', quartier: '',
+  });
+  await pc.screenshot({ path: 'artifacts/00-inscription-client.png' });
 
   // ===== legibility, measured on the rendered page ========================
   console.log('\n--- legibility, measured at 360px ---');
@@ -232,13 +312,8 @@ try {
   check('le carnet is rendered', (await pv.locator('.carnet').count()) > 0);
   await pv.screenshot({ path: 'artifacts/03-garder-recu.png' });
 
-  // ===== customer logs in on the OTHER device ============================
-  console.log('\n--- customer logs in on a second device ---');
-  await pc.goto(APP);
-  await pc.getByRole('button', { name: 'Client' }).click();
-  await tapDigits(pc, CUSTOMER_PHONE);
-  await pc.getByRole('button', { name: 'Continuer' }).click();
-  await tapDigits(pc, CUSTOMER_PIN);
+  // ===== the customer's device is already registered and waiting =========
+  console.log('\n--- customer device, waiting ---');
   await pc.getByRole('heading', { name: 'Aucune demande' }).waitFor({ timeout: 20000 });
   check('customer sees no pending request yet', true);
   await pc.screenshot({ path: 'artifacts/04-client-attente.png' });

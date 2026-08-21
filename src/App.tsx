@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as api from './lib/api';
 import type { Session, VendorProfile, CustomerProfile } from './lib/api';
 import { Connexion } from './screens/Connexion';
+import { Inscription } from './screens/Inscription';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { Confirmation } from './screens/client/Confirmation';
@@ -40,6 +41,7 @@ export default function App() {
   const [avis, setAvis] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
+  const [inscription, setInscription] = useState(false);
 
   // Resolve the profile behind the session. A stored token that no longer
   // works logs the user out rather than leaving a half-loaded screen.
@@ -79,6 +81,11 @@ export default function App() {
     return () => { annule = true; };
   }, [session]);
 
+  function inscrit(s: Session) {
+    setInscription(false);
+    connexion(s, null);
+  }
+
   function connexion(s: Session, notice: string | null) {
     setErreur(null);
     setAvis(notice);
@@ -95,6 +102,10 @@ export default function App() {
     enregistrerSession(null);
   }
 
+  if (!session && inscription) {
+    return <Inscription onInscrit={inscrit} onRetour={() => setInscription(false)} />;
+  }
+
   if (!session) {
     return (
       <>
@@ -103,7 +114,7 @@ export default function App() {
             <Message ton="erreur">{erreur}</Message>
           </div>
         ) : null}
-        <Connexion onConnecte={connexion} />
+        <Connexion onConnecte={connexion} onInscription={() => setInscription(true)} />
       </>
     );
   }

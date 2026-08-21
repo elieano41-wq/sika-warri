@@ -2,8 +2,10 @@ import { useState } from 'react';
 import * as api from '../lib/api';
 import type { Role, Session } from '../lib/api';
 import {
-  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonDiscret, Version,
+  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonSecondaire,
+  BoutonDiscret, Version,
 } from '../components/ui';
+import { Installer } from '../components/Installer';
 import { formatPhoneLocal } from '../lib/format';
 
 /**
@@ -15,8 +17,10 @@ import { formatPhoneLocal } from '../lib/format';
  */
 export function Connexion({
   onConnecte,
+  onInscription,
 }: {
   onConnecte: (s: Session, avertissement: string | null) => void;
+  onInscription: () => void;
 }) {
   const [role, setRole] = useState<Role>('vendor');
   const [etape, setEtape] = useState<'numero' | 'code'>('numero');
@@ -155,6 +159,10 @@ export function Connexion({
             Changer de numéro
           </BoutonDiscret>
         )}
+        {/* The way in for someone who has no account. Prominent on purpose:
+            an app you cannot sign up for is an app nobody can use. */}
+        <BoutonSecondaire onClick={onInscription}>Créer un compte</BoutonSecondaire>
+        <Installer compact />
         <Version />
       </div>
     </div>

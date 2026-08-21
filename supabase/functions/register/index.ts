@@ -25,10 +25,18 @@ interface Body {
   phone?: string;
   pin?: string;
   role?: Role;
+  /** A customer's own first name. The only personal detail collected. */
+  displayName?: string;
   businessName?: string;
   quartier?: string;
   commune?: string;
   termsAccepted?: boolean;
+}
+
+/** Trim and cap a free-text name. Empty becomes null rather than ''. */
+function cleanName(value: string | undefined): string | null {
+  const trimmed = (value ?? '').trim().replace(/\s+/g, ' ');
+  return trimmed === '' ? null : trimmed.slice(0, 60);
 }
 
 /** Registration abuse ceiling per IP. Generous for a shared connection in a
@@ -150,10 +158,17 @@ Deno.serve(handler(async (req) => {
   let profileError: unknown = null;
 
   if (existing?.id) {
-    const { error } = await db
-      .from(table)
-      .update({ auth_user_id: authUserId, pepper_version: version })
-      .eq('id', existing.id);
+    // Linking a stub a vendor created inline. The customer's own name takes
+    // precedence over nothing, but never overwrites a name already there with
+    // an empty one.
+    const patch: Record<string, unknown> = {
+      auth_user_id: authUserId,
+      pepper_version: version,
+    };
+    const nom = cleanName(body.displayName);
+    if (role === 'customer' && nom) patch.display_name = nom;
+
+    const { error } = await db.from(table).update(patch).eq('id', existing.id);
     profileError = error;
   } else if (role === 'vendor') {
     const { error } = await db.from('vendors').insert({
@@ -171,6 +186,10 @@ Deno.serve(handler(async (req) => {
     const { error } = await db.from('customers').insert({
       auth_user_id: authUserId,
       phone: msisdn,
+      // The customer's own name, set by them. Distinct from
+      // vendor_customer_labels, which is what a vendor privately calls them
+      // and is never shown to anyone else (amendment F).
+      display_name: cleanName(body.displayName),
       pepper_version: version,
     });
     profileError = error;

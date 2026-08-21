@@ -120,6 +120,7 @@ export async function register(input: {
   role: Role;
   phone: string;
   pin: string;
+  displayName?: string;
   businessName?: string;
   quartier?: string;
   commune?: string;

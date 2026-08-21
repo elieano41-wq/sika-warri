@@ -115,6 +115,8 @@ export async function seedCustomer(
   return { id: rows[0].id, authUserId, phone };
 }
 
+export type ConfirmationMethod = 'own_device' | 'vendor_device';
+
 export interface PostArgs {
   vendorId: string;
   customerId: string;
@@ -126,6 +128,8 @@ export interface PostArgs {
   customerConfirmed?: boolean;
   reversesEntryId?: string | null;
   note?: string | null;
+  /** Omitted means own_device — the safe value. vendor_device must be explicit. */
+  confirmationMethod?: ConfirmationMethod;
 }
 
 /** Call the RPC exactly as a client would, positionally. */
@@ -133,7 +137,7 @@ export async function postEntry(db: pg.Client, a: PostArgs) {
   const { rows } = await db.query(
     `select * from public.post_ledger_entry(
        $1::uuid, $2::uuid, $3::text, $4::text, $5::integer, $6::text,
-       $7::uuid, $8::boolean, $9::uuid, $10::text
+       $7::uuid, $8::boolean, $9::uuid, $10::text, $11::text
      )`,
     [
       a.vendorId,
@@ -146,7 +150,72 @@ export async function postEntry(db: pg.Client, a: PostArgs) {
       a.customerConfirmed ?? false,
       a.reversesEntryId ?? null,
       a.note ?? null,
+      a.confirmationMethod ?? 'own_device',
     ]
+  );
+  return rows[0];
+}
+
+/** Vendor proposes a debit (amendment H step 1). */
+export async function createPendingDebit(
+  db: pg.Client,
+  a: {
+    vendorId: string;
+    customerId: string;
+    kind: 'purchase' | 'refund';
+    amount: number;
+    actorUserId: string;
+    idempotencyKey?: string;
+  }
+) {
+  const { rows } = await db.query(
+    `select * from public.create_pending_debit(
+       $1::uuid, $2::uuid, $3::text, $4::integer, $5::text, $6::uuid)`,
+    [
+      a.vendorId,
+      a.customerId,
+      a.kind,
+      a.amount,
+      a.idempotencyKey ?? randomUUID(),
+      a.actorUserId,
+    ]
+  );
+  return rows[0];
+}
+
+/** Customer accepts, on their own device (amendment H step 3). */
+export async function confirmPendingDebit(
+  db: pg.Client,
+  pendingId: string,
+  customerAuthUserId: string
+) {
+  const { rows } = await db.query(
+    'select * from public.confirm_pending_debit($1::uuid, $2::uuid)',
+    [pendingId, customerAuthUserId]
+  );
+  return rows[0];
+}
+
+/** Force a proposal into the past, to test expiry without waiting 180s. */
+export async function expirePendingDebit(db: pg.Client, pendingId: string) {
+  await actAsAdmin(db);
+  await db.query(
+    `update public.pending_debits
+        set expires_at = created_at + interval '1 second'
+      where id = $1`,
+    [pendingId]
+  );
+}
+
+export async function customerFlags(
+  db: pg.Client,
+  customerId: string
+): Promise<{ pin_change_required: boolean; vendor_device_notice_seen_at: Date | null }> {
+  await actAsAdmin(db);
+  const { rows } = await db.query(
+    `select pin_change_required, vendor_device_notice_seen_at
+       from public.customers where id = $1`,
+    [customerId]
   );
   return rows[0];
 }

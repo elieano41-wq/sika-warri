@@ -115,7 +115,12 @@ export async function seedCustomer(
   return { id: rows[0].id, authUserId, phone };
 }
 
-export type ConfirmationMethod = 'own_device' | 'vendor_device';
+export type ConfirmationMethod =
+  | 'own_device'
+  | 'vendor_device'
+  // A reversal the vendor made alone, inside the correction window. Never
+  // carries customer_confirmed_at, because no customer saw it.
+  | 'vendor_correction';
 
 export interface PostArgs {
   vendorId: string;

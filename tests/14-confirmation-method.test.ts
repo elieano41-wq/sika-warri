@@ -171,6 +171,47 @@ describe('acceptance test 14 — vendor_device provenance', () => {
     expect(code).toBe('SW010'); // SIKA_PIN_CHANGE_REQUIRED
   });
 
+  it('a REFUND succeeds while pin_change_required is true — the escape valve', async () => {
+    // Ratified explicitly: the refund path must never be blocked by the
+    // stale-PIN gate. It is what keeps the recorded change a plain commercial
+    // debt the customer can always call in, rather than something the product
+    // can trap. If this test ever fails, a phone-less customer has lost access
+    // to their own money.
+    await actAsAdmin(db);
+    await postEntry(db, {
+      vendorId: vendor.id, customerId: customer.id,
+      direction: 'debit', kind: 'purchase', amount: 100,
+      actorUserId: vendor.authUserId, customerConfirmed: true,
+      confirmationMethod: 'vendor_device',
+    });
+
+    const flags = await customerFlags(db, customer.id);
+    expect(flags.pin_change_required).toBe(true);
+
+    // Both confirmation methods must work for a refund under a stale PIN.
+    await actAsAdmin(db);
+    const ownDevice = await postEntry(db, {
+      vendorId: vendor.id, customerId: customer.id,
+      direction: 'debit', kind: 'refund', amount: 700,
+      actorUserId: vendor.authUserId, customerConfirmed: true,
+      confirmationMethod: 'own_device',
+    });
+    expect(ownDevice.kind).toBe('refund');
+    expect(ownDevice.confirmation_method).toBe('own_device');
+
+    await actAsAdmin(db);
+    const vendorDevice = await postEntry(db, {
+      vendorId: vendor.id, customerId: customer.id,
+      direction: 'debit', kind: 'refund', amount: 1200,
+      actorUserId: vendor.authUserId, customerConfirmed: true,
+      confirmationMethod: 'vendor_device',
+    });
+    expect(vendorDevice.kind).toBe('refund');
+
+    // The whole balance came back out as cash.
+    expect(await balanceOf(db, vendor.id, customer.id)).toBe(0);
+  });
+
   it('still allows a REFUND with a stale PIN — money must never be stranded', async () => {
     // Deliberate interpretation of amendment I, flagged for review. A customer
     // with no smartphone has no own-device login at which to clear the flag, so

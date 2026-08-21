@@ -157,10 +157,19 @@ describe('handlers derive identity ONLY from the verified token', () => {
   it.each(AUTHENTICATED)('%s passes only caller.authUserId as the actor', (fn) => {
     const src = code(sourceOf(fn));
 
-    // Every actor argument handed to the data layer must be the verified id.
-    const actorArgs = [...src.matchAll(/p_(?:actor|customer_actor)_user_id:\s*([^,\n]+)/g)];
-    for (const m of actorArgs) {
-      expect(m[1]!.trim()).toBe('caller.authUserId');
+    // EVERY identity argument handed to the data layer must be the verified id
+    // — actor arguments and the auth_user_id that change-pin passes alike.
+    // Terminate on } as well as , and newline: some calls pass the argument
+    // object inline, so the last property has no trailing comma.
+    const identityArgs = [
+      ...src.matchAll(
+        /p_(?:actor_user_id|customer_actor_user_id|auth_user_id):\s*([^,\n}]+)/g
+      ),
+    ];
+    expect(identityArgs.length, `${fn} passes no identity to the data layer`)
+      .toBeGreaterThan(0);
+    for (const m of identityArgs) {
+      expect(m[1]!.trim(), `identity argument in ${fn}`).toBe('caller.authUserId');
     }
 
     // And every profile lookup must be keyed on it.

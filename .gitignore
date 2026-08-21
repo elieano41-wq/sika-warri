@@ -19,3 +19,7 @@ dist/
 *supabase-token*
 *.token
 *access-token*
+
+# Supabase CLI machine-local scratch: linked-project state, version probes and
+# a pooler URL. No credentials, but it differs per machine and per login.
+supabase/.temp/

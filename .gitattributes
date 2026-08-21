@@ -1,0 +1,4 @@
+# Keep line endings LF in the repository. CI runs on Linux and the workflow
+# contains shell blocks; CRLF leaking into those breaks them in ways that are
+# tedious to diagnose.
+* text=auto eol=lf

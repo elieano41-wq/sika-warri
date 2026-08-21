@@ -1,0 +1,92 @@
+name: CI
+
+# This job IS acceptance test 11. The migrations are applied to a stock
+# postgres:15 container with no Supabase tooling present, and the whole data
+# layer suite runs against it. If the ledger ever acquires a Supabase-specific
+# dependency, this fails rather than the dependency going unnoticed until a
+# migration to Neon or self-hosted Postgres is attempted.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  data-layer:
+    name: Data layer on stock Postgres 15
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sika_test
+        ports:
+          - 5432:5432
+        # Without the healthcheck the first migration can race the server
+        # accepting connections, producing a flaky ECONNREFUSED.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/sika_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Confirm the target really is stock Postgres 15
+        # Guards the premise of the whole job: if this ever reports a Supabase
+        # image or a different major version, test 11 proves nothing.
+        run: |
+          node -e "
+          const pg = require('pg');
+          (async () => {
+            const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
+            await c.connect();
+            const { rows } = await c.query('show server_version');
+            console.log('server_version:', rows[0].server_version);
+            const auth = await c.query(
+              \"select count(*)::int as n from pg_namespace where nspname = 'auth'\"
+            );
+            console.log('auth schema present:', auth.rows[0].n > 0);
+            if (auth.rows[0].n > 0) {
+              throw new Error('auth schema present — this is not a stock instance');
+            }
+            if (!rows[0].server_version.startsWith('15')) {
+              throw new Error('expected Postgres 15, got ' + rows[0].server_version);
+            }
+            await c.end();
+          })();
+          "
+
+      - name: Check data-layer portability
+        run: node scripts/check-portability.mjs
+
+      - name: Apply migrations
+        run: npm run migrate
+
+      - name: Assert migrations are idempotent
+        # A re-run must be a clean no-op. Restores and repeated deploys depend
+        # on it, and a migration that only works on an empty database is a
+        # broken restore path waiting to be discovered at the worst moment.
+        run: npm run migrate
+
+      - name: Run acceptance tests
+        run: npm test
+
+      - name: Typecheck
+        run: npx tsc --noEmit

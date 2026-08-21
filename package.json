@@ -1,0 +1,20 @@
+{
+  "name": "sika-warri",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Closed-loop change-credit ledger for informal retail in Cote d'Ivoire",
+  "scripts": {
+    "migrate": "node scripts/migrate.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/pg": "^8.11.10",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

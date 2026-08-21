@@ -1,0 +1,40 @@
+project_id = "bltiifxlfmlfdoqnsdrz"
+
+# ---------------------------------------------------------------------------
+# Edge Functions
+#
+# verify_jwt = false on EVERY function, and not as a shortcut.
+#
+# The platform's built-in verify_jwt only understands the legacy JWT-based anon
+# and service_role keys. Those are disabled on this project in favour of the
+# sb_publishable_ / sb_secret_ format (amendment K), which are opaque strings
+# rather than JWTs — so the built-in check cannot validate them and rejects the
+# request with "Invalid JWT". Supabase's own guidance is to use --no-verify-jwt
+# whenever the new keys are in play.
+#
+# The consequence is deliberate and load-bearing: nothing has authenticated the
+# caller before a handler runs, so every function proves identity itself via
+# requireCaller() -> auth.getUser(). register and login have no caller to prove,
+# which is why the auth_attempts throttling is the only thing in front of a PIN
+# brute-force on those two.
+#
+# Keys must be sent on the `apikey` header ONLY. A publishable key placed on
+# Authorization: Bearer is parsed as a JWT and rejected; requireCaller detects
+# that specific mistake and names it, because the resulting error is otherwise
+# baffling to debug.
+# ---------------------------------------------------------------------------
+
+[functions.register]
+verify_jwt = false
+
+[functions.login]
+verify_jwt = false
+
+[functions."change-pin"]
+verify_jwt = false
+
+[functions."initiate-debit"]
+verify_jwt = false
+
+[functions."confirm-debit"]
+verify_jwt = false

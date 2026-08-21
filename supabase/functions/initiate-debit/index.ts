@@ -15,8 +15,15 @@ import { normaliseMsisdn, NormalisationError } from '../_shared/identity.ts';
 interface Body {
   customerPhone?: string;
   amountCfa?: number;
-  kind?: 'purchase' | 'refund';
+  kind?: 'purchase' | 'refund' | 'reversal';
   idempotencyKey?: string;
+  /**
+   * Required when kind is 'reversal'. Only a CREDIT may be reversed this way:
+   * the 15-minute unilateral window (0013) covers a typo spotted at the stall,
+   * and this covers one noticed later, where the honest route is to ask the
+   * customer to agree.
+   */
+  reversesEntryId?: string;
 }
 
 Deno.serve(handler(async (req) => {
@@ -25,8 +32,16 @@ Deno.serve(handler(async (req) => {
   const db = serviceClient();
 
   const kind = body.kind ?? 'purchase';
-  if (kind !== 'purchase' && kind !== 'refund') {
+  if (kind !== 'purchase' && kind !== 'refund' && kind !== 'reversal') {
     return fail('KIND_INVALID', 'Type d\'opération invalide');
+  }
+
+  // A reversal must name what it reverses; nothing else may.
+  if (kind === 'reversal' && !body.reversesEntryId) {
+    return fail('REVERSAL_TARGET_REQUIRED', 'Écriture à corriger non précisée');
+  }
+  if (kind !== 'reversal' && body.reversesEntryId) {
+    return fail('ONLY_REVERSAL_MAY_REFERENCE', 'Demande invalide');
   }
 
   const amount = body.amountCfa;
@@ -76,6 +91,7 @@ Deno.serve(handler(async (req) => {
     p_amount_cfa: amount,
     p_idempotency_key: body.idempotencyKey ?? crypto.randomUUID(),
     p_actor_user_id: caller.authUserId,
+    p_reverses_entry_id: body.reversesEntryId ?? null,
   });
   if (pendErr) throw pendErr;
 

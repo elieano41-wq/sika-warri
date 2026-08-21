@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <!-- viewport-fit=cover so the layout reaches under a notch; the safe-area
+         inset is honoured in .ecran__pied. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B2E22" />
+    <meta name="description" content="Sika Warri — la monnaie gardée chez votre commerçant." />
+    <title>Sika Warri</title>
+
+    <!-- Fonts per spec section 7, subset to latin + latin-ext. preconnect
+         because on a slow mobile connection the handshake costs more than the
+         files. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap"
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+  </head>
+  <body>
+    <div id="racine"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

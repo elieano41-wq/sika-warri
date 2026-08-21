@@ -1,0 +1,295 @@
+/* ==========================================================================
+   Base styles and shared components.
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+* { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--police-texte);
+  font-size: var(--texte-base);
+  line-height: 1.45;
+  background: var(--vert-nuit);
+  color: var(--craie);
+  -webkit-font-smoothing: antialiased;
+  /* Stops a mistap on a number pad selecting the label text instead. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Everything focusable shows it, unmistakably. */
+:focus-visible {
+  outline: var(--anneau);
+  outline-offset: var(--anneau-ecart);
+  border-radius: var(--rayon-petit);
+}
+
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input  { font: inherit; color: inherit; }
+
+h1, h2, h3 { font-family: var(--police-titre); font-weight: 600; line-height: 1.15; }
+h1 { font-size: var(--titre-m); }
+h2 { font-size: var(--titre-s); }
+
+/* --------------------------------------------------------------------------
+   Layout
+   -------------------------------------------------------------------------- */
+
+.ecran {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  /* Full function down to 320px is a spec requirement, not a nicety: cheap
+     Androids in this market genuinely are this narrow. */
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: var(--espace-4);
+  gap: var(--espace-4);
+}
+
+.ecran__corps { flex: 1; display: flex; flex-direction: column; gap: var(--espace-4); }
+.ecran__pied  { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+.entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-3);
+  padding-block: var(--espace-2);
+}
+
+.entete__marque {
+  font-family: var(--police-titre);
+  font-weight: 600;
+  font-size: var(--texte-grand);
+  color: var(--or-sika);
+  letter-spacing: -0.01em;
+}
+
+.entete__boutique { color: var(--sauge); font-size: var(--texte-petit); }
+
+/* --------------------------------------------------------------------------
+   Amounts — always mono, always tabular
+   -------------------------------------------------------------------------- */
+
+.montant {
+  font-family: var(--police-chiffre);
+  /* Non-negotiable per spec: without tabular figures, a changing amount
+     shifts width mid-keystroke and the whole line jitters. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.montant--geant { font-size: var(--chiffre-geant); font-weight: 600; color: var(--or-sika); }
+.montant--grand { font-size: var(--chiffre-grand); font-weight: 600; color: var(--or-sika); }
+.montant--ligne { font-size: var(--texte-grand); font-weight: 500; }
+.montant--suffixe { font-size: 0.5em; color: var(--sauge); margin-left: 0.15em; }
+
+/* --------------------------------------------------------------------------
+   Le carnet — the signature element (spec section 7)
+   -------------------------------------------------------------------------- */
+
+/* Styled after the paper cahier a vendor already keeps: a thin gold rule down
+   the left edge, the shop name in the display face, the amount large in mono.
+   This is the one place to spend visual boldness; everything else stays quiet. */
+.carnet {
+  position: relative;
+  background: var(--vert-foret);
+  border-radius: var(--rayon);
+  padding: var(--espace-5) var(--espace-5) var(--espace-5) var(--espace-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-2);
+  overflow: hidden;
+}
+
+/* The rule itself. Inset from the edge, like the margin line on a school
+   exercise book. */
+.carnet::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: var(--espace-4);
+  width: 2px;
+  background: var(--or-sika);
+  opacity: 0.85;
+}
+
+/* Faint ruled lines, the paper it imitates. Kept very low contrast so it
+   reads as texture and never competes with the amount. */
+.carnet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2.15rem,
+    rgba(244, 241, 232, 0.055) 2.15rem,
+    rgba(244, 241, 232, 0.055) calc(2.15rem + 1px)
+  );
+}
+
+.carnet > * { position: relative; z-index: 1; }
+
+.carnet__boutique {
+  font-family: var(--police-titre);
+  font-weight: 600;
+  font-size: var(--titre-s);
+  color: var(--craie);
+}
+
+.carnet__quartier { color: var(--sauge); font-size: var(--texte-petit); }
+.carnet__etiquette { color: var(--sauge); font-size: var(--texte-petit); }
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.bouton {
+  min-height: var(--cible-min);
+  padding: var(--espace-3) var(--espace-5);
+  border-radius: var(--rayon);
+  font-weight: 600;
+  font-size: var(--texte-grand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espace-3);
+  text-align: center;
+  transition: background-color 80ms linear, transform 80ms linear;
+}
+
+.bouton:active { transform: translateY(1px); }
+.bouton:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.bouton--primaire {
+  background: var(--or-sika);
+  color: var(--vert-nuit-creux);
+  min-height: var(--cible-primaire);
+  width: 100%;
+  font-size: 1.5rem;
+}
+.bouton--primaire:active:not(:disabled) { background: var(--or-sika-ombre); }
+
+.bouton--secondaire {
+  background: var(--vert-foret);
+  color: var(--craie);
+  border: 1px solid var(--trait);
+  width: 100%;
+}
+.bouton--secondaire:active:not(:disabled) { background: var(--vert-foret-haut); }
+
+.bouton--discret {
+  background: none;
+  color: var(--sauge);
+  font-weight: 500;
+  font-size: var(--texte-base);
+  min-height: var(--cible-min);
+}
+
+.bouton--danger { background: var(--alerte); color: var(--vert-nuit-creux); width: 100%; }
+
+/* --------------------------------------------------------------------------
+   Numeric keypad — the main input device
+   -------------------------------------------------------------------------- */
+
+/* A real keypad rather than a number input. The Android soft keyboard covers
+   half a small screen, mis-fires on decimal separators, and hides the amount
+   being typed — which is the one thing that must stay visible. */
+.clavier {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--espace-3);
+}
+
+.clavier__touche {
+  min-height: var(--cible-clavier);
+  background: var(--vert-foret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  font-family: var(--police-chiffre);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--craie);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clavier__touche:active { background: var(--vert-foret-haut); }
+.clavier__touche--action { font-family: var(--police-texte); font-size: var(--texte-base); }
+
+/* --------------------------------------------------------------------------
+   Numeric display well
+   -------------------------------------------------------------------------- */
+
+.cadran {
+  background: var(--vert-nuit-creux);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  padding: var(--espace-5) var(--espace-4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-2);
+  align-items: center;
+}
+
+.cadran__etiquette {
+  color: var(--sauge);
+  font-size: var(--texte-petit);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* PIN dots. Large and widely spaced so a customer can see how many digits
+   they have entered without reading anything. */
+.pin { display: flex; gap: var(--espace-4); justify-content: center; }
+.pin__point {
+  width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  border: 2px solid var(--sauge);
+}
+.pin__point--plein { background: var(--or-sika); border-color: var(--or-sika); }
+
+/* --------------------------------------------------------------------------
+   Messages
+   -------------------------------------------------------------------------- */
+
+.message {
+  padding: var(--espace-4);
+  border-radius: var(--rayon);
+  font-size: var(--texte-base);
+  border-left: 4px solid transparent;
+}
+.message--erreur   { background: rgba(217, 106, 74, 0.16); border-left-color: var(--alerte); color: var(--craie); }
+.message--succes   { background: rgba(201, 162, 39, 0.14); border-left-color: var(--or-sika); }
+.message--info     { background: var(--vert-foret); border-left-color: var(--sauge); color: var(--craie); }
+
+.champ { display: flex; flex-direction: column; gap: var(--espace-2); }
+.champ__etiquette { color: var(--sauge); font-size: var(--texte-petit); }
+.champ__saisie {
+  min-height: var(--cible-min);
+  background: var(--vert-nuit-creux);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  padding: var(--espace-3) var(--espace-4);
+  font-family: var(--police-chiffre);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--texte-grand);
+  width: 100%;
+}
+
+.pile { display: flex; flex-direction: column; gap: var(--espace-3); }
+.centre { text-align: center; }
+.discret { color: var(--sauge); font-size: var(--texte-petit); }
+.compte-a-rebours { font-family: var(--police-chiffre); font-variant-numeric: tabular-nums; }
+
+/* A viewer with reduced-motion gets no transitions. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

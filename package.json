@@ -10,16 +10,32 @@
     "test:watch": "vitest",
     "smoke": "node scripts/smoke-pglite.mjs",
     "portability": "node scripts/check-portability.mjs",
-    "e2e:live": "node scripts/e2e-live.mjs"
+    "e2e:live": "node scripts/e2e-live.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.11.10",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
     "dotenv": "^16.4.7",
+    "jsdom": "^30.0.1",
     "pg": "^8.13.1",
     "supabase": "^2.115.0",
     "typescript": "^5.7.2",
+    "vite": "^5.4.21",
+    "vite-plugin-pwa": "^0.21.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

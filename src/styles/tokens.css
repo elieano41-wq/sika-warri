@@ -1,0 +1,86 @@
+/* ==========================================================================
+   Sika Warri — design tokens.  Section 7 of the build spec, made concrete.
+
+   Every number here is chosen for one situation: a market stall at midday, in
+   direct sun, on a cheap Android phone, held in one hand while the other is
+   making change. Where the spec sets a floor, this goes above it — a floor is
+   what is acceptable indoors, and none of this happens indoors.
+
+   If a number is not legible in sunlight, nothing else about the screen
+   matters. That is the rule the rest of these tokens serve.
+   ========================================================================== */
+
+:root {
+  /* ---- Palette (spec section 7, exact values) ------------------------- */
+  --vert-nuit:  #0B2E22;  /* page background */
+  --vert-foret: #14503A;  /* cards, raised surfaces */
+  --or-sika:    #C9A227;  /* primary action, amounts, the brand */
+  --or-clair:   #E8C558;  /* hover, focus rings */
+  --craie:      #F4F1E8;  /* primary text on dark */
+  --sauge:      #8FA79A;  /* secondary text on dark */
+  --alerte:     #D96A4A;  /* errors, blocked actions */
+
+  /* Derived, not invented. Sunlight washes out mid-tones, so separation
+     between surfaces has to be carried by borders and type weight rather than
+     by subtle fills that vanish outdoors. */
+  --vert-foret-haut: #1A6349;  /* pressed state on a card */
+  --vert-nuit-creux: #071F17;  /* inset wells, numeric display */
+  --or-sika-ombre:   #8E7119;  /* pressed state on the primary action */
+  --trait:           #2A6650;  /* hairline that survives glare */
+
+  /* ---- Type ----------------------------------------------------------- */
+  --police-titre:  'Bricolage Grotesque', system-ui, sans-serif;
+  --police-texte:  'Inter', system-ui, -apple-system, sans-serif;
+  --police-chiffre:'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Base is 18px, not the spec's 16px floor. At arm's length in glare, 16px
+     body text is where reading becomes squinting. */
+  --texte-base: 1.125rem;   /* 18px */
+  --texte-petit: 1rem;      /* 16px — the spec floor, used only for captions */
+  --texte-grand: 1.375rem;  /* 22px */
+  --titre-s: 1.5rem;
+  --titre-m: 2rem;
+  --titre-l: 2.5rem;
+
+  /* The balance figure. Deliberately enormous: this is the number a vendor
+     reads across a stall, and the one a customer checks before confirming.
+     clamp() keeps it inside a 320px viewport without wrapping. */
+  --chiffre-geant: clamp(2.75rem, 14vw, 4.5rem);
+  --chiffre-grand: clamp(2rem, 9vw, 3rem);
+
+  /* ---- Touch ---------------------------------------------------------- */
+  /* Spec floor is 48px. 56px is the working minimum here, and the primary
+     action is 72px: it gets pressed with a thumb, at speed, by someone whose
+     attention is on the customer rather than the screen. */
+  --cible-min: 56px;
+  --cible-primaire: 72px;
+  --cible-clavier: 68px;   /* numeric keypad key */
+
+  /* ---- Spacing -------------------------------------------------------- */
+  --espace-1: 0.25rem;
+  --espace-2: 0.5rem;
+  --espace-3: 0.75rem;
+  --espace-4: 1rem;
+  --espace-5: 1.5rem;
+  --espace-6: 2rem;
+  --espace-7: 3rem;
+
+  --rayon: 14px;
+  --rayon-petit: 8px;
+
+  /* ---- Focus ---------------------------------------------------------- */
+  /* 3px and offset, in the light gold. A hairline focus ring is invisible
+     outdoors, and this app will be used with a cracked screen protector. */
+  --anneau: 3px solid var(--or-clair);
+  --anneau-ecart: 3px;
+}
+
+/* The design is deliberately single-theme. A vendor does not switch to light
+   mode at noon — the dark ground with high-contrast chalk text IS the
+   sunlight-legible choice, because it keeps the bright pixels to the glyphs
+   rather than flooding the whole panel. Declared explicitly so the page never
+   inherits a host background. */
+html {
+  background: var(--vert-nuit);
+  color-scheme: dark;
+}

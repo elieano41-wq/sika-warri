@@ -1,0 +1,242 @@
+import type { ReactNode } from 'react';
+import { formatCfaDigits, formatCountdown } from '../lib/format';
+
+// ---------------------------------------------------------------------------
+// Montant
+// ---------------------------------------------------------------------------
+
+/**
+ * An amount, always in tabular mono with a space-grouped figure and the F
+ * suffix. The suffix is its own element at half size: at 4.5rem the F would
+ * otherwise dominate the digits, which are the part being read.
+ */
+export function Montant({
+  value,
+  taille = 'ligne',
+  className = '',
+}: {
+  value: number;
+  taille?: 'geant' | 'grand' | 'ligne';
+  className?: string;
+}) {
+  return (
+    <span className={`montant montant--${taille} ${className}`}>
+      {formatCfaDigits(value)}
+      <span className="montant--suffixe">F</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Clavier
+// ---------------------------------------------------------------------------
+
+const TOUCHES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+/**
+ * A built-in numeric keypad, not an <input type="number">.
+ *
+ * The Android soft keyboard covers half a small screen, offers a decimal
+ * separator this product has no use for (integer FCFA only), and hides the
+ * figure being typed — which is the one thing that must stay visible. Keys are
+ * 68px so they can be hit with a thumb while the other hand is counting coins.
+ */
+export function Clavier({
+  onDigit,
+  onEffacer,
+  onToutEffacer,
+}: {
+  onDigit: (d: string) => void;
+  onEffacer: () => void;
+  onToutEffacer: () => void;
+}) {
+  return (
+    <div className="clavier" role="group" aria-label="Clavier numérique">
+      {TOUCHES.map((t) => (
+        <button
+          key={t}
+          type="button"
+          className="clavier__touche"
+          onClick={() => onDigit(t)}
+          aria-label={t}
+        >
+          {t}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="clavier__touche clavier__touche--action"
+        onClick={onToutEffacer}
+        aria-label="Tout effacer"
+      >
+        C
+      </button>
+      <button
+        type="button"
+        className="clavier__touche"
+        onClick={() => onDigit('0')}
+        aria-label="0"
+      >
+        0
+      </button>
+      <button
+        type="button"
+        className="clavier__touche clavier__touche--action"
+        onClick={onEffacer}
+        aria-label="Effacer un chiffre"
+      >
+        ⌫
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Le carnet
+// ---------------------------------------------------------------------------
+
+/**
+ * The signature element (spec section 7): a card styled after the paper cahier
+ * a vendor already keeps. Gold rule down the left edge like a margin line,
+ * shop name in the display face, amount large in mono.
+ */
+export function Carnet({
+  boutique,
+  quartier,
+  montant,
+  etiquette,
+  children,
+}: {
+  boutique: string;
+  quartier?: string | null;
+  montant: number;
+  etiquette?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <article className="carnet">
+      <div>
+        <div className="carnet__boutique">{boutique}</div>
+        {quartier ? <div className="carnet__quartier">{quartier}</div> : null}
+      </div>
+      {etiquette ? <div className="carnet__etiquette">{etiquette}</div> : null}
+      <Montant value={montant} taille="grand" />
+      {children}
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PIN
+// ---------------------------------------------------------------------------
+
+/**
+ * Dots rather than digits or asterisks. A customer can see how many digits
+ * they have entered at a glance, without reading, and nobody standing beside
+ * them learns the length of a partially typed PIN from across a stall.
+ */
+export function PinPoints({ longueur, remplis }: { longueur: number; remplis: number }) {
+  return (
+    <div className="pin" role="img" aria-label={`${remplis} chiffre(s) sur ${longueur}`}>
+      {Array.from({ length: longueur }, (_, i) => (
+        <span key={i} className={`pin__point ${i < remplis ? 'pin__point--plein' : ''}`} />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chrome
+// ---------------------------------------------------------------------------
+
+export function Entete({ sousTitre, action }: { sousTitre?: string; action?: ReactNode }) {
+  return (
+    <header className="entete">
+      <div>
+        <div className="entete__marque">Sika Warri</div>
+        {sousTitre ? <div className="entete__boutique">{sousTitre}</div> : null}
+      </div>
+      {action}
+    </header>
+  );
+}
+
+export function Message({
+  ton,
+  children,
+}: {
+  ton: 'erreur' | 'succes' | 'info';
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`message message--${ton}`}
+      role={ton === 'erreur' ? 'alert' : 'status'}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function Cadran({
+  etiquette,
+  children,
+}: {
+  etiquette: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="cadran">
+      <div className="cadran__etiquette">{etiquette}</div>
+      {children}
+    </div>
+  );
+}
+
+export function Compteur({ secondes }: { secondes: number }) {
+  return (
+    <span className="compte-a-rebours" aria-live="off">
+      {formatCountdown(secondes)}
+    </span>
+  );
+}
+
+export function BoutonPrimaire({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button type="button" className="bouton bouton--primaire" onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+export function BoutonSecondaire({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button type="button" className="bouton bouton--secondaire" onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+export function BoutonDiscret({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="bouton bouton--discret" onClick={onClick}>
+      {children}
+    </button>
+  );
+}

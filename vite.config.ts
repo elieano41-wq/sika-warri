@@ -24,13 +24,27 @@ function buildId(): string {
   }
 }
 
+/**
+ * Was the working tree dirty when this build ran?
+ *
+ * Vite writes a temporary vite.config.ts.timestamp-*.mjs into the project root
+ * in order to load this very file, so a naive porcelain check sees an untracked
+ * file and reports EVERY build as dirty — including one made from a clean
+ * commit. That turns the marker's "+" into noise, and a warning that is always
+ * on tells you nothing. Vite's own scratch file is therefore excluded.
+ */
 function buildDirty(): boolean {
   try {
-    return (
-      execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'] })
-        .toString()
-        .trim().length > 0
-    );
+    const lignes = execSync('git status --porcelain', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .filter((l) => !/vite\.config\.[cm]?tsx?\.timestamp-/.test(l));
+
+    return lignes.length > 0;
   } catch {
     return false;
   }

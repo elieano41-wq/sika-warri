@@ -27,3 +27,7 @@ supabase/.temp/
 # Screenshots from the UI end-to-end run. Evidence, not source: regenerated
 # every run and different every time.
 artifacts/
+
+# Vite writes this into the project root while loading a TypeScript config.
+vite.config.ts.timestamp-*
+vite.config.*.timestamp-*

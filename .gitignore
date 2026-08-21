@@ -13,4 +13,9 @@ dist/
 .DS_Store
 
 # Supabase personal access token, pasted locally. Never committed.
+# Broad on purpose: Notepad appends .txt and drops the leading dot, so the
+# exact filename cannot be relied on. Anything token-shaped is excluded.
 .supabase-token
+*supabase-token*
+*.token
+*access-token*

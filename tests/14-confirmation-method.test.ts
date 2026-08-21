@@ -86,18 +86,22 @@ describe('acceptance test 14 — vendor_device provenance', () => {
   });
 
   it("appears flagged in the CUSTOMER's own history, not just the vendor's", async () => {
+    // own_device FIRST, deliberately. A vendor_device debit sets
+    // pin_change_required, which then blocks any own_device purchase until the
+    // PIN is changed — so the reverse order trips that gate and never reaches
+    // the assertions. Ordering it this way leaves both entries in history.
     await actAsAdmin(db);
-    await postEntry(db, {
-      vendorId: vendor.id, customerId: customer.id,
-      direction: 'debit', kind: 'purchase', amount: 500,
-      actorUserId: vendor.authUserId, customerConfirmed: true,
-      confirmationMethod: 'vendor_device',
-    });
     await postEntry(db, {
       vendorId: vendor.id, customerId: customer.id,
       direction: 'debit', kind: 'purchase', amount: 200,
       actorUserId: vendor.authUserId, customerConfirmed: true,
       confirmationMethod: 'own_device',
+    });
+    await postEntry(db, {
+      vendorId: vendor.id, customerId: customer.id,
+      direction: 'debit', kind: 'purchase', amount: 500,
+      actorUserId: vendor.authUserId, customerConfirmed: true,
+      confirmationMethod: 'vendor_device',
     });
 
     // Read as the customer, through RLS, exactly as their app would.

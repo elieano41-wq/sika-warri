@@ -196,12 +196,22 @@ export async function confirmPendingDebit(
   return rows[0];
 }
 
-/** Force a proposal into the past, to test expiry without waiting 180s. */
+/**
+ * Force a proposal into the past, to test expiry without waiting 180 seconds.
+ *
+ * Both timestamps move. Setting expires_at alone cannot work: the row was
+ * created milliseconds ago, so created_at + any positive interval is still in
+ * the future, and the expiry check would not fire. Pushing expires_at to at or
+ * before created_at instead violates pending_debits_expiry_after_creation. So
+ * the whole row is backdated, which is what a genuinely stale proposal looks
+ * like anyway.
+ */
 export async function expirePendingDebit(db: pg.Client, pendingId: string) {
   await actAsAdmin(db);
   await db.query(
     `update public.pending_debits
-        set expires_at = created_at + interval '1 second'
+        set created_at = now() - interval '1 hour',
+            expires_at = now() - interval '57 minutes'
       where id = $1`,
     [pendingId]
   );

@@ -26,7 +26,18 @@ const env = Object.fromEntries(
 const BASE_API = env.VITE_SUPABASE_URL;
 const APIKEY = env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const PORT = 4178;
-const APP = `http://localhost:${PORT}`;
+
+// Target the deployed site when given one, otherwise serve the local build.
+// Testing the deployed URL is the only way to catch a build whose env vars never
+// reached the browser: that failure surfaces as "ce numéro n'est pas encore
+// enregistré", not as an error, so it looks like a data problem rather than a
+// configuration one.
+//
+//   node scripts/ui-e2e.mjs                        -> local build
+//   node scripts/ui-e2e.mjs https://example.pages.dev -> deployed
+const CIBLE = process.env.SIKA_URL ?? process.argv[2] ?? null;
+const APP = CIBLE ?? `http://localhost:${PORT}`;
+const LOCAL = CIBLE === null;
 
 // A cheap Android in portrait. Not a desktop window shrunk down.
 const TELEPHONE = { width: 360, height: 740, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
@@ -74,10 +85,15 @@ const rc = await apiRegister('customer', CUSTOMER_PHONE, CUSTOMER_PIN);
 if (rc.body?.ok !== true) throw new Error(`customer register failed: ${JSON.stringify(rc.body)}`);
 console.log(`  vendor 225${VENDOR_PHONE}, customer 225${CUSTOMER_PHONE}\n`);
 
-console.log('Starting preview server…');
-const serveur = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
-  stdio: 'ignore', shell: true,
-});
+let serveur = null;
+if (LOCAL) {
+  console.log('Starting preview server…');
+  serveur = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+    stdio: 'ignore', shell: true,
+  });
+} else {
+  console.log(`Targeting DEPLOYED url ${APP}`);
+}
 
 // Wait for it rather than sleeping blindly.
 let pret = false;
@@ -87,7 +103,7 @@ for (let i = 0; i < 40 && !pret; i += 1) {
     if (r.ok) pret = true;
   } catch { await new Promise((r) => setTimeout(r, 500)); }
 }
-if (!pret) { serveur.kill(); throw new Error('preview server did not start'); }
+if (!pret) { serveur?.kill(); throw new Error(`${APP} did not respond`); }
 console.log(`  serving ${APP}\n`);
 
 const navigateur = await chromium.launch();
@@ -105,9 +121,42 @@ try {
     p.on('pageerror', (e) => erreursConsole.push(String(e)));
   }
 
-  // ===== vendor logs in ==================================================
-  console.log('--- vendor logs in ---');
+  // ===== configuration actually reached the browser ======================
+  //
+  // A missing VITE_ variable does not throw a network error — the app either
+  // fails to boot or, worse, points at nothing and reports every customer as
+  // unregistered. So the served bundle is inspected directly rather than
+  // inferred from the app appearing to work.
+  console.log('--- configuration reached the browser ---');
   await pv.goto(APP);
+
+  const html = await pv.content();
+  const chemins = [...html.matchAll(/src="([^"]*\.js)"/g)].map((m) => m[1]);
+  let bundleConfig = { url: false, cle: false, taille: 0 };
+  for (const chemin of chemins) {
+    const res = await pv.request.get(new URL(chemin, APP).toString());
+    const js = await res.text();
+    bundleConfig.taille += js.length;
+    if (js.includes(BASE_API)) bundleConfig.url = true;
+    if (js.includes(APIKEY)) bundleConfig.cle = true;
+  }
+
+  check(`VITE_SUPABASE_URL is in the served bundle`, bundleConfig.url,
+    `scanned ${chemins.length} script(s), ${bundleConfig.taille} bytes`);
+  check(`VITE_SUPABASE_PUBLISHABLE_KEY is in the served bundle`, bundleConfig.cle);
+
+  const configErreur = (await pv.textContent('body')) ?? '';
+  check('no configuration error on screen',
+    !/Configuration manquante/i.test(configErreur), configErreur.slice(0, 120));
+
+  const marqueur = await pv.textContent('body');
+  const sha = /build\s+([0-9a-f]{7}\+?|inconnu)/i.exec(marqueur ?? '');
+  check(`version marker visible (${sha ? sha[1] : 'ABSENT'})`, sha !== null);
+  check('version marker is a real commit, not the fallback',
+    sha !== null && sha[1] !== 'inconnu', sha?.[1]);
+
+  // ===== vendor logs in ==================================================
+  console.log('\n--- vendor logs in ---');
   await pv.getByRole('button', { name: 'Commerçant' }).click();
   await tapDigits(pv, VENDOR_PHONE);
   await pv.getByRole('button', { name: 'Continuer' }).click();
@@ -287,7 +336,7 @@ try {
   await telClient.close();
 } finally {
   await navigateur.close();
-  serveur.kill();
+  serveur?.kill();
 }
 
 console.log(`\n================ ${pass} passed, ${fail} failed ================`);

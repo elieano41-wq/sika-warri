@@ -246,3 +246,23 @@ export function BoutonDiscret({ onClick, children }: { onClick: () => void; chil
     </button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Build marker
+// ---------------------------------------------------------------------------
+
+/**
+ * Which build is this.
+ *
+ * Deliberately visible rather than hidden behind a settings screen: when
+ * something looks wrong in a market, the question "which version are you
+ * holding?" has to be answerable by reading the screen, not by navigating it.
+ * Small and in the sauge grey so it never competes with an amount.
+ */
+export function Version() {
+  return (
+    <p className="discret centre" style={{ fontFamily: 'var(--police-chiffre)', opacity: 0.75 }}>
+      build {__BUILD_SHA__} · {__BUILD_DATE__}
+    </p>
+  );
+}

@@ -5,7 +5,7 @@ import { Connexion } from './screens/Connexion';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { Confirmation } from './screens/client/Confirmation';
-import { Entete, Message, BoutonPrimaire, BoutonSecondaire, BoutonDiscret } from './components/ui';
+import { Entete, Message, BoutonPrimaire, BoutonSecondaire, BoutonDiscret, Version } from './components/ui';
 
 const CLE_SESSION = 'sika.session';
 
@@ -191,6 +191,7 @@ export default function App() {
           Sika Warri enregistre seulement. La monnaie reste chez vous et
           constitue une dette envers votre client.
         </p>
+        <Version />
       </div>
     </div>
   );

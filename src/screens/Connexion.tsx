@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as api from '../lib/api';
 import type { Role, Session } from '../lib/api';
 import {
-  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonDiscret,
+  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonDiscret, Version,
 } from '../components/ui';
 import { formatPhoneLocal } from '../lib/format';
 
@@ -155,6 +155,7 @@ export function Connexion({
             Changer de numéro
           </BoutonDiscret>
         )}
+        <Version />
       </div>
     </div>
   );

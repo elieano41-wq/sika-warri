@@ -1,8 +1,48 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+/**
+ * Identify the build, so a vendor standing in a market can say which one they
+ * are holding.
+ *
+ * Tries git first, then Cloudflare's own commit variable for a Pages-side
+ * build, then falls back to a marker that is obviously not a release. It never
+ * throws: a missing SHA must not be able to break a deploy.
+ */
+function buildId(): string {
+  const fromCloudflare = process.env.CF_PAGES_COMMIT_SHA;
+  if (fromCloudflare) return fromCloudflare.slice(0, 7);
+
+  try {
+    return execSync('git rev-parse --short=7 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'inconnu';
+  }
+}
+
+function buildDirty(): boolean {
+  try {
+    return (
+      execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim().length > 0
+    );
+  } catch {
+    return false;
+  }
+}
 
 export default defineConfig({
+  define: {
+    // Marked dirty when the working tree had uncommitted changes at build time,
+    // so a hand-built deploy is never mistaken for the commit it claims to be.
+    __BUILD_SHA__: JSON.stringify(buildId() + (buildDirty() ? '+' : '')),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')),
+  },
   plugins: [
     react(),
     VitePWA({

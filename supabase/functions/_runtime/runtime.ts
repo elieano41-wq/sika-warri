@@ -6,6 +6,7 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { readPepperSet, type PepperSet } from '../_shared/identity.ts';
+import { parseBearer } from '../_shared/bearer.ts';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -166,31 +167,28 @@ export interface Caller {
  * before this runs. Each function proves identity itself, here.
  */
 export async function requireCaller(req: Request): Promise<Caller> {
-  const header = req.headers.get('Authorization') ?? '';
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-
-  if (!match) {
-    throw new AuthError('NO_TOKEN', 'Session requise');
+  // Shape check first, in pure code covered by CI (see _shared/bearer.ts).
+  const parsed = parseBearer(req.headers.get('Authorization'));
+  if (!parsed.ok) {
+    throw new AuthError(parsed.code, parsed.message);
   }
 
-  const jwt = match[1]!.trim();
-
-  // A publishable key on Authorization is a client bug worth naming precisely,
-  // because the resulting "invalid JWT" is otherwise baffling. Keys belong on
-  // the apikey header.
-  if (jwt.startsWith('sb_publishable_') || jwt.startsWith('sb_secret_')) {
-    throw new AuthError(
-      'KEY_ON_AUTH_HEADER',
-      "Clé d'API envoyée à la place du jeton de session"
-    );
-  }
-
-  const { data, error } = await serviceClient().auth.getUser(jwt);
+  // Then the real thing. getUser(jwt) sends the token to Supabase's auth
+  // server, which verifies the SIGNATURE and the EXPIRY and resolves the
+  // subject. That is deliberately not attempted locally: validating a
+  // signature by hand here would mean handling the signing key and getting
+  // asymmetric key rotation right, and a mistake would be an authentication
+  // bypass rather than a bug.
+  //
+  // The returned id is the ONLY source of caller identity in this codebase.
+  // No handler reads a user id, vendor id or customer id from the request
+  // body — checked by tests/18-caller-identity.test.ts.
+  const { data, error } = await serviceClient().auth.getUser(parsed.jwt);
   if (error || !data?.user) {
     throw new AuthError('INVALID_TOKEN', 'Session expirée, reconnectez-vous');
   }
 
-  return { authUserId: data.user.id, jwt };
+  return { authUserId: data.user.id, jwt: parsed.jwt };
 }
 
 export class AuthError extends Error {

@@ -167,15 +167,17 @@ export async function createPendingDebit(
   a: {
     vendorId: string;
     customerId: string;
-    kind: 'purchase' | 'refund';
+    kind: 'purchase' | 'refund' | 'reversal';
     amount: number;
     actorUserId: string;
     idempotencyKey?: string;
+    /** Required when kind is 'reversal', forbidden otherwise. */
+    reversesEntryId?: string | null;
   }
 ) {
   const { rows } = await db.query(
     `select * from public.create_pending_debit(
-       $1::uuid, $2::uuid, $3::text, $4::integer, $5::text, $6::uuid)`,
+       $1::uuid, $2::uuid, $3::text, $4::integer, $5::text, $6::uuid, $7::uuid)`,
     [
       a.vendorId,
       a.customerId,
@@ -183,6 +185,7 @@ export async function createPendingDebit(
       a.amount,
       a.idempotencyKey ?? randomUUID(),
       a.actorUserId,
+      a.reversesEntryId ?? null,
     ]
   );
   return rows[0];

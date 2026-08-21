@@ -5,6 +5,7 @@ import {
   Clavier, Entete, Message, Cadran, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
 import { appendDigit, removeDigit, formatPhoneLocal } from '../../lib/format';
+import { SaisieClient } from '../../components/SaisieClient';
 
 /**
  * Garder la monnaie — the vendor records change they could not give.
@@ -40,7 +41,8 @@ export function GarderLaMonnaie({
 
   const plafond = vendeur.maxBalancePerCustomer;
 
-  async function chercherClient() {
+  async function chercherClient(msisdn: string) {
+    setNumero(msisdn);
     setErreur(null);
     setOccupe(true);
     try {
@@ -48,7 +50,7 @@ export function GarderLaMonnaie({
         session.accessToken,
         vendeur.id,
         vendeur.authUserId,
-        numero
+        msisdn
       );
 
       if (!r.exists || !r.customerId) {
@@ -118,6 +120,21 @@ export function GarderLaMonnaie({
   const total = (dejaChez ?? 0) + montant;
   const depasse = total > plafond;
 
+  // Identifying the customer is its own screen, shared with "Utiliser la
+  // monnaie", offering scan and typing as equal options.
+  if (etape === 'numero') {
+    return (
+      <SaisieClient
+        titre="Garder la monnaie"
+        sousTitre={vendeur.businessName}
+        erreur={erreur}
+        occupe={occupe}
+        onNumero={chercherClient}
+        onRetour={onTermine}
+      />
+    );
+  }
+
   return (
     <div className="ecran">
       <Entete
@@ -126,27 +143,6 @@ export function GarderLaMonnaie({
       />
 
       <div className="ecran__corps">
-        {etape === 'numero' && (
-          <>
-            <h1>Garder la monnaie</h1>
-            <p className="discret">Numéro du client</p>
-
-            <Cadran etiquette="Téléphone du client">
-              <span className="montant montant--grand" style={{ color: 'var(--craie)' }}>
-                {numero ? formatPhoneLocal(numero) : '—'}
-              </span>
-            </Cadran>
-
-            {erreur ? <Message ton="erreur">{erreur}</Message> : null}
-
-            <Clavier
-              onDigit={(d) => { setErreur(null); if (numero.length < 10) setNumero(numero + d); }}
-              onEffacer={() => setNumero(numero.slice(0, -1))}
-              onToutEffacer={() => setNumero('')}
-            />
-          </>
-        )}
-
         {etape === 'montant' && (
           <>
             <h1>Combien ?</h1>
@@ -210,12 +206,6 @@ export function GarderLaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
-        {etape === 'numero' && (
-          <BoutonPrimaire onClick={chercherClient} disabled={numero.length !== 10 || occupe}>
-            {occupe ? 'Recherche…' : 'Continuer'}
-          </BoutonPrimaire>
-        )}
-
         {etape === 'montant' && (
           <>
             <BoutonPrimaire onClick={enregistrer} disabled={montant <= 0 || depasse || occupe}>

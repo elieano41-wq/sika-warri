@@ -6,6 +6,7 @@ import {
 } from '../../components/ui';
 import { perShop, informationalTotal, type ShopBalance } from '../../lib/balances';
 import { formatCfa } from '../../lib/format';
+import { QrCode } from '../../components/QrCode';
 
 /**
  * Ma monnaie — one carnet card per shop holding this customer's change.
@@ -38,6 +39,7 @@ export function MaMonnaie({
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<ShopBalance | null>(null);
   const [histoire, setHistoire] = useState<EntryRow[] | null>(null);
+  const [montrerQr, setMontrerQr] = useState(false);
 
   const charger = useCallback(async () => {
     try {
@@ -95,6 +97,42 @@ export function MaMonnaie({
     } catch (e) {
       setErreur((e as api.ApiError).message);
     }
+  }
+
+  // ---- my code -----------------------------------------------------------
+  if (montrerQr) {
+    return (
+      <div className="ecran">
+        <Entete
+          sousTitre="Client"
+          action={<BoutonDiscret onClick={() => setMontrerQr(false)}>Retour</BoutonDiscret>}
+        />
+        <div className="ecran__corps">
+          <h1>Mon code</h1>
+          <p className="discret">
+            Montrez ce code au commerçant. Il contient uniquement votre numéro.
+          </p>
+
+          <QrCode msisdn={session.msisdn} />
+
+          {/*
+            Said plainly, because it is the whole security story: the code
+            identifies, it does not authorise. Anyone who photographs it learns
+            the number and nothing else, and no debit can happen without the
+            PIN typed on this phone.
+          */}
+          <Message ton="info">
+            Ce code ne permet pas de prendre votre monnaie. Rien ne peut être
+            utilisé sans votre code à 4 chiffres, saisi sur votre téléphone.
+          </Message>
+        </div>
+        <div className="ecran__pied pile">
+          <BoutonSecondaire onClick={() => setMontrerQr(false)}>
+            Retour à ma monnaie
+          </BoutonSecondaire>
+        </div>
+      </div>
+    );
   }
 
   // ---- one shop's history -----------------------------------------------
@@ -235,6 +273,11 @@ export function MaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
+        {/* Equal footing with typing on the vendor's side: some vendors scan,
+            some type, and the customer needs the code available either way. */}
+        <BoutonSecondaire onClick={() => setMontrerQr(true)}>
+          Mon code
+        </BoutonSecondaire>
         <p className="discret centre">
           Sika Warri enregistre seulement. Chaque montant reste chez le
           commerçant concerné.

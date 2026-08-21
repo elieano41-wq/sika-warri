@@ -281,3 +281,47 @@ describe('phone normalisation at the API boundary', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// A loading state must never look like a real answer of zero
+// ---------------------------------------------------------------------------
+
+describe('loading is distinguishable from zero', () => {
+  // The bug this locks out: Mes clients briefly showed "Monnaie en circulation
+  // 0 F · 0 clients" while fetching. A vendor glancing at that reads it as
+  // owing nothing — a wrong answer delivered with exactly the confidence of a
+  // right one. Zero is a meaningful figure in a ledger, so it must never be
+  // what "not yet known" looks like.
+  const ECRANS = [
+    ['client', 'MaMonnaie.tsx'],
+    ['vendeur', 'MesClients.tsx'],
+    ['vendeur', 'Accueil.tsx'],
+  ] as const;
+
+  it.each(ECRANS)('%s/%s guards its figures behind a null check', (dossier, fichier) => {
+    const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8'));
+
+    // Data starts as null, not as an empty array or a zero: those are real
+    // answers and cannot double as "still loading".
+    expect(src).toMatch(/useState<[^>]*\|\s*null>\(null\)/);
+
+    // Every screen has an explicit branch for the unknown state.
+    expect(src).toMatch(/===\s*null\s*\?/);
+  });
+
+  it.each(ECRANS)('%s/%s shows a loading marker, not a number', (dossier, fichier) => {
+    const src = readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8');
+    // Either the word or the em-dash placeholder — something that cannot be
+    // mistaken for a balance.
+    expect(src).toMatch(/Chargement|—/);
+  });
+
+  it('no screen renders a hardcoded 0 as an amount', () => {
+    // A literal <Montant value={0} /> would be indistinguishable from a real
+    // zero balance and is never the right thing to show.
+    for (const [dossier, fichier] of ECRANS) {
+      const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8'));
+      expect(src, `${fichier} hardcodes a zero amount`).not.toMatch(/<Montant\s+value=\{0\}/);
+    }
+  });
+});

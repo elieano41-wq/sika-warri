@@ -79,6 +79,23 @@ function montantPresent(texte, attendu) {
   return nu(texte).includes(nu(attendu));
 }
 
+
+/**
+ * Enter a customer's number, coping with the scan-or-type choice screen.
+ *
+ * SaisieClient remembers the vendor's last choice, so the choice screen appears
+ * on the first lookup in a session and not afterwards. The helper handles both
+ * rather than assuming one.
+ */
+async function saisirNumero(page, phone) {
+  const choix = page.getByRole('button', { name: 'Taper le numéro' });
+  if (await choix.isVisible().catch(() => false)) {
+    await choix.click();
+  }
+  await tapDigits(page, phone);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+}
+
 /** Tap a sequence of digits on the built-in keypad. */
 async function tapDigits(page, digits) {
   for (const d of digits) {
@@ -294,6 +311,10 @@ try {
   await pv.getByRole('button', { name: 'Garder la monnaie' }).click();
   await pv.getByRole('heading', { name: 'Garder la monnaie' }).waitFor();
 
+  // The lookup now opens on the scan-or-type choice. Take the typing door so
+  // the keypad is on screen to measure.
+  await pv.getByRole('button', { name: 'Taper le numéro' }).click();
+
   const boutonPrimaire = await pv.getByRole('button', { name: 'Continuer' }).boundingBox();
   check(`primary action >= 48px tall (${Math.round(boutonPrimaire.height)}px)`,
     boutonPrimaire.height >= 48, `${boutonPrimaire.height}`);
@@ -314,8 +335,7 @@ try {
 
   // ===== garder la monnaie ===============================================
   console.log('\n--- garder la monnaie ---');
-  await tapDigits(pv, CUSTOMER_PHONE);
-  await pv.getByRole('button', { name: 'Continuer' }).click();
+  await saisirNumero(pv, CUSTOMER_PHONE);
   await pv.getByRole('heading', { name: 'Combien ?' }).waitFor({ timeout: 20000 });
 
   await tapDigits(pv, '1500');
@@ -387,8 +407,7 @@ try {
   await pv.getByRole('button', { name: 'Terminer' }).click();
   await pv.getByRole('button', { name: 'Utiliser la monnaie' }).click();
   await pv.getByRole('heading', { name: 'Utiliser la monnaie' }).waitFor();
-  await tapDigits(pv, CUSTOMER_PHONE);
-  await pv.getByRole('button', { name: 'Continuer' }).click();
+  await saisirNumero(pv, CUSTOMER_PHONE);
   await pv.getByRole('heading', { name: 'Montant à utiliser' }).waitFor({ timeout: 20000 });
   await tapDigits(pv, '400');
   await pv.getByRole('button', { name: 'Demander la confirmation' }).click();
@@ -529,6 +548,83 @@ try {
   check('customer is told they can ask for cash back',
     /rembourser en esp[èe]ces/i.test(histoireClient), histoireClient.slice(0, 300));
   await pc.screenshot({ path: 'artifacts/b2-boutique-detail.png' });
+
+  // ===== QR: the customer's code =========================================
+  console.log('\n--- mon code (QR) ---');
+  await pc.getByRole('button', { name: 'Retour à ma monnaie' }).click().catch(() => {});
+  await pc.getByRole('button', { name: 'Voir toutes mes boutiques' }).click().catch(() => {});
+  await pc.getByRole('button', { name: 'Mon code' }).click();
+  await pc.getByRole('heading', { name: 'Mon code' }).waitFor({ timeout: 20000 });
+
+  // The canvas must actually contain a rendered code, not just exist.
+  const qr = await pc.evaluate(() => {
+    const c = document.querySelector('canvas');
+    if (!c) return null;
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let sombres = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] < 128) sombres += 1;
+    return { largeur: c.width, hauteur: c.height, sombres };
+  });
+  check('the QR canvas renders actual dark modules',
+    qr !== null && qr.largeur > 100 && qr.sombres > 200, JSON.stringify(qr));
+
+  const codeEcran = await pc.textContent('body');
+  check('the number is shown in plain text beside the code',
+    codeEcran.replace(/\s/g, '').includes(CUSTOMER_PHONE.slice(1)),
+    codeEcran.slice(0, 200));
+  check('states plainly that the code cannot take their money',
+    /ne permet pas de prendre votre monnaie/i.test(codeEcran.replace(/\s+/g, ' ')));
+  await pc.screenshot({ path: 'artifacts/d1-mon-code.png' });
+
+  // ===== QR: the vendor's two doors ======================================
+  console.log('\n--- scanner ou taper ---');
+  const neuf = await navigateur.newContext({ viewport: TELEPHONE, locale: 'fr-FR' });
+  const pn = await neuf.newPage();
+  await loginViaUI(pn, 'vendor', VENDOR_PHONE, VENDOR_PIN);
+  await pn.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
+  await pn.getByRole('button', { name: 'Garder la monnaie' }).click();
+
+  // A fresh context has no remembered preference, so the choice screen shows.
+  await pn.getByRole('button', { name: 'Taper le numéro' }).waitFor({ timeout: 20000 });
+  const deuxPortes = await pn.locator('.choix__option').count();
+  check('both options offered as equal buttons', deuxPortes === 2, `found ${deuxPortes}`);
+
+  const tailles = await pn.evaluate(() =>
+    [...document.querySelectorAll('.choix__option')].map((e) => ({
+      w: Math.round(e.getBoundingClientRect().width),
+      h: Math.round(e.getBoundingClientRect().height),
+    }))
+  );
+  // Equal weight is the requirement, not a hierarchy with a small "or type"
+  // link underneath.
+  check('the two options are the same size',
+    tailles.length === 2 && tailles[0].w === tailles[1].w && tailles[0].h === tailles[1].h,
+    JSON.stringify(tailles));
+  check('both options are >= 48px tall', tailles.every((t) => t.h >= 48), JSON.stringify(tailles));
+  await pn.screenshot({ path: 'artifacts/d2-choix.png' });
+
+  // Camera refused: the offer to type must appear, with no dead end.
+  await pn.getByRole('button', { name: 'Scanner son code' }).click();
+  let messageCamera = '';
+  for (let i = 0; i < 30; i += 1) {
+    messageCamera = (await pn.textContent('body')).replace(/\s+/g, ' ');
+    if (/Tapez le numéro du client|Taper le numéro/i.test(messageCamera)) break;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  check('camera unavailable degrades to typing, with a reason',
+    /Tapez le numéro du client/i.test(messageCamera)
+    || /Taper le numéro/i.test(messageCamera), messageCamera.slice(0, 220));
+  await pn.screenshot({ path: 'artifacts/d3-camera-refusee.png' });
+
+  // And typing still completes from there.
+  await pn.getByRole('button', { name: 'Taper le numéro' }).click().catch(() => {});
+  await tapDigits(pn, CUSTOMER_PHONE);
+  await pn.getByRole('button', { name: 'Continuer' }).click();
+  await pn.getByRole('heading', { name: 'Combien ?' }).waitFor({ timeout: 25000 });
+  check('typing still works after the camera failed', true);
+  await neuf.close();
 
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');

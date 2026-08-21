@@ -6,6 +6,7 @@ import {
   BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
 import { appendDigit, removeDigit, formatPhoneLocal } from '../../lib/format';
+import { SaisieClient } from '../../components/SaisieClient';
 
 /**
  * Utiliser la monnaie — the vendor proposes a debit; the customer confirms on
@@ -105,12 +106,13 @@ export function UtiliserLaMonnaie({
     };
   }, [etape, pendingId, session.accessToken, vendeur.id, clientId]);
 
-  async function chercherClient() {
+  async function chercherClient(msisdn: string) {
+    setNumero(msisdn);
     setErreur(null);
     setOccupe(true);
     try {
       const r = await api.lookupCustomer(
-        session.accessToken, vendeur.id, vendeur.authUserId, numero
+        session.accessToken, vendeur.id, vendeur.authUserId, msisdn
       );
       if (!r.exists || !r.customerId) {
         setErreur("Ce client n'a pas de monnaie chez vous.");
@@ -183,6 +185,19 @@ export function UtiliserLaMonnaie({
     );
   }
 
+  if (etape === 'numero') {
+    return (
+      <SaisieClient
+        titre="Utiliser la monnaie"
+        sousTitre={vendeur.businessName}
+        erreur={erreur}
+        occupe={occupe}
+        onNumero={chercherClient}
+        onRetour={onTermine}
+      />
+    );
+  }
+
   return (
     <div className="ecran">
       <Entete
@@ -191,24 +206,6 @@ export function UtiliserLaMonnaie({
       />
 
       <div className="ecran__corps">
-        {etape === 'numero' && (
-          <>
-            <h1>Utiliser la monnaie</h1>
-            <p className="discret">Numéro du client</p>
-            <Cadran etiquette="Téléphone du client">
-              <span className="montant montant--grand" style={{ color: 'var(--craie)' }}>
-                {numero ? formatPhoneLocal(numero) : '—'}
-              </span>
-            </Cadran>
-            {erreur ? <Message ton="erreur">{erreur}</Message> : null}
-            <Clavier
-              onDigit={(d) => { setErreur(null); if (numero.length < 10) setNumero(numero + d); }}
-              onEffacer={() => setNumero(numero.slice(0, -1))}
-              onToutEffacer={() => setNumero('')}
-            />
-          </>
-        )}
-
         {etape === 'montant' && (
           <>
             <h1>Montant à utiliser</h1>
@@ -269,11 +266,6 @@ export function UtiliserLaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
-        {etape === 'numero' && (
-          <BoutonPrimaire onClick={chercherClient} disabled={numero.length !== 10 || occupe}>
-            {occupe ? 'Recherche…' : 'Continuer'}
-          </BoutonPrimaire>
-        )}
         {etape === 'montant' && (
           <>
             <BoutonPrimaire onClick={proposer} disabled={montant <= 0 || trop || occupe}>

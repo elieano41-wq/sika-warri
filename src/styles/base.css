@@ -347,3 +347,79 @@ h2 { font-size: var(--titre-s); }
   gap: var(--espace-4);
   min-height: 2.25rem;
 }
+
+/* --------------------------------------------------------------------------
+   QR — display and scanning
+   -------------------------------------------------------------------------- */
+
+.qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espace-3);
+  background: var(--craie);
+  border-radius: var(--rayon);
+  padding: var(--espace-5);
+}
+
+/* The code needs its own light ground: a dark-on-dark QR is unscannable. */
+.qr__image { display: block; width: 100%; max-width: 260px; height: auto; }
+
+.qr__numero {
+  color: var(--vert-nuit);
+  font-size: var(--texte-grand);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.scanner {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--vert-nuit-creux);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  overflow: hidden;
+}
+
+.scanner__video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* A target to aim at. Purely visual — the decoder reads the whole frame, so a
+   code slightly outside the guide still scans rather than being rejected. */
+.scanner__cadre {
+  position: absolute;
+  inset: 18%;
+  border: 3px solid var(--or-sika);
+  border-radius: var(--rayon);
+  box-shadow: 0 0 0 100vmax rgba(7, 31, 23, 0.45);
+}
+
+/* Two equal doors. Side by side on anything but the narrowest screen, stacked
+   below that so neither is cramped. */
+.choix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espace-3);
+}
+@media (max-width: 22rem) {
+  .choix { grid-template-columns: 1fr; }
+}
+
+.choix__option {
+  min-height: 96px;
+  padding: var(--espace-4) var(--espace-3);
+  background: var(--vert-foret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  color: var(--craie);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espace-2);
+  font-weight: 600;
+  font-size: var(--texte-base);
+  text-align: center;
+}
+.choix__option:active { background: var(--vert-foret-haut); }
+.choix__icone { font-size: 1.75rem; line-height: 1; }

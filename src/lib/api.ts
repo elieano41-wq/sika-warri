@@ -469,3 +469,35 @@ export async function clientHistory(
   )) as EntryRow[];
   return rows ?? [];
 }
+
+export interface VendorSummary {
+  circulation_cfa: number;
+  customers_owed: number;
+  today_credit_cfa: number;
+  today_credit_count: number;
+  today_debit_cfa: number;
+  today_debit_count: number;
+  last_activity_at: string | null;
+}
+
+/** What the vendor home screen shows: what they owe, and today's activity. */
+export async function vendorSummary(
+  token: string,
+  vendorId: string,
+  actorUserId: string
+): Promise<VendorSummary> {
+  const rows = (await rpc(
+    'vendor_home_summary',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId },
+    token
+  )) as VendorSummary[];
+  const r = Array.isArray(rows) ? rows[0] : rows;
+  return (
+    r ?? {
+      circulation_cfa: 0, customers_owed: 0,
+      today_credit_cfa: 0, today_credit_count: 0,
+      today_debit_cfa: 0, today_debit_count: 0,
+      last_activity_at: null,
+    }
+  );
+}

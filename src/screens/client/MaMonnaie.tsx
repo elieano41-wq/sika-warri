@@ -132,7 +132,7 @@ export function MaMonnaie({
                   <div>
                     <div style={{ fontWeight: 500 }}>{libelle(e)}</div>
                     <div className="discret">
-                      {dateCourte(e.created_at)}
+                      {dateCourte(e.created_at)} · reçu {e.receipt_code}
                       {e.confirmation_method === 'vendor_device'
                         ? ' · code saisi chez le commerçant'
                         : ''}

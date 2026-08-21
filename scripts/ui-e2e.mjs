@@ -273,7 +273,7 @@ try {
     phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: 'Chez Awa', quartier: 'Yopougon',
   });
 
-  await pv.getByRole('heading', { name: 'Que faites-vous ?' }).waitFor({ timeout: 20000 });
+  await pv.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
   check('vendor reaches the home screen', true);
   check('shop name is shown', (await pv.textContent('body')).includes('Chez Awa'));
   await pv.screenshot({ path: 'artifacts/01-vendeur-accueil.png' });
@@ -431,9 +431,39 @@ try {
     vendeurApres.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/08-vendeur-confirme.png' });
 
+  // ===== the vendor home shows what they owe =============================
+  //
+  // The finding that prompted this screen: a shopkeeper had to tap into another
+  // view to learn what they were holding. It should be readable on opening the
+  // app, without touching anything.
+  console.log('\n--- accueil vendeur ---');
+  await pv.getByRole('button', { name: 'Terminer' }).click();
+  await pv.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
+
+  let vuAccueil = true;
+  try {
+    await pv.waitForFunction(
+      () => document.body.innerText.replace(/\s/g, '').includes('1100'),
+      null,
+      { timeout: 20000 }
+    );
+  } catch { vuAccueil = false; }
+
+  const accueilVendeur = await pv.textContent('body');
+  check('vendor home names what they are holding',
+    /Monnaie que vous gardez/i.test(accueilVendeur));
+  check('vendor home shows the figure without tapping anywhere (1 100 F)',
+    vuAccueil, accueilVendeur.slice(0, 250));
+  check('vendor home shows how many customers are concerned',
+    /clients? concern/i.test(accueilVendeur));
+  check("vendor home shows today's activity", /Aujourd'hui/i.test(accueilVendeur));
+  check("today's activity shows both directions",
+    /Gard[ée]e ·/i.test(accueilVendeur) && /Utilis[ée]e ·/i.test(accueilVendeur),
+    accueilVendeur.slice(0, 300));
+  await pv.screenshot({ path: 'artifacts/v1-accueil.png' });
+
   // ===== Mes clients — the vendor's own book =============================
   console.log('\n--- mes clients ---');
-  await pv.getByRole('button', { name: 'Terminer' }).click();
   await pv.getByRole('button', { name: 'Mes clients' }).click();
   await pv.getByRole('heading', { name: 'Mes clients' }).waitFor({ timeout: 20000 });
 
@@ -520,7 +550,7 @@ try {
   const horsLigne = await navigateur.newContext({ viewport: TELEPHONE, locale: 'fr-FR' });
   const ph = await horsLigne.newPage();
   await loginViaUI(ph, 'vendor', VENDOR_PHONE, VENDOR_PIN);
-  await ph.getByRole('heading', { name: 'Que faites-vous ?' }).waitFor({ timeout: 20000 });
+  await ph.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
   await horsLigne.setOffline(true);
   await ph.evaluate(() => window.dispatchEvent(new Event('offline')));
   await ph.getByRole('button', { name: 'Utiliser la monnaie' }).click();

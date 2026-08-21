@@ -338,3 +338,12 @@ h2 { font-size: var(--titre-s); }
 
 /* The history list is read, not tapped, so it carries no press state. */
 .ligne-histoire { background: transparent; border-color: var(--trait); }
+
+/* Two-column summary row: label left, amount right, aligned on the mono grid. */
+.ligne-resume {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-4);
+  min-height: 2.25rem;
+}

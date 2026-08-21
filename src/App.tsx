@@ -8,6 +8,7 @@ import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { EspaceClient } from './screens/client/EspaceClient';
 import { MesClients } from './screens/vendeur/MesClients';
+import { AccueilVendeur } from './screens/vendeur/Accueil';
 import { Entete, Message, BoutonPrimaire, BoutonSecondaire, BoutonDiscret, Version } from './components/ui';
 
 const CLE_SESSION = 'sika.session';
@@ -200,32 +201,13 @@ export default function App() {
   }
 
   return (
-    <div className="ecran">
-      <Entete
-        sousTitre={`${vendeur.businessName} · ${vendeur.quartier}`}
-        action={<BoutonDiscret onClick={deconnexion}>Quitter</BoutonDiscret>}
-      />
-
-      <div className="ecran__corps">
-        <h1>Que faites-vous ?</h1>
-        {erreur ? <Message ton="erreur">{erreur}</Message> : null}
-
-        <div className="pile" style={{ gap: 'var(--espace-4)', marginTop: 'var(--espace-4)' }}>
-          <BoutonPrimaire onClick={() => setVue('garder')}>Garder la monnaie</BoutonPrimaire>
-          <BoutonSecondaire onClick={() => setVue('utiliser')}>Utiliser la monnaie</BoutonSecondaire>
-          {/* Placed with the two actions rather than in a menu: knowing what you
-              owe is the first thing a shopkeeper needs. */}
-          <BoutonSecondaire onClick={() => setVue('clients')}>Mes clients</BoutonSecondaire>
-        </div>
-      </div>
-
-      <div className="ecran__pied">
-        <p className="discret centre">
-          Sika Warri enregistre seulement. La monnaie reste chez vous et
-          constitue une dette envers votre client.
-        </p>
-        <Version />
-      </div>
-    </div>
+    <AccueilVendeur
+      session={session}
+      vendeur={vendeur}
+      onGarder={() => setVue('garder')}
+      onUtiliser={() => setVue('utiliser')}
+      onClients={() => setVue('clients')}
+      onDeconnexion={deconnexion}
+    />
   );
 }

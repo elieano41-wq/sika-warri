@@ -4,6 +4,7 @@ import type { Session, VendorProfile, CustomerProfile } from './lib/api';
 import { Bienvenue } from './screens/Bienvenue';
 import { Connexion } from './screens/Connexion';
 import { Inscription } from './screens/Inscription';
+import { ResetPin } from './screens/ResetPin';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { EspaceClient } from './screens/client/EspaceClient';
@@ -35,7 +36,7 @@ function enregistrerSession(s: Session | null) {
 }
 
 type VueVendeur = 'accueil' | 'garder' | 'utiliser' | 'clients';
-type Porte = 'bienvenue' | 'connexion' | 'inscription';
+type Porte = 'bienvenue' | 'connexion' | 'inscription' | 'oubli';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(chargerSession);
@@ -116,6 +117,10 @@ export default function App() {
     );
   }
 
+  if (!session && porte === 'oubli') {
+    return <ResetPin onTermine={() => setPorte('connexion')} />;
+  }
+
   if (!session && porte === 'inscription') {
     return <Inscription onInscrit={inscrit} onRetour={() => setPorte('bienvenue')} />;
   }
@@ -128,7 +133,11 @@ export default function App() {
             <Message ton="erreur">{erreur}</Message>
           </div>
         ) : null}
-        <Connexion onConnecte={connexion} onInscription={() => setPorte('inscription')} />
+        <Connexion
+          onConnecte={connexion}
+          onInscription={() => setPorte('inscription')}
+          onCodeOublie={() => setPorte('oubli')}
+        />
       </>
     );
   }

@@ -38,3 +38,16 @@ verify_jwt = false
 
 [functions."confirm-debit"]
 verify_jwt = false
+
+# reset-pin is called from a LOGGED-OUT device — the caller cannot sign in, which
+# is the entire situation. No session exists to verify, so the endpoint is public
+# and is protected instead by the claim itself: short-lived, single-use, and
+# created only by someone who vouched in person.
+[functions."reset-pin"]
+verify_jwt = false
+
+# request-reset is called by an authenticated vendor, but verify_jwt stays false
+# for the same reason as everywhere else (amendment K): the platform check cannot
+# read the new key format. Identity is proven in code via requireCaller.
+[functions."request-reset"]
+verify_jwt = false

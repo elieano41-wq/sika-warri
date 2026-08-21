@@ -336,7 +336,32 @@ try {
   // ===== garder la monnaie ===============================================
   console.log('\n--- garder la monnaie ---');
   await saisirNumero(pv, CUSTOMER_PHONE);
+
+  // A vendor who has never named this customer is asked once. A phone number is
+  // useless at a counter, so this is where the label gets set.
+  // isVisible() does NOT wait — it answers about this instant. Waiting for the
+  // heading is the difference between testing the screen and testing a race.
+  let nomDemande = true;
+  try {
+    await pv.getByRole('heading', { name: 'Qui est ce client ?' })
+      .waitFor({ timeout: 20000 });
+  } catch {
+    nomDemande = false;
+  }
+  check('vendor is asked to name a customer they have not named before', nomDemande);
+  if (nomDemande) {
+    const texteNom = (await pv.textContent('body')).replace(/\s+/g, ' ');
+    check('the label is explained as private to this vendor',
+      /Vous seul le voyez/i.test(texteNom), texteNom.slice(0, 200));
+    await pv.locator('input.champ__saisie').fill('Awa du marché');
+    await pv.getByRole('button', { name: 'Continuer' }).click();
+  }
+
   await pv.getByRole('heading', { name: 'Combien ?' }).waitFor({ timeout: 20000 });
+
+  const surMontant = (await pv.textContent('body')).replace(/\s+/g, ' ');
+  check('the name is shown instead of a bare number',
+    surMontant.includes('Awa du marché'), surMontant.slice(0, 200));
 
   await tapDigits(pv, '1500');
 
@@ -409,6 +434,7 @@ try {
   await pv.getByRole('heading', { name: 'Utiliser la monnaie' }).waitFor();
   await saisirNumero(pv, CUSTOMER_PHONE);
   await pv.getByRole('heading', { name: 'Montant à utiliser' }).waitFor({ timeout: 20000 });
+  check('a named customer is not asked for a name again', true);
   await tapDigits(pv, '400');
   await pv.getByRole('button', { name: 'Demander la confirmation' }).click();
   await pv.getByRole('heading', { name: 'En attente du client' }).waitFor({ timeout: 20000 });
@@ -496,6 +522,8 @@ try {
   // 1 500 credited, 400 spent, so the vendor still holds 1 100 for one customer.
   check('circulation figure is 1 100 F', montantPresent(livre, '1 100'), livre.slice(0, 250));
   check('one customer is listed', livre.includes('1 client concerné'), livre.slice(0, 250));
+  check('the client list shows the NAME, not just a number',
+    livre.includes('Awa du marché'), livre.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/c1-mes-clients.png' });
 
   // Search narrows by number.
@@ -517,11 +545,26 @@ try {
     /Monnaie gard[ée]e/i.test(detail) && /Utilis[ée]e pour un achat/i.test(detail),
     detail.slice(0, 300));
   check('history shows a running balance', /reste/i.test(detail));
+  check('the customer detail is headed by the name',
+    detail.includes('Awa du marché'), detail.slice(0, 250));
+  check('the vendor can vouch for a forgotten code',
+    /oubli[ée] son code/i.test(detail.replace(/\s+/g, ' ')), detail.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/c2-client-detail.png' });
 
   // ===== Ma monnaie — the point of the product ===========================
   console.log('\n--- ma monnaie (acceptance test 8) ---');
   await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 25000 });
+
+  // The debit landed moments ago and this screen polls every 8 seconds. Wait
+  // for the post-debit figure rather than reading mid-refresh — otherwise the
+  // test is a coin flip on timing, which is worse than no test.
+  try {
+    await pc.waitForFunction(
+      () => document.body.innerText.replace(/\s/g, '').includes('1100'),
+      null,
+      { timeout: 25000 }
+    );
+  } catch { /* assertions below report it precisely */ }
 
   const maMonnaie = (await pc.textContent('body')).replace(/ /g, ' ');
   check('customer sees the shop by name', maMonnaie.includes('Chez Awa'));

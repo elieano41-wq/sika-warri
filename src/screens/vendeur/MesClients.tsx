@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, VendorProfile, ClientRow, EntryRow } from '../../lib/api';
 import {
-  Entete, Message, Montant, BoutonSecondaire, BoutonDiscret,
+  Entete, Message, Montant, BoutonSecondaire, BoutonDiscret, BoutonPrimaire,
 } from '../../components/ui';
 import { formatCfa, formatPhoneLocal } from '../../lib/format';
 import { vendorInCirculation } from '../../lib/balances';
@@ -32,6 +32,9 @@ export function MesClients({
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<ClientRow | null>(null);
   const [histoire, setHistoire] = useState<EntryRow[] | null>(null);
+  const [renommer, setRenommer] = useState<string | null>(null);
+  const [reset, setReset] = useState<string | null>(null);
+  const [occupe, setOccupe] = useState(false);
 
   const charger = useCallback(async () => {
     try {
@@ -91,6 +94,67 @@ export function MesClients({
             <div className="carnet__etiquette">Monnaie de ce client chez vous</div>
             <Montant value={ouvert.balance_cfa} taille="geant" />
           </article>
+
+          {/* Naming a customer is what makes this screen usable at a counter.
+              The label is private to this vendor (amendment F). */}
+          <label className="champ">
+            <span className="champ__etiquette">Nom de ce client (pour vous seul)</span>
+            <input
+              className="champ__saisie"
+              style={{ fontFamily: 'var(--police-texte)' }}
+              value={renommer ?? ouvert.your_label ?? ''}
+              onChange={(e) => setRenommer(e.target.value)}
+              maxLength={60}
+              autoCapitalize="words"
+            />
+          </label>
+          {renommer !== null && renommer !== (ouvert.your_label ?? '') ? (
+            <BoutonPrimaire
+              onClick={async () => {
+                setOccupe(true);
+                try {
+                  const nouveau = await api.setCustomerLabel(
+                    session.accessToken, vendeur.id, ouvert.customer_id,
+                    renommer, vendeur.authUserId
+                  );
+                  setOuvert({ ...ouvert, your_label: nouveau });
+                  setRenommer(null);
+                  await charger();
+                } catch (e) {
+                  setErreur((e as api.ApiError).message);
+                } finally {
+                  setOccupe(false);
+                }
+              }}
+              disabled={occupe}
+            >
+              {occupe ? 'Enregistrement…' : 'Enregistrer le nom'}
+            </BoutonPrimaire>
+          ) : null}
+
+          {reset ? <Message ton="succes">{reset}</Message> : null}
+
+          {ouvert.is_registered ? (
+            <BoutonSecondaire
+              onClick={async () => {
+                setOccupe(true);
+                setErreur(null);
+                try {
+                  const r = await api.requestCustomerReset(
+                    session.accessToken, ouvert.phone
+                  );
+                  setReset(r.message);
+                } catch (e) {
+                  setErreur((e as api.ApiError).message);
+                } finally {
+                  setOccupe(false);
+                }
+              }}
+              disabled={occupe}
+            >
+              Ce client a oublié son code
+            </BoutonSecondaire>
+          ) : null}
 
           {!ouvert.is_registered ? (
             <Message ton="info">

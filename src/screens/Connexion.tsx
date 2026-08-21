@@ -18,9 +18,11 @@ import { formatPhoneLocal } from '../lib/format';
 export function Connexion({
   onConnecte,
   onInscription,
+  onCodeOublie,
 }: {
   onConnecte: (s: Session, avertissement: string | null) => void;
   onInscription: () => void;
+  onCodeOublie: () => void;
 }) {
   const [role, setRole] = useState<Role>('vendor');
   const [etape, setEtape] = useState<'numero' | 'code'>('numero');
@@ -149,15 +151,21 @@ export function Connexion({
             Continuer
           </BoutonPrimaire>
         ) : (
-          <BoutonDiscret
-            onClick={() => {
-              setEtape('numero');
-              setPin('');
-              setErreur(null);
-            }}
-          >
-            Changer de numéro
-          </BoutonDiscret>
+          <>
+            <BoutonDiscret
+              onClick={() => {
+                setEtape('numero');
+                setPin('');
+                setErreur(null);
+              }}
+            >
+              Changer de numéro
+            </BoutonDiscret>
+            {/* Offered on the PIN screen, where someone discovers they have
+                forgotten it — not buried on a settings page they cannot reach
+                while locked out. */}
+            <BoutonDiscret onClick={onCodeOublie}>J'ai oublié mon code</BoutonDiscret>
+          </>
         )}
         {/* The way in for someone who has no account. Prominent on purpose:
             an app you cannot sign up for is an app nobody can use. */}

@@ -18,7 +18,7 @@ import { SaisieClient } from '../../components/SaisieClient';
  * "solde", never "dépôt". Sika Warri holds nothing — the cash stays in this
  * vendor's till and the record is a debt they owe.
  */
-type Etape = 'numero' | 'montant' | 'fait';
+type Etape = 'numero' | 'nom' | 'montant' | 'fait';
 
 export function GarderLaMonnaie({
   session,
@@ -38,6 +38,7 @@ export function GarderLaMonnaie({
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
   const [recu, setRecu] = useState<{ code: string; nouveau: number } | null>(null);
+  const [nomSaisi, setNomSaisi] = useState('');
 
   const plafond = vendeur.maxBalancePerCustomer;
 
@@ -69,7 +70,15 @@ export function GarderLaMonnaie({
       // What they already hold HERE. Never a total across shops.
       const dejaLa = await api.balanceWith(session.accessToken, vendeur.id, r.customerId);
       setDejaChez(dejaLa);
-      setEtape('montant');
+
+      // A phone number is useless at a counter. If this vendor has never named
+      // this customer, ask now — once — and then never again.
+      if (!r.yourLabel) {
+        setNomSaisi('');
+        setEtape('nom');
+      } else {
+        setEtape('montant');
+      }
     } catch (e) {
       setErreur((e as api.ApiError).message);
     } finally {
@@ -143,6 +152,29 @@ export function GarderLaMonnaie({
       />
 
       <div className="ecran__corps">
+        {etape === 'nom' && (
+          <>
+            <h1>Qui est ce client ?</h1>
+            <p className="discret">
+              {formatPhoneLocal(numero)} · un nom pour le reconnaître. Vous seul
+              le voyez.
+            </p>
+            <label className="champ">
+              <span className="champ__etiquette">Exemple : Awa du marché</span>
+              <input
+                className="champ__saisie"
+                style={{ fontFamily: 'var(--police-texte)' }}
+                value={nomSaisi}
+                onChange={(e) => setNomSaisi(e.target.value)}
+                maxLength={60}
+                autoCapitalize="words"
+                inputMode="text"
+              />
+            </label>
+            {erreur ? <Message ton="erreur">{erreur}</Message> : null}
+          </>
+        )}
+
         {etape === 'montant' && (
           <>
             <h1>Combien ?</h1>
@@ -206,6 +238,35 @@ export function GarderLaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
+        {etape === 'nom' && (
+          <>
+            <BoutonPrimaire
+              onClick={async () => {
+                if (!clientId) return;
+                setOccupe(true);
+                try {
+                  const l = await api.setCustomerLabel(
+                    session.accessToken, vendeur.id, clientId,
+                    nomSaisi, vendeur.authUserId
+                  );
+                  setEtiquetteClient(l);
+                  setEtape('montant');
+                } catch (e) {
+                  setErreur((e as api.ApiError).message);
+                } finally {
+                  setOccupe(false);
+                }
+              }}
+              disabled={nomSaisi.trim().length < 2 || occupe}
+            >
+              {occupe ? 'Enregistrement…' : 'Continuer'}
+            </BoutonPrimaire>
+            {/* Skippable: a vendor mid-transaction with a queue should never be
+                blocked by a name they can add later from Mes clients. */}
+            <BoutonDiscret onClick={() => setEtape('montant')}>Passer</BoutonDiscret>
+          </>
+        )}
+
         {etape === 'montant' && (
           <>
             <BoutonPrimaire onClick={enregistrer} disabled={montant <= 0 || depasse || occupe}>

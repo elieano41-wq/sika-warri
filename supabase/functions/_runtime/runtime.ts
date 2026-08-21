@@ -118,6 +118,16 @@ const SQLSTATE_MESSAGES: Record<string, string> = {
   SW010: "Le client doit changer son code avant le prochain achat",
   SW011: "Cette demande n'est plus valable",
   SW012: "Demande expirée, le commerçant doit recommencer",
+  SW013: "Le délai de correction est dépassé. Le client doit confirmer.",
+  SW014: "Cette opération doit passer par la confirmation du client",
+  SW015: "Trop de réinitialisations demandées aujourd'hui",
+  SW016: "Cette réinitialisation n'est plus valable",
+  // The cooling-off after vouching for a reset. A vendor hitting this needs to
+  // know it is deliberate and temporary, not a fault — otherwise they retry,
+  // then conclude the app is broken.
+  SW017:
+    "Vous avez demandé la réinitialisation du code de ce client. " +
+    "Vous pourrez utiliser sa monnaie dans une heure.",
 };
 
 /**

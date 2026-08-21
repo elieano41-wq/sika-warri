@@ -501,3 +501,95 @@ export async function vendorSummary(
     }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Customer labels (per vendor, private to that vendor)
+// ---------------------------------------------------------------------------
+
+/**
+ * Name a customer, for this vendor only.
+ *
+ * Written to vendor_customer_labels, never to customers.display_name: that one
+ * belongs to the customer, and a label written here is never visible to another
+ * vendor or to the customer themselves (amendment F).
+ */
+export async function setCustomerLabel(
+  token: string,
+  vendorId: string,
+  customerId: string,
+  label: string,
+  actorUserId: string
+): Promise<string | null> {
+  const r = (await rpc(
+    'set_vendor_customer_label',
+    {
+      p_vendor_id: vendorId,
+      p_customer_id: customerId,
+      p_label: label,
+      p_actor_user_id: actorUserId,
+    },
+    token
+  )) as string | null;
+  return r ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// PIN recovery
+// ---------------------------------------------------------------------------
+
+/** A vendor vouches for a customer standing in front of them. */
+export async function requestCustomerReset(
+  token: string,
+  customerPhone: string,
+  reason?: string
+) {
+  return (await fn('request-reset', { customerPhone, reason }, token)) as {
+    ok: true;
+    expiresAt: string;
+    message: string;
+  };
+}
+
+export interface ResetEnCours {
+  pending: true;
+  role: Role;
+  vouchedBy: string | null;
+  expiresAt: string;
+}
+
+/**
+ * Is a reset waiting for this number?
+ *
+ * Called with no session, because the whole point is that the caller cannot log
+ * in. Returns null when there is nothing open rather than throwing, so the UI
+ * can say "ask a vendor" instead of showing an error.
+ */
+export async function checkReset(phone: string): Promise<ResetEnCours | null> {
+  try {
+    const r = (await fn('reset-pin', { phone })) as any;
+    return r?.pending ? (r as ResetEnCours) : null;
+  } catch (e) {
+    if ((e as ApiError).code === 'NO_RESET') return null;
+    throw e;
+  }
+}
+
+/** Claim the reset and set a new PIN. */
+export async function claimReset(phone: string, newPin: string, role: Role) {
+  return (await fn('reset-pin', { phone, newPin, role })) as {
+    ok: true;
+    role: Role;
+    message: string;
+  };
+}
+
+/** Resets performed on my own account, so the customer can see them. */
+export async function myResets(token: string, actorUserId: string) {
+  const rows = (await rpc('my_pin_resets', { p_actor_user_id: actorUserId }, token)) as Array<{
+    id: string;
+    vouched_by: string | null;
+    created_at: string;
+    consumed_at: string | null;
+  }>;
+  return rows ?? [];
+}

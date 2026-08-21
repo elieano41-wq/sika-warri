@@ -230,11 +230,27 @@ Deno.serve(handler(async (req) => {
     }
   }
 
+  // Whether this session is an admin, decided by the SERVER.
+  //
+  // Returned here rather than probed by the client: a probe means every ordinary
+  // login fires a request that is designed to fail, which is a wasted round trip
+  // on a slow connection and console noise on every device. This flag only
+  // controls whether a button is shown — every admin action is gated again in
+  // SQL by is_admin(), so a forged flag buys nothing.
+  let isAdmin = false;
+  try {
+    const { data } = await db.rpc('is_admin_self', { p_auth_user_id: profile.auth_user_id });
+    isAdmin = data === true;
+  } catch (err) {
+    console.error('ADMIN_CHECK_FAILED', (err as Error)?.message);
+  }
+
   return json({
     ok: true,
     role,
     msisdn,
     session,
+    isAdmin,
     pepperUpgraded,
     pinChangeRequired,
     vendorDeviceEntries,

@@ -33,7 +33,6 @@ export function MesClients({
   const [ouvert, setOuvert] = useState<ClientRow | null>(null);
   const [histoire, setHistoire] = useState<EntryRow[] | null>(null);
   const [renommer, setRenommer] = useState<string | null>(null);
-  const [reset, setReset] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
   const charger = useCallback(async () => {
@@ -132,28 +131,16 @@ export function MesClients({
             </BoutonPrimaire>
           ) : null}
 
-          {reset ? <Message ton="succes">{reset}</Message> : null}
-
+          {/* No vendor-vouched reset. A vouching vendor could claim the reset
+              themselves and take over the account, defeating amendment H — the
+              cooling-off only delayed that. Every reset now goes through the
+              support desk, which verifies identity by telephone. */}
           {ouvert.is_registered ? (
-            <BoutonSecondaire
-              onClick={async () => {
-                setOccupe(true);
-                setErreur(null);
-                try {
-                  const r = await api.requestCustomerReset(
-                    session.accessToken, ouvert.phone
-                  );
-                  setReset(r.message);
-                } catch (e) {
-                  setErreur((e as api.ApiError).message);
-                } finally {
-                  setOccupe(false);
-                }
-              }}
-              disabled={occupe}
-            >
-              Ce client a oublié son code
-            </BoutonSecondaire>
+            <Message ton="info">
+              Ce client a oublié son code ? Il doit appeler le support Sika Warri
+              lui-même. Vous ne pouvez pas réinitialiser son code, et vous ne
+              devez jamais le lui demander.
+            </Message>
           ) : null}
 
           {!ouvert.is_registered ? (

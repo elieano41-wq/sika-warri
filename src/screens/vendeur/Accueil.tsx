@@ -25,6 +25,7 @@ export function AccueilVendeur({
   onUtiliser,
   onClients,
   onDeconnexion,
+  onAdmin,
 }: {
   session: Session;
   vendeur: VendorProfile;
@@ -32,6 +33,8 @@ export function AccueilVendeur({
   onUtiliser: () => void;
   onClients: () => void;
   onDeconnexion: () => void;
+  /** Present only when the SERVER confirmed this session is an admin. */
+  onAdmin?: () => void;
 }) {
   const [resume, setResume] = useState<VendorSummary | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -121,6 +124,9 @@ export function AccueilVendeur({
           <BoutonPrimaire onClick={onGarder}>Garder la monnaie</BoutonPrimaire>
           <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
           <BoutonSecondaire onClick={onClients}>Mes clients</BoutonSecondaire>
+          {onAdmin ? (
+            <BoutonSecondaire onClick={onAdmin}>Panneau support</BoutonSecondaire>
+          ) : null}
         </div>
       </div>
 

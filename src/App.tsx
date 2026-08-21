@@ -5,6 +5,7 @@ import { Bienvenue } from './screens/Bienvenue';
 import { Connexion } from './screens/Connexion';
 import { Inscription } from './screens/Inscription';
 import { ResetPin } from './screens/ResetPin';
+import { Admin } from './screens/admin/Admin';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { EspaceClient } from './screens/client/EspaceClient';
@@ -48,6 +49,12 @@ export default function App() {
   const [chargement, setChargement] = useState(false);
   // First-time visitors land on Bienvenue; anyone with a session skips it.
   const [porte, setPorte] = useState<Porte>('bienvenue');
+  // Whether this session is an admin is decided by the SERVER. The client cannot
+  // read is_admin, so it probes once: if the queue call succeeds, the entry point
+  // appears. A non-admin is simply refused, and hiding a button was never the
+  // control anyway.
+  const [estAdmin, setEstAdmin] = useState(false);
+  const [vueAdmin, setVueAdmin] = useState(false);
 
   // Resolve the profile behind the session. A stored token that no longer
   // works logs the user out rather than leaving a half-loaded screen.
@@ -89,10 +96,12 @@ export default function App() {
 
   function inscrit(s: Session) {
     setPorte('bienvenue');
-    connexion(s, null);
+    // A brand-new account is never an admin.
+    connexion(s, null, false);
   }
 
-  function connexion(s: Session, notice: string | null) {
+  function connexion(s: Session, notice: string | null, admin = false) {
+    setEstAdmin(admin);
     setErreur(null);
     setAvis(notice);
     setSession(s);
@@ -101,6 +110,8 @@ export default function App() {
   }
 
   function deconnexion() {
+    setEstAdmin(false);
+    setVueAdmin(false);
     setSession(null);
     setVendeur(null);
     setClient(null);
@@ -153,6 +164,10 @@ export default function App() {
     );
   }
 
+  if (vueAdmin && estAdmin) {
+    return <Admin session={session} onQuitter={() => setVueAdmin(false)} />;
+  }
+
   // ---- customer ----------------------------------------------------------
   if (session.role === 'customer') {
     if (!client) {
@@ -174,6 +189,13 @@ export default function App() {
           </div>
         ) : null}
         <EspaceClient session={session} client={client} onDeconnexion={deconnexion} />
+        {estAdmin ? (
+          <div className="ecran" style={{ minHeight: 'auto', paddingTop: 0 }}>
+            <BoutonSecondaire onClick={() => setVueAdmin(true)}>
+              Panneau support
+            </BoutonSecondaire>
+          </div>
+        ) : null}
       </>
     );
   }
@@ -217,6 +239,7 @@ export default function App() {
       onUtiliser={() => setVue('utiliser')}
       onClients={() => setVue('clients')}
       onDeconnexion={deconnexion}
+      onAdmin={estAdmin ? () => setVueAdmin(true) : undefined}
     />
   );
 }

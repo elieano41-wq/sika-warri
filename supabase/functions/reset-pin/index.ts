@@ -1,16 +1,17 @@
-// POST /reset-pin — set a new PIN using a vouched reset.
+// POST /reset-pin — the support-desk recovery flow, user side.
 //
-// Called from a LOGGED-OUT device, because that is the whole situation: the
-// person cannot sign in. So there is no session to validate, and the only thing
-// standing behind this endpoint is an open, single-use, short-lived reset that
-// somebody vouched for in person.
+// Three actions, all from a LOGGED-OUT device because being locked out is the
+// whole situation:
 //
-// Two actions:
-//   { phone }              -> is there an open claim? (so the UI can say so)
-//   { phone, newPin, role } -> claim it and set the PIN
+//   { phone, request: true }        -> ask the support desk for a reset
+//   { phone, code }                 -> is this code valid? (before asking for a PIN)
+//   { phone, code, newPin }         -> redeem it and set a new PIN
 //
-// verify_jwt = false, necessarily. Rate limited hard, because a public endpoint
-// that changes credentials is exactly what gets hammered.
+// The request step NEVER reveals whether a number is registered: the reply is
+// identical either way, so this endpoint cannot be used to enumerate accounts.
+//
+// The code unlocks exactly one thing — setting a new PIN. It cannot authorise a
+// debit, and nothing else in the system accepts it.
 
 import {
   handler, json, fail, readJson, clientIp, recordAttempt,
@@ -19,15 +20,27 @@ import {
 import {
   normaliseMsisdn, checkPin, derivePassword, NormalisationError, type Role,
 } from '../_shared/identity.ts';
+import { formeValide, hacherCode, egal } from '../_shared/tempcode.ts';
 
 interface Body {
   phone?: string;
-  role?: Role;
+  request?: boolean;
+  code?: string;
   newPin?: string;
 }
 
 /** Per-IP ceiling. Lower than login: nobody legitimately resets in bulk. */
-const MAX_IP_ATTEMPTS = 12;
+const MAX_IP = 12;
+
+/**
+ * The one message the request step ever returns.
+ *
+ * Identical for a registered number, an unregistered one, and one that has hit
+ * its daily limit. Anything that varied would be an account oracle.
+ */
+const REPONSE_UNIFORME =
+  "Votre demande est enregistrée. Appelez le support Sika Warri au 07 00 00 00 00 " +
+  "pour vérifier votre identité. Le support vous donnera un code temporaire.";
 
 Deno.serve(handler(async (req) => {
   const body = await readJson<Body>(req);
@@ -44,49 +57,69 @@ Deno.serve(handler(async (req) => {
 
   if (ip) {
     const { data: recent } = await db.rpc('auth_ip_failure_count', { p_ip: ip });
-    if (typeof recent === 'number' && recent >= MAX_IP_ATTEMPTS) {
+    if (typeof recent === 'number' && recent >= MAX_IP) {
       return fail('RATE_LIMITED', 'Trop de tentatives, patientez quelques minutes', 429);
     }
   }
 
-  // ----- is there an open claim? -------------------------------------------
-  const { data: rows, error: lookupErr } = await db.rpc('open_pin_reset_for_phone', {
+  // ----- ask the support desk ---------------------------------------------
+  if (body.request === true) {
+    // A failure here — unregistered number, daily limit reached — is swallowed
+    // deliberately. The caller gets the same sentence regardless, because the
+    // difference between those cases is exactly what an attacker wants.
+    const { error } = await db.rpc('create_pin_reset_request', {
+      p_phone: msisdn,
+      p_ip: ip,
+    });
+    if (error) console.warn('RESET_REQUEST_REFUSED', msisdn.slice(0, 6), error.code);
+
+    return json({ ok: true, requested: true, message: REPONSE_UNIFORME });
+  }
+
+  // ----- redeem ------------------------------------------------------------
+  const code = body.code ?? '';
+  if (!formeValide(code)) {
+    await recordAttempt(db, msisdn, false, ip);
+    return fail('CODE_INVALID', 'Code temporaire invalide', 401);
+  }
+
+  const { data: rows, error: lookupErr } = await db.rpc('open_grant_for_phone', {
     p_phone: msisdn,
   });
   if (lookupErr) throw lookupErr;
 
-  const claim = Array.isArray(rows) ? rows[0] : rows;
+  const grant = Array.isArray(rows) ? rows[0] : rows;
 
-  if (!claim) {
-    // Recorded as a failed attempt so the per-IP counter sees probing.
+  if (!grant) {
+    // Covers no grant, expired, already used, and attempts exhausted. One
+    // message for all of them: distinguishing them would tell a guesser
+    // whether to keep going.
     await recordAttempt(db, msisdn, false, ip);
+    return fail('CODE_INVALID', 'Code temporaire invalide ou expiré', 401);
+  }
+
+  const attendu = await hacherCode(code, grant.code_salt);
+  if (!egal(attendu, grant.code_hash)) {
+    const { data: n } = await db.rpc('record_grant_attempt', { p_grant_id: grant.grant_id });
+    await recordAttempt(db, msisdn, false, ip);
+
+    const restants = Math.max(0, (grant.max_attempts ?? 5) - (typeof n === 'number' ? n : 0));
     return fail(
-      'NO_RESET',
-      "Aucune réinitialisation en cours pour ce numéro. Demandez à un commerçant chez qui vous avez de la monnaie.",
-      404
+      'CODE_INVALID',
+      restants > 0
+        ? `Code temporaire incorrect. ${restants} essai(s) restant(s).`
+        : 'Trop d\'essais. Rappelez le support pour un nouveau code.',
+      401
     );
   }
 
-  // Enquiry only: tell the UI a claim exists, and who vouched, so the person
-  // can see it is the reset they just asked for and not a stranger's.
+  const role: Role = grant.target_role === 'vendor' ? 'vendor' : 'customer';
+
+  // Enquiry only: the code is right, so the app may now ask for a new PIN. The
+  // grant is NOT consumed yet — consuming it here would burn it if the person
+  // then closed the app before choosing a code.
   if (body.newPin === undefined) {
-    return json({
-      ok: true,
-      pending: true,
-      role: claim.target_role,
-      vouchedBy: claim.vouched_by ?? null,
-      expiresAt: claim.expires_at,
-    });
-  }
-
-  // ----- claim it ----------------------------------------------------------
-  const role: Role = claim.target_role === 'vendor' ? 'vendor' : 'customer';
-
-  // The role is taken from the CLAIM, never from the request body. A caller
-  // asking to reset as a vendor when the claim is for a customer would
-  // otherwise pick their own PIN length and the credential would not match.
-  if (body.role && body.role !== role) {
-    return fail('ROLE_MISMATCH', 'Type de compte incohérent', 400);
+    return json({ ok: true, valid: true, role });
   }
 
   const rejection = checkPin(body.newPin, role);
@@ -100,11 +133,10 @@ Deno.serve(handler(async (req) => {
     target
   );
 
-  // Auth first, then mark the claim used. If this dies in between, the claim
-  // stays open and the person can try again — the safe direction. The reverse
-  // order would consume the claim and leave them locked out with no second
-  // chance.
-  const { error: authErr } = await db.auth.admin.updateUserById(claim.auth_user_id, {
+  // Auth first, then burn the grant. If this dies between the two, the grant
+  // stays claimable and the person can retry — the safe direction. The reverse
+  // would consume the grant and leave them locked out with no second chance.
+  const { error: authErr } = await db.auth.admin.updateUserById(grant.auth_user_id, {
     password,
   });
   if (authErr) {
@@ -112,18 +144,14 @@ Deno.serve(handler(async (req) => {
     return fail('RESET_FAILED', 'Réinitialisation impossible, réessayez', 500);
   }
 
-  const { error: consumeErr } = await db.rpc('consume_pin_reset', {
-    p_reset_id: claim.reset_id,
+  const { error: consumeErr } = await db.rpc('consume_grant', {
+    p_grant_id: grant.grant_id,
     p_ip: ip,
   });
-  if (consumeErr) {
-    // The PIN did change. Say so rather than telling them to try again with a
-    // code that now works.
-    console.error('RESET_CONSUME_FAILED', consumeErr.message);
-  }
+  if (consumeErr) console.error('GRANT_CONSUME_FAILED', consumeErr.message);
 
   const { error: recErr } = await db.rpc('record_pepper_upgrade', {
-    p_auth_user_id: claim.auth_user_id,
+    p_auth_user_id: grant.auth_user_id,
     p_new_version: target,
     p_role: role,
   });
@@ -134,6 +162,6 @@ Deno.serve(handler(async (req) => {
   return json({
     ok: true,
     role,
-    message: 'Votre code a été réinitialisé. Connectez-vous avec votre nouveau code.',
+    message: 'Votre code a été changé. Connectez-vous avec votre nouveau code.',
   });
 }));

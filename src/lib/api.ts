@@ -110,6 +110,7 @@ export async function login(role: Role, phone: string, pin: string) {
       role,
       msisdn: r.msisdn,
     } as Session,
+    isAdmin: Boolean(r.isAdmin),
     pinChangeRequired: Boolean(r.pinChangeRequired),
     vendorDeviceEntries: Number(r.vendorDeviceEntries ?? 0),
     notice: (r.notice ?? null) as string | null,
@@ -390,6 +391,8 @@ export interface ShopRow {
   balance_cfa: number;
   last_activity_at: string | null;
   entry_count: number;
+  /** Shown to the customer: an unverified shop is visibly unverified. */
+  vendor_verified: boolean;
 }
 
 /** One row per shop holding this customer's change. Never a total. */
@@ -537,49 +540,125 @@ export async function setCustomerLabel(
 // PIN recovery
 // ---------------------------------------------------------------------------
 
-/** A vendor vouches for a customer standing in front of them. */
-export async function requestCustomerReset(
-  token: string,
-  customerPhone: string,
-  reason?: string
-) {
-  return (await fn('request-reset', { customerPhone, reason }, token)) as {
+/**
+ * Ask the support desk for a reset.
+ *
+ * The reply is IDENTICAL whether or not the number is registered, so this
+ * cannot be used to discover which numbers have accounts.
+ */
+export async function requestSupportReset(phone: string) {
+  return (await fn('reset-pin', { phone, request: true })) as {
     ok: true;
-    expiresAt: string;
+    requested: true;
     message: string;
   };
 }
 
-export interface ResetEnCours {
-  pending: true;
-  role: Role;
-  vouchedBy: string | null;
-  expiresAt: string;
+/** Check a temporary code before asking the person for a new PIN. */
+export async function checkTempCode(phone: string, code: string) {
+  return (await fn('reset-pin', { phone, code })) as {
+    ok: true;
+    valid: true;
+    role: Role;
+  };
 }
 
-/**
- * Is a reset waiting for this number?
- *
- * Called with no session, because the whole point is that the caller cannot log
- * in. Returns null when there is nothing open rather than throwing, so the UI
- * can say "ask a vendor" instead of showing an error.
- */
-export async function checkReset(phone: string): Promise<ResetEnCours | null> {
-  try {
-    const r = (await fn('reset-pin', { phone })) as any;
-    return r?.pending ? (r as ResetEnCours) : null;
-  } catch (e) {
-    if ((e as ApiError).code === 'NO_RESET') return null;
-    throw e;
-  }
-}
-
-/** Claim the reset and set a new PIN. */
-export async function claimReset(phone: string, newPin: string, role: Role) {
-  return (await fn('reset-pin', { phone, newPin, role })) as {
+/** Redeem the code and set a new PIN. */
+export async function redeemTempCode(phone: string, code: string, newPin: string) {
+  return (await fn('reset-pin', { phone, code, newPin })) as {
     ok: true;
     role: Role;
     message: string;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export interface ResetRequest {
+  request_id: string;
+  phone: string;
+  requested_at: string;
+  account_exists: boolean;
+  role: 'vendor' | 'customer' | null;
+  nom: string | null;
+  quartier: string | null;
+  registered_at: string | null;
+  contexte: string | null;
+  derniers: string[] | null;
+  prior_resets: number;
+}
+
+export interface AdminVendor {
+  vendor_id: string;
+  business_name: string;
+  quartier: string;
+  commune: string | null;
+  phone: string;
+  is_active: boolean;
+  phone_verified_at: string | null;
+  verification_method: string | null;
+  joined_at: string;
+  circulation_cfa: number;
+  customers_owed: number;
+  entry_count: number;
+  last_activity_at: string | null;
+  debits: number;
+  vendor_device_debits: number;
+  vendor_device_pct: number | null;
+  vendor_corrections: number;
+}
+
+const admin = (token: string, payload: unknown) => fn('admin', payload, token);
+
+export async function adminResetQueue(token: string): Promise<ResetRequest[]> {
+  const r = (await admin(token, { action: 'reset_queue' })) as any;
+  return r.requests ?? [];
+}
+
+/**
+ * Issue a temporary code.
+ *
+ * The code is generated server-side by a CSPRNG and returned exactly once. It
+ * is stored only as a salted hash, so it cannot be looked up again — by anyone,
+ * including the operator who issued it.
+ */
+export async function adminIssueReset(token: string, requestId: string) {
+  return (await admin(token, { action: 'issue_reset', requestId })) as {
+    ok: true;
+    code: string;
+    expiresAt: string;
+    role: Role;
+    message: string;
+  };
+}
+
+export async function adminRejectReset(token: string, requestId: string, note?: string) {
+  return (await admin(token, { action: 'reject_reset', requestId, note })) as { ok: true };
+}
+
+export async function adminVendorList(token: string): Promise<AdminVendor[]> {
+  const r = (await admin(token, { action: 'vendor_list' })) as any;
+  return r.vendors ?? [];
+}
+
+export async function adminVerifyPhone(
+  token: string,
+  role: 'vendor' | 'customer',
+  targetId: string,
+  method: 'in_person' | 'sms' = 'in_person'
+) {
+  return (await admin(token, { action: 'verify_phone', role, targetId, method })) as {
+    ok: true;
+    verifiedAt: string;
+  };
+}
+
+export async function adminSetVendorActive(token: string, vendorId: string, active: boolean) {
+  return (await admin(token, { action: 'set_vendor_active', vendorId, active })) as {
+    ok: true;
+    active: boolean;
   };
 }
 
@@ -587,9 +666,8 @@ export async function claimReset(phone: string, newPin: string, role: Role) {
 export async function myResets(token: string, actorUserId: string) {
   const rows = (await rpc('my_pin_resets', { p_actor_user_id: actorUserId }, token)) as Array<{
     id: string;
-    vouched_by: string | null;
-    created_at: string;
-    consumed_at: string | null;
+    reset_at: string;
+    libelle: string;
   }>;
   return rows ?? [];
 }

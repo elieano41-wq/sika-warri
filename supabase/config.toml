@@ -46,8 +46,9 @@ verify_jwt = false
 [functions."reset-pin"]
 verify_jwt = false
 
-# request-reset is called by an authenticated vendor, but verify_jwt stays false
-# for the same reason as everywhere else (amendment K): the platform check cannot
-# read the new key format. Identity is proven in code via requireCaller.
-[functions."request-reset"]
+# The operator's panel. Authenticated, but verify_jwt stays false for the same
+# reason as everywhere else (amendment K). Identity is proven via requireCaller,
+# and every action then calls a definer function that checks is_admin() in SQL —
+# the gate is at the data, not at the screen.
+[functions.admin]
 verify_jwt = false

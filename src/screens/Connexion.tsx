@@ -20,7 +20,7 @@ export function Connexion({
   onInscription,
   onCodeOublie,
 }: {
-  onConnecte: (s: Session, avertissement: string | null) => void;
+  onConnecte: (s: Session, avertissement: string | null, isAdmin: boolean) => void;
   onInscription: () => void;
   onCodeOublie: () => void;
 }) {
@@ -59,7 +59,7 @@ export function Connexion({
       setOccupe(true);
       try {
         const r = await api.login(role, numero, suivant);
-        onConnecte(r.session, r.notice ?? null);
+        onConnecte(r.session, r.notice ?? null, r.isAdmin);
       } catch (e) {
         const err = e as api.ApiError;
         setPin('');

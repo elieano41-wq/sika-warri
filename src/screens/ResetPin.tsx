@@ -8,45 +8,61 @@ import { formatPhoneLocal } from '../lib/format';
 import { reglesPour, pinValide, pinProbleme, pinLengthFor, NE_PARTAGEZ_JAMAIS } from '../lib/pinRules';
 
 /**
- * "J'ai oublié mon code" — setting a new PIN after somebody vouched.
+ * "J'ai oublié mon code" — the support-desk recovery flow.
  *
- * There is no SMS, so there is no automated proof that this phone belongs to
- * this person. The proof is a human one: a vendor recognised the customer in
- * person and requested the reset, and the claim is short-lived and single-use.
+ * There is no SMS, so nothing here can prove the caller owns this number. The
+ * proof is a telephone conversation with the operator, who challenges them
+ * against their own transaction history before issuing anything.
  *
- * This screen runs with NO session, because the whole situation is being locked
- * out. So it asks for the number first, checks whether a claim is open, and only
- * then lets a new code be chosen. It never reveals whether a number is
- * registered when no claim exists — the answer is the same either way: go and
- * ask a vendor.
+ * Vendors used to be able to vouch for a customer. That is gone: a vouching
+ * vendor could claim the reset themselves and take over the account, which
+ * defeats amendment H, and a cooling-off period only delayed it.
+ *
+ * The screen NEVER says whether a number is registered. The message after
+ * requesting is identical either way, so this cannot be used to find out who
+ * has an account.
  */
-type Etape = 'numero' | 'attente' | 'code' | 'fait';
+type Etape = 'numero' | 'demande' | 'code' | 'pin' | 'fait';
+
+/** Shown to the person so they know who to call. */
+const NUMERO_SUPPORT = '07 00 00 00 00';
 
 export function ResetPin({ onTermine }: { onTermine: () => void }) {
   const [etape, setEtape] = useState<Etape>('numero');
   const [numero, setNumero] = useState('');
+  const [code, setCode] = useState('');
   const [role, setRole] = useState<Role>('customer');
-  const [vouchedBy, setVouchedBy] = useState<string | null>(null);
   const [pin, setPin] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
   const longueurPin = pinLengthFor(role);
 
-  async function verifier() {
+  async function demander() {
     setErreur(null);
     setOccupe(true);
     try {
-      const r = await api.checkReset(numero);
-      if (!r) {
-        setEtape('attente');
-        return;
-      }
-      setRole(r.role);
-      setVouchedBy(r.vouchedBy);
-      setPin('');
-      setEtape('code');
+      const r = await api.requestSupportReset(numero);
+      setMessage(r.message);
+      setEtape('demande');
     } catch (e) {
+      setErreur((e as api.ApiError).message);
+    } finally {
+      setOccupe(false);
+    }
+  }
+
+  async function verifierCode() {
+    setErreur(null);
+    setOccupe(true);
+    try {
+      const r = await api.checkTempCode(numero, code);
+      setRole(r.role);
+      setPin('');
+      setEtape('pin');
+    } catch (e) {
+      setCode('');
       setErreur((e as api.ApiError).message);
     } finally {
       setOccupe(false);
@@ -57,7 +73,7 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
     setErreur(null);
     setOccupe(true);
     try {
-      await api.claimReset(numero, pin, role);
+      await api.redeemTempCode(numero, code, pin);
       setEtape('fait');
     } catch (e) {
       setPin('');
@@ -67,7 +83,7 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
     }
   }
 
-  // ---- ask for the number ------------------------------------------------
+  // ---- the number --------------------------------------------------------
   if (etape === 'numero') {
     return (
       <div className="ecran">
@@ -75,8 +91,8 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
         <div className="ecran__corps">
           <h1>Code oublié</h1>
           <p className="discret">
-            Votre numéro, pour vérifier si un commerçant a demandé la
-            réinitialisation de votre code.
+            Entrez votre numéro. Le support Sika Warri vous appellera pour
+            vérifier votre identité avant de vous donner un code temporaire.
           </p>
           <Cadran etiquette="Numéro de téléphone">
             <span className="montant montant--grand" style={{ color: 'var(--craie)' }}>
@@ -91,40 +107,44 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
           />
         </div>
         <div className="ecran__pied pile">
-          <BoutonPrimaire onClick={verifier} disabled={numero.length !== 10 || occupe}>
-            {occupe ? 'Vérification…' : 'Continuer'}
+          <BoutonPrimaire onClick={demander} disabled={numero.length !== 10 || occupe}>
+            {occupe ? 'Envoi…' : 'Demander un code'}
           </BoutonPrimaire>
+          <BoutonDiscret onClick={() => setEtape('code')}>
+            J'ai déjà un code temporaire
+          </BoutonDiscret>
           <BoutonDiscret onClick={onTermine}>Retour</BoutonDiscret>
         </div>
       </div>
     );
   }
 
-  // ---- nothing open ------------------------------------------------------
-  if (etape === 'attente') {
+  // ---- requested ---------------------------------------------------------
+  if (etape === 'demande') {
     return (
       <div className="ecran">
         <Entete sousTitre="Code oublié" />
         <div className="ecran__corps">
-          <h1>Demandez à un commerçant</h1>
-          <Message ton="info">
-            Aucune réinitialisation en cours pour ce numéro.
-          </Message>
-          <p>
-            Allez voir un commerçant chez qui vous avez de la monnaie. Il peut
-            demander la réinitialisation de votre code depuis son application.
-            Vous choisirez ensuite votre nouveau code ici, sur votre téléphone.
+          <h1>Appelez le support</h1>
+          {/* Identical wording whether or not the number is registered. */}
+          <Message ton="info">{message}</Message>
+
+          <Cadran etiquette="Numéro du support">
+            <span className="montant montant--grand">{NUMERO_SUPPORT}</span>
+          </Cadran>
+
+          <p className="discret">
+            Le support vous posera des questions sur votre compte pour vérifier
+            que c'est bien vous. Gardez votre téléphone à portée de main.
           </p>
-          {/* Said plainly, because a customer being asked for their code by a
-              vendor is the thing this whole design exists to prevent. */}
           <Message ton="info">
-            Le commerçant ne choisit pas votre code. Il demande seulement la
-            réinitialisation. Ne lui donnez jamais votre code.
+            Le support ne vous demandera JAMAIS votre ancien code. Il vous donnera
+            un code temporaire, et vous choisirez vous-même votre nouveau code.
           </Message>
         </div>
         <div className="ecran__pied pile">
-          <BoutonPrimaire onClick={verifier} disabled={occupe}>
-            {occupe ? 'Vérification…' : 'Vérifier à nouveau'}
+          <BoutonPrimaire onClick={() => setEtape('code')}>
+            J'ai reçu mon code temporaire
           </BoutonPrimaire>
           <BoutonDiscret onClick={onTermine}>Retour</BoutonDiscret>
         </div>
@@ -132,8 +152,51 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
     );
   }
 
-  // ---- choose a new code -------------------------------------------------
+  // ---- the temporary code ------------------------------------------------
   if (etape === 'code') {
+    return (
+      <div className="ecran">
+        <Entete sousTitre="Code temporaire" />
+        <div className="ecran__corps">
+          <h1>Code temporaire</h1>
+          <p className="discret">
+            Les 6 chiffres que le support vous a donnés au téléphone.
+            {numero ? ` · ${formatPhoneLocal(numero)}` : ''}
+          </p>
+
+          <Cadran etiquette="Code à 6 chiffres">
+            <PinPoints longueur={6} remplis={code.length} />
+          </Cadran>
+
+          {erreur ? <Message ton="erreur">{erreur}</Message> : null}
+
+          <Clavier
+            onDigit={(d) => { setErreur(null); if (code.length < 6) setCode(code + d); }}
+            onEffacer={() => setCode(code.slice(0, -1))}
+            onToutEffacer={() => setCode('')}
+          />
+        </div>
+        <div className="ecran__pied pile">
+          <BoutonPrimaire
+            onClick={verifierCode}
+            disabled={code.length !== 6 || numero.length !== 10 || occupe}
+          >
+            {occupe ? 'Vérification…' : 'Continuer'}
+          </BoutonPrimaire>
+          {numero.length !== 10 ? (
+            <BoutonDiscret onClick={() => setEtape('numero')}>
+              Entrer mon numéro d'abord
+            </BoutonDiscret>
+          ) : (
+            <BoutonDiscret onClick={onTermine}>Retour</BoutonDiscret>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---- the new PIN -------------------------------------------------------
+  if (etape === 'pin') {
     const complet = pin.length === longueurPin;
     const probleme = complet ? pinProbleme(pin, role) : null;
     const bon = complet && pinValide(pin, role);
@@ -143,12 +206,9 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
         <Entete sousTitre="Nouveau code" />
         <div className="ecran__corps">
           <h1>Votre nouveau code</h1>
-          {vouchedBy ? (
-            <Message ton="info">
-              Réinitialisation demandée par <strong>{vouchedBy}</strong>.
-              Si ce n'est pas le commerçant que vous avez vu, arrêtez ici.
-            </Message>
-          ) : null}
+          <p className="discret">
+            Choisissez-le vous-même. Personne d'autre ne le connaît.
+          </p>
 
           <ul className="pile" style={{ listStyle: 'none', gap: 'var(--espace-2)' }}>
             {reglesPour(role).map((r) => {
@@ -201,6 +261,9 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
       <div className="ecran__corps">
         <h1>C'est fait</h1>
         <p>Connectez-vous avec votre nouveau code.</p>
+        <p className="discret">
+          Cette réinitialisation reste inscrite dans votre historique.
+        </p>
       </div>
       <div className="ecran__pied pile">
         <BoutonPrimaire onClick={onTermine}>Se connecter</BoutonPrimaire>

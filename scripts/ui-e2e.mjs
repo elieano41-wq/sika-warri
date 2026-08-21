@@ -459,8 +459,15 @@ try {
 
   // ===== the customer confirms with their own PIN =========================
   await tapDigits(pc, CUSTOMER_PIN);
-  await pc.getByRole('heading', { name: "C'est confirmé" }).waitFor({ timeout: 25000 });
-  check('customer confirms on their OWN device', true);
+  let confirme = true;
+  try {
+    await pc.getByRole('heading', { name: "C'est confirmé" }).waitFor({ timeout: 25000 });
+  } catch {
+    confirme = false;
+  }
+  check('customer confirms on their OWN device', confirme,
+    confirme ? '' : (await pc.textContent('body')).replace(/s+/g, ' ').slice(0, 400));
+  if (!confirme) { await pc.screenshot({ path: 'artifacts/echec-confirmation.png' }); }
 
   const apres = (await pc.textContent('body')).replace(/ /g, ' ');
   check('customer told what remains (1 100 F)', apres.includes('1 100'), apres.slice(0, 200));
@@ -547,8 +554,21 @@ try {
   check('history shows a running balance', /reste/i.test(detail));
   check('the customer detail is headed by the name',
     detail.includes('Awa du marché'), detail.slice(0, 250));
-  check('the vendor can vouch for a forgotten code',
-    /oubli[ée] son code/i.test(detail.replace(/\s+/g, ' ')), detail.slice(0, 300));
+  // The vouching path is gone. What remains is the vendor being told plainly
+  // that they cannot reset a code and must never ask for one.
+  const detailPropre = detail.replace(/\s+/g, ' ');
+  check('the vendor is told they CANNOT reset a customer code',
+    /Vous ne pouvez pas réinitialiser son code/i.test(detailPropre),
+    detailPropre.slice(0, 300));
+  check('and that they must never ask for it',
+    /jamais le lui demander/i.test(detailPropre), detailPropre.slice(0, 300));
+  // Checked as a BUTTON, not as text. The explanation legitimately contains the
+  // word "réinitialiser" — what must not exist is something tappable.
+  const boutonsReset = await pv
+    .getByRole('button', { name: /r[ée]initialis|oubli[ée] son code/i })
+    .count();
+  check('no reset button is offered to the vendor', boutonsReset === 0,
+    `${boutonsReset} found`);
   await pv.screenshot({ path: 'artifacts/c2-client-detail.png' });
 
   // ===== Ma monnaie — the point of the product ===========================

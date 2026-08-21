@@ -6,6 +6,8 @@
 // as a JWT and rejects the request with a bare "invalid JWT" (amendment K).
 // Authorization carries a user session token, or nothing at all.
 
+import { normaliseMsisdn } from '../../supabase/functions/_shared/identity';
+
 // Standing rule 6: fail loudly on missing config, naming exactly what is
 // absent. No silent fallback to a default project.
 const URL_BASE = import.meta.env.VITE_SUPABASE_URL;
@@ -163,16 +165,29 @@ export async function myVendor(token: string): Promise<VendorProfile> {
   };
 }
 
-/** Existence plus this vendor's own label. Never another vendor's name. */
+/**
+ * Existence plus this vendor's own label. Never another vendor's name.
+ *
+ * Normalises the number HERE rather than trusting the caller. The database
+ * stores the E.164 form (2250701020304) and the lookup is an exact match, so a
+ * screen passing the local 10 digits a vendor typed finds nothing and reports
+ * "not registered" about a customer who plainly is. The Edge Functions normalise
+ * their own input; this direct PostgREST path had no such step.
+ *
+ * Shared with the Edge Functions rather than reimplemented: two copies of phone
+ * normalisation is how one person ends up with two accounts holding separate
+ * balances at the same shop.
+ */
 export async function lookupCustomer(
   token: string,
   vendorId: string,
   actorUserId: string,
   phone: string
 ) {
+  const msisdn = normaliseMsisdn(phone);
   const rows = (await rpc(
     'lookup_customer_for_vendor',
-    { p_vendor_id: vendorId, p_phone: phone, p_actor_user_id: actorUserId },
+    { p_vendor_id: vendorId, p_phone: msisdn, p_actor_user_id: actorUserId },
     token
   )) as any[];
   const r = Array.isArray(rows) ? rows[0] : rows;

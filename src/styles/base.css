@@ -80,12 +80,23 @@ h2 { font-size: var(--titre-s); }
   font-feature-settings: 'tnum' 1;
   letter-spacing: -0.01em;
   white-space: nowrap;
+
+  /* In a monospace face every glyph has the same advance, so the thousands
+     space takes as much room as a digit. At 50px "1 500" then reads with a gap
+     wide enough to scan as two separate numbers — the exact misreading the
+     grouping exists to prevent. word-spacing tightens the spaces ONLY, leaving
+     the digits on their tabular grid, and keeps a real space character in the
+     text for screen readers and the clipboard. */
+  word-spacing: -0.28em;
 }
 
 .montant--geant { font-size: var(--chiffre-geant); font-weight: 600; color: var(--or-sika); }
 .montant--grand { font-size: var(--chiffre-grand); font-weight: 600; color: var(--or-sika); }
 .montant--ligne { font-size: var(--texte-grand); font-weight: 500; }
-.montant--suffixe { font-size: 0.5em; color: var(--sauge); margin-left: 0.15em; }
+/* The suffix carries its own leading space, and must NOT inherit the tightening
+   applied to the thousands groups — the F needs to sit clearly apart from the
+   figure, not against it. */
+.montant--suffixe { font-size: 0.5em; color: var(--sauge); word-spacing: normal; }
 
 /* --------------------------------------------------------------------------
    Le carnet — the signature element (spec section 7)

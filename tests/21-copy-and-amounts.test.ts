@@ -256,3 +256,28 @@ describe('sunlight legibility — the floors the spec sets', () => {
     expect(base).toMatch(/--or-sika/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: the phone-number bug the UI end-to-end run caught
+// ---------------------------------------------------------------------------
+
+describe('phone normalisation at the API boundary', () => {
+  const api = readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8');
+
+  it('normalises before looking a customer up', () => {
+    // The bug: the screen passed the local 10 digits the vendor typed, but the
+    // database stores the E.164 form and the lookup is an exact match. Every
+    // existing customer came back as "not registered". Caught only by driving
+    // the real UI — every unit test passed throughout.
+    expect(code(api)).toMatch(/const msisdn = normaliseMsisdn\(phone\)/);
+    expect(code(api)).toMatch(/p_phone: msisdn/);
+  });
+
+  it('shares the normaliser with the Edge Functions rather than copying it', () => {
+    // Two implementations of phone normalisation is how one person ends up
+    // with two accounts holding separate balances at the same shop.
+    expect(code(api)).toMatch(
+      /import \{ normaliseMsisdn \} from '\.\.\/\.\.\/supabase\/functions\/_shared\/identity'/
+    );
+  });
+});

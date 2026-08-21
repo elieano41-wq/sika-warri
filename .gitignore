@@ -23,3 +23,7 @@ dist/
 # Supabase CLI machine-local scratch: linked-project state, version probes and
 # a pooler URL. No credentials, but it differs per machine and per login.
 supabase/.temp/
+
+# Screenshots from the UI end-to-end run. Evidence, not source: regenerated
+# every run and different every time.
+artifacts/

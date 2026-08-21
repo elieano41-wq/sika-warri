@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { formatCfaDigits, formatCountdown } from '../lib/format';
+import { formatCfaDigits, formatCountdown, ESPACE } from '../lib/format';
 
 // ---------------------------------------------------------------------------
 // Montant
@@ -22,7 +22,13 @@ export function Montant({
   return (
     <span className={`montant montant--${taille} ${className}`}>
       {formatCfaDigits(value)}
-      <span className="montant--suffixe">F</span>
+      {/*
+        The separator is a real non-breaking space in the TEXT, not a CSS
+        margin. A margin looks identical but leaves the text content as
+        "1 500F", which is what a screen reader announces and what lands on the
+        clipboard. The spec's format is "2 500 F"; the space has to be there.
+      */}
+      <span className="montant--suffixe">{ESPACE}F</span>
     </span>
   );
 }

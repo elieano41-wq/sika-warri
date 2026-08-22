@@ -3,6 +3,8 @@ import { Clavier, Cadran, Entete, Message, BoutonPrimaire, BoutonDiscret } from 
 import { QrScanner } from './QrScanner';
 import { formatPhoneLocal } from '../lib/format';
 import { normaliseMsisdn } from '../../supabase/functions/_shared/identity';
+import { ClientsRecents } from './ClientsRecents';
+import type * as api from '../lib/api';
 
 /**
  * Identifying a customer: scan, or type. Two equal options.
@@ -41,6 +43,7 @@ export function SaisieClient({
   occupe,
   onNumero,
   onRetour,
+  recents,
 }: {
   titre: string;
   sousTitre?: string;
@@ -49,6 +52,17 @@ export function SaisieClient({
   /** Receives a normalised msisdn, never raw keystrokes. */
   onNumero: (msisdn: string) => void;
   onRetour: () => void;
+  /**
+   * The shortlist, when the caller wants one. Omitted, this behaves exactly as
+   * before — typing is never removed, because a new customer has no shortlist
+   * entry and that is the case where the full number is the only way in.
+   */
+  recents?: {
+    session: api.Session;
+    vendorId: string;
+    actorUserId: string;
+    onChoisir: (c: api.RecentCustomerRow) => void;
+  };
 }) {
   const [mode, setMode] = useState<Mode>(() => preferenceEnregistree() ?? 'choix');
   const [numero, setNumero] = useState('');
@@ -109,6 +123,15 @@ export function SaisieClient({
             onAbandon={() => choisir('clavier')}
           />
         )}
+
+        {mode === 'clavier' && recents ? (
+          <ClientsRecents
+            session={recents.session}
+            vendorId={recents.vendorId}
+            actorUserId={recents.actorUserId}
+            onChoisir={recents.onChoisir}
+          />
+        ) : null}
 
         {mode === 'clavier' && (
           <>

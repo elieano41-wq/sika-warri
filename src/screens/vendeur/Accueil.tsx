@@ -79,6 +79,31 @@ export function AccueilVendeur({
       <div className="ecran__corps">
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
 
+        {/* THE FIRST SCREEN A VENDOR EVER OPENS.
+            Two zeros are accurate and useless: they look like an app that has
+            been used and come up empty, not one waiting to be started. Shown
+            INSTEAD of the figures rather than above them — there is nothing to
+            report yet, and reporting nothing twice is worse than once. */}
+        {resume !== null && dettes !== null
+          && resume.circulation_cfa === 0 && dettes.debt_cfa === 0
+          && resume.today_credit_count === 0 && resume.today_debit_count === 0 ? (
+          <article className="carnet">
+            <div className="carnet__etiquette">Bienvenue</div>
+            <p style={{ fontSize: 'var(--texte-grand)' }}>
+              Votre carnet est vide. Commencez quand un client n’a pas sa monnaie.
+            </p>
+            <p className="discret">
+              Quand vous ne pouvez pas rendre la monnaie, touchez « Garder la
+              monnaie » et notez le montant. Le client pourra l’utiliser chez vous
+              plus tard, ou vous demander de le rembourser en espèces.
+            </p>
+            <p className="discret">
+              Tout ce que vous notez reste chez vous. Sika Warri ne garde pas
+              d’argent — elle note seulement ce que vous devez à qui.
+            </p>
+          </article>
+        ) : null}
+
         {/* TWO FIGURES, NEVER MERGED.
 
             What the vendor HOLDS for customers is a liability; what they are
@@ -86,7 +111,14 @@ export function AccueilVendeur({
             add money in the till to money that may never arrive — and it would
             hide the one thing that matters, which is how much of what they are
             owed has gone stale. */}
-        <article className="carnet">
+        <article
+          className="carnet"
+          hidden={
+            resume !== null && dettes !== null
+            && resume.circulation_cfa === 0 && dettes.debt_cfa === 0
+            && resume.today_credit_count === 0 && resume.today_debit_count === 0
+          }
+        >
           {resume === null || dettes === null ? (
             <>
               <div className="carnet__etiquette">Monnaie que vous gardez</div>

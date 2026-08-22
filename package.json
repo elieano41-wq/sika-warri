@@ -26,7 +26,8 @@
     "seed": "node scripts/seed.mjs",
     "e2e:debt": "node scripts/e2e-debt.mjs",
     "reload:schema": "node scripts/reload-schema.mjs",
-    "db:push": "npx supabase db push && node scripts/reload-schema.mjs"
+    "db:push": "npx supabase db push && node scripts/reload-schema.mjs",
+    "pepper:drill": "node scripts/pepper-drill.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",

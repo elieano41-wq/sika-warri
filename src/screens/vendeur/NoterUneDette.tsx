@@ -236,6 +236,19 @@ export function NoterUneDette({
   if (etape === 'numero') {
     return (
       <SaisieClient
+        recents={{
+          session,
+          vendorId: vendeur.id,
+          actorUserId: vendeur.authUserId,
+          onChoisir: (c) => {
+            setNumero(c.phone);
+            setClientId(c.customer_id);
+            setEtiquette(c.your_label);
+            setInscrit(c.is_registered);
+            setDejaDu(c.debt_cfa);
+            setEtape('montant');
+          },
+        }}
         titre="Noter une dette"
         sousTitre="Le numéro du client"
         erreur={erreur}

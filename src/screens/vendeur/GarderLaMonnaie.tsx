@@ -5,7 +5,7 @@ import type { Session, VendorProfile } from '../../lib/api';
 import {
   Clavier, Entete, Message, Cadran, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
-import { appendDigit, removeDigit, formatPhoneLocal } from '../../lib/format';
+import { appendDigit, removeDigit, formatPhoneLocal, formatCfa } from '../../lib/format';
 import { SaisieClient } from '../../components/SaisieClient';
 
 /**
@@ -142,6 +142,20 @@ export function GarderLaMonnaie({
   if (etape === 'numero') {
     return (
       <SaisieClient
+        recents={{
+          session,
+          vendorId: vendeur.id,
+          actorUserId: vendeur.authUserId,
+          // Straight to the amount: the shortlist already carries the id and the
+          // label, so there is nothing left to look up and nothing left to name.
+          onChoisir: (c) => {
+            setNumero(c.phone);
+            setClientId(c.customer_id);
+            setEtiquetteClient(c.your_label);
+            setDejaChez(c.change_cfa);
+            setEtape('montant');
+          },
+        }}
         titre="Garder la monnaie"
         sousTitre={vendeur.businessName}
         erreur={erreur}
@@ -210,6 +224,18 @@ export function GarderLaMonnaie({
             ) : null}
 
             {erreur ? <Message ton="erreur">{erreur}</Message> : null}
+
+            {/* The commonest amounts, one tap each. Three keypad presses for
+                "500" is three too many when 500 is what a vendor records twenty
+                times a day — and the pattern already exists on Mes dettes. The
+                keypad stays below for everything else. */}
+            <div style={{ display: 'flex', gap: 'var(--espace-2)', flexWrap: 'wrap' }}>
+              {[100, 200, 500, 1000].map((m) => (
+                <BoutonSecondaire key={m} onClick={() => { setErreur(null); setMontant(m); }}>
+                  {formatCfa(m)}
+                </BoutonSecondaire>
+              ))}
+            </div>
 
             <Clavier
               onDigit={(d) => { setErreur(null); setMontant(appendDigit(montant, d)); }}

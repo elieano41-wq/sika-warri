@@ -970,6 +970,62 @@ try {
     apresContestation.slice(0, 400));
   await pv.screenshot({ path: 'artifacts/f6-dette-contestee.png' });
 
+  // ===== taps to record 500 F, MEASURED ===================================
+  //
+  // 16 taps was the number before the shortlist and the presets: 1 to start, TEN
+  // to type a remembered phone number, 1 to continue, 3 for the amount, 1 to
+  // confirm. At a counter with people waiting that is the difference between
+  // using this and reaching for the paper carnet.
+  //
+  // Counted here rather than reasoned about, because a tap count is exactly the
+  // kind of claim that drifts as screens change.
+  console.log('\n--- taps to record 500 F ---');
+
+  await ongletVers(pv, 'Accueil');
+  let taps = 0;
+  const compte = async (loc) => { await loc.click(); taps += 1; };
+
+  await compte(pv.getByRole('button', { name: 'Garder la monnaie' }));
+  // The shortlist should already hold the customer from the earlier sections.
+  // isVisible() does NOT wait -- it answers about this instant, and the shortlist
+  // arrives from a fetch. Same trap as the earlier heading checks: the answer was
+  // "no" because nothing had rendered yet, not because the feature was missing.
+  let surLaListe = true;
+  try {
+    await pv.locator('.recents .ligne-client').first().waitFor({ timeout: 20000 });
+  } catch {
+    surLaListe = false;
+  }
+  check('the recent-customer shortlist is offered', surLaListe);
+
+  if (surLaListe) {
+    await compte(pv.locator('.recents .ligne-client').first());
+    await pv.getByText('Monnaie à garder').first().waitFor({ timeout: 20000 });
+
+    // A preset for the commonest amount, rather than three keypad presses.
+    const presets = await pv.locator('button').filter({ hasText: /^500\s*F$/ }).count();
+    check('a preset amount button is offered', presets > 0, `${presets} found`);
+    if (presets > 0) {
+      await compte(pv.locator('button').filter({ hasText: /^500\s*F$/ }).first());
+    }
+
+    await compte(pv.getByRole('button', { name: /Enregistrer/i }).first());
+    await pv.getByRole('heading', { name: /gard[ée]e|Re[çc]u/i }).waitFor({ timeout: 25000 })
+      .catch(() => {});
+
+    console.log(`  taps: ${taps}`);
+    // Four: start, pick the client, pick the amount, confirm. The old path was
+    // sixteen. Asserted as a ceiling so a future screen cannot quietly add one.
+    check(`recording 500 F takes 5 taps or fewer (took ${taps})`, taps <= 5, String(taps));
+
+    const recu = await pv.textContent('body');
+    check('and it actually recorded 500 F', montantPresent(recu, '500'), recu.slice(0, 300));
+  }
+
+  await pv.getByRole('button', { name: /Termin|Nouveau client/i }).first().click()
+    .catch(() => {});
+  await ongletVers(pv, 'Accueil').catch(() => {});
+
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');
   const etroit = await navigateur.newContext({

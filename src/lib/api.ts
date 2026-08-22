@@ -1557,3 +1557,36 @@ export async function pendingCompensationsForMe(
     secondsLeft: r.seconds_left,
   }));
 }
+
+export interface RecentCustomerRow {
+  customer_id: string;
+  phone: string;
+  your_label: string | null;
+  is_registered: boolean;
+  /** Both figures, separately. A row showing one would have to pick, and either
+   *  pick is wrong half the time. */
+  change_cfa: number;
+  debt_cfa: number;
+  last_activity_at: string;
+}
+
+/**
+ * The last few customers this vendor dealt with.
+ *
+ * Exists to cut ten taps of a remembered phone number off the commonest
+ * transaction in the app. Discloses nothing vendor_customers does not already:
+ * this vendor's own label, own balance, own debt.
+ */
+export async function vendorRecentCustomers(
+  token: string,
+  vendorId: string,
+  actorUserId: string,
+  limit = 6
+): Promise<RecentCustomerRow[]> {
+  const rows = (await rpc(
+    'vendor_recent_customers',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as RecentCustomerRow[];
+  return rows ?? [];
+}

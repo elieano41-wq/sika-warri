@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../../lib/api';
+import { useIdempotence } from '../../lib/idempotence';
 import type { Session, VendorProfile } from '../../lib/api';
 import {
   Entete, Message, Montant, Clavier, BoutonPrimaire, BoutonSecondaire,
@@ -48,6 +49,10 @@ export function NoterUneDette({
   onTermine: () => void;
 }) {
   const [etape, setEtape] = useState<Etape>('numero');
+  // ONE KEY PER TRANSACTION, not per attempt. A retry after a lost
+  // response must be recognised as a replay, or a dropped connection at a
+  // market stall writes the entry twice. See lib/idempotence.ts.
+  const { cle: cleIdem, terminer: idemFait } = useIdempotence();
   const [numero, setNumero] = useState('');
   const [montant, setMontant] = useState(0);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -60,7 +65,11 @@ export function NoterUneDette({
   const [attente, setAttente] = useState<{ id: string; secondes: number } | null>(null);
   const [resultat, setResultat] = useState<{ confirmee: boolean; total: number } | null>(null);
 
-  const plafond = 10000;
+  // The vendor's OWN cap, not a constant. It is configurable per vendor, so a
+  // hardcoded 10 000 made this warning wrong for anyone set differently — and
+  // wrong in the worse direction, letting them reach the amount step before the
+  // server refused it in front of a customer.
+  const plafond = vendeur.maxDebtPerCustomer;
 
   async function trouver(msisdn: string, label?: string) {
     setErreur(null);
@@ -112,8 +121,11 @@ export function NoterUneDette({
         customerId: clientId,
         actorUserId: vendeur.authUserId,
         amountCfa: montant,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: cleIdem(),
       });
+      // The proposal exists server-side now. Retrying the PROPOSAL is what the
+      // key protected; the confirmation that follows is keyed by the pending id.
+      idemFait();
       setAttente({ id: p.id, secondes: 180 });
       setEtape('attente');
       surveiller(p.id);
@@ -173,11 +185,12 @@ export function NoterUneDette({
         customerId: clientId,
         actorUserId: vendeur.authUserId,
         amountCfa: montant,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: cleIdem(),
       });
       const du = await api.debtWith(
         session.accessToken, vendeur.id, clientId, vendeur.authUserId
       );
+      idemFait();
       setResultat({ confirmee: false, total: du });
       setEtape('fait');
     } catch (e) {

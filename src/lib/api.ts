@@ -149,11 +149,13 @@ export interface VendorProfile {
   businessName: string;
   quartier: string;
   maxBalancePerCustomer: number;
+  /** The debt ceiling for one customer. Configurable, default 10 000 F. */
+  maxDebtPerCustomer: number;
 }
 
 export async function myVendor(token: string): Promise<VendorProfile> {
   const rows = (await get(
-    'vendors?select=id,auth_user_id,business_name,quartier,max_balance_per_customer',
+    'vendors?select=id,auth_user_id,business_name,quartier,max_balance_per_customer,max_debt_per_customer',
     token
   )) as any[];
   if (!rows?.length) throw new ApiError('NOT_A_VENDOR', 'Compte commerçant introuvable', 403);
@@ -164,6 +166,7 @@ export async function myVendor(token: string): Promise<VendorProfile> {
     businessName: v.business_name,
     quartier: v.quartier,
     maxBalancePerCustomer: v.max_balance_per_customer,
+    maxDebtPerCustomer: v.max_debt_per_customer,
   };
 }
 

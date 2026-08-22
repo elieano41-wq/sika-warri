@@ -109,11 +109,19 @@ const SQLSTATE_MESSAGES: Record<string, string> = {
   SW001: "Cette opération ne vous appartient pas",
   SW002: "Identité incohérente, reconnectez-vous",
   SW003: "Session invalide, reconnectez-vous",
-  SW004: "Confirmation du client requise",
-  SW005: "Plafond dépassé pour ce client",
-  SW006: "Monnaie insuffisante chez ce commerçant",
-  SW007: "Demande invalide",
-  SW008: "Enregistrement introuvable",
+  SW004:
+    "Le client doit confirmer sur son téléphone. " +
+    "Demandez-lui d'ouvrir Sika Warri.",
+  SW005:
+    "Vous gardez déjà le maximum pour ce client. " +
+    "Il faut qu'il utilise sa monnaie avant que vous en gardiez plus.",
+  SW006:
+    "Le client n'a pas assez de monnaie gardée ici. " +
+    "Vérifiez le montant, ou demandez-lui le reste en espèces.",
+  SW007: "Demande incomplète. Vérifiez le montant et le numéro, puis réessayez.",
+  SW008:
+    "Introuvable. Vérifiez le numéro du client, ou demandez-lui de " +
+    "rouvrir son application.",
   SW009: "Trop de recherches, patientez un instant",
   SW010: "Le client doit changer son code avant le prochain achat",
   SW011: "Cette demande n'est plus valable",
@@ -128,6 +136,66 @@ const SQLSTATE_MESSAGES: Record<string, string> = {
   SW017:
     "Vous avez demandé la réinitialisation du code de ce client. " +
     "Vous pourrez utiliser sa monnaie dans une heure.",
+
+  // ---- the debt register --------------------------------------------------
+  //
+  // EVERY ONE OF THESE WAS FALLING THROUGH to "Une erreur est survenue,
+  // réessayez" until the field-readiness pass. Nine of them are reachable by a
+  // vendor standing at a counter — the cap, the rate limit, the repayment floor
+  // — so a vendor hitting the 10 000 F ceiling was told nothing about the
+  // ceiling and had no way to work out what to change.
+  //
+  // Each says what happened AND what to do. "Plafond atteint" alone is a fact
+  // about the system; "réglez une partie d'abord" is an instruction.
+
+  SW018: "Un compte support ne peut pas être aussi un compte client",
+
+  // Defensive: only a direct database write reaches this.
+  SW019: "Une dette ne peut pas être modifiée. Enregistrez un paiement ou une annulation.",
+
+  SW020:
+    "Plafond de dette atteint pour ce client. " +
+    "Encaissez une partie de ce qu'il vous doit avant d'en ajouter.",
+
+  SW021:
+    "Le montant dépasse ce que ce client vous doit. " +
+    "Vérifiez le montant reçu.",
+
+  SW022:
+    "Vous avez enregistré beaucoup de dettes en peu de temps. " +
+    "Attendez un moment avant d'en ajouter une autre.",
+
+  // The vendor-device path for debt. Unreachable from the app — there is no
+  // parameter for it — so this is for a hand-built request.
+  SW023:
+    "Une dette doit être confirmée par le client sur SON téléphone. " +
+    "Vous ne pouvez pas saisir son code.",
+
+  SW024: "Seul le client concerné peut répondre à cette écriture",
+
+  SW025:
+    "Vous avez déjà répondu à cette écriture. " +
+    "Contactez le commerçant si vous voulez la corriger.",
+
+  SW026:
+    "Rien à compenser ici : il faut à la fois de la monnaie gardée " +
+    "et une dette chez ce commerçant.",
+
+  SW027: "Cette dette doit être confirmée par le client sur son téléphone",
+
+  SW028:
+    "Montant trop élevé. Choisissez au maximum le plus petit des deux " +
+    "montants : la monnaie gardée ou la dette.",
+
+  SW029: "Cette réponse ne correspond pas à ce type d'écriture",
+
+  SW030:
+    "Vous ne devez rien à ce commerçant, il n'y a donc pas de paiement " +
+    "à déclarer.",
+
+  SW031: "Cette réclamation a déjà été traitée",
+
+  SW032: "Vous ne pouvez pas répondre à cette réclamation",
 };
 
 /**

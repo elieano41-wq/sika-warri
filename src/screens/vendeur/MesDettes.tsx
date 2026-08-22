@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
+import { useIdempotence } from '../../lib/idempotence';
 import type { Session, VendorProfile, DebtorRow, DebtEntryRow } from '../../lib/api';
 import {
   Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret, Cadran,
@@ -35,6 +36,10 @@ export function MesDettes({
   vendeur: VendorProfile;
 }) {
   const [debiteurs, setDebiteurs] = useState<DebtorRow[] | null>(null);
+  // ONE KEY PER TRANSACTION, not per attempt. A retry after a lost
+  // response must be recognised as a replay, or a dropped connection at a
+  // market stall writes the entry twice. See lib/idempotence.ts.
+  const { cle: cleIdem, terminer: idemFait } = useIdempotence();
   const [resume, setResume] = useState<api.VendorDebtSummary | null>(null);
   const [tri, setTri] = useState<Tri>('amount');
   const [ouvert, setOuvert] = useState<DebtorRow | null>(null);
@@ -83,8 +88,9 @@ export function MesDettes({
         customerId: ouvert.customer_id,
         actorUserId: vendeur.authUserId,
         amountCfa: reglement,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: cleIdem(),
       });
+      idemFait();
       await charger();
       await ouvrir({ ...ouvert, debt_cfa: ouvert.debt_cfa - reglement });
     } catch (e) {

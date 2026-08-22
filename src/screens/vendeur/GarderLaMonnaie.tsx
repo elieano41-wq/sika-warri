@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../../lib/api';
+import { useIdempotence } from '../../lib/idempotence';
 import type { Session, VendorProfile } from '../../lib/api';
 import {
   Clavier, Entete, Message, Cadran, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
@@ -30,6 +31,10 @@ export function GarderLaMonnaie({
   onTermine: () => void;
 }) {
   const [etape, setEtape] = useState<Etape>('numero');
+  // ONE KEY PER TRANSACTION, not per attempt. A retry after a lost
+  // response must be recognised as a replay, or a dropped connection at a
+  // market stall writes the entry twice. See lib/idempotence.ts.
+  const { cle: cleIdem, terminer: idemFait } = useIdempotence();
   const [numero, setNumero] = useState('');
   const [montant, setMontant] = useState(0);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -98,12 +103,15 @@ export function GarderLaMonnaie({
         amountCfa: montant,
         // Client-generated so a retry on a dropped response cannot double the
         // entry. Same key, same entry, every time.
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: cleIdem(),
       });
 
       const code = await api.receiptCode(session.accessToken, entree.id);
       const nouveau = await api.balanceWith(session.accessToken, vendeur.id, clientId);
       setRecu({ code, nouveau });
+      // Written and confirmed: this transaction is over, so the next one gets a
+      // fresh key rather than replaying this entry.
+      idemFait();
       setEtape('fait');
     } catch (e) {
       setErreur((e as api.ApiError).message);

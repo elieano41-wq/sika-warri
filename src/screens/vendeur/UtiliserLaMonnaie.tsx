@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as api from '../../lib/api';
+import { useIdempotence } from '../../lib/idempotence';
 import type { Session, VendorProfile } from '../../lib/api';
 import {
   Clavier, Entete, Message, Cadran, Montant, Compteur,
@@ -32,6 +33,10 @@ export function UtiliserLaMonnaie({
   onTermine: () => void;
 }) {
   const [etape, setEtape] = useState<Etape>('numero');
+  // ONE KEY PER TRANSACTION, not per attempt. A retry after a lost
+  // response must be recognised as a replay, or a dropped connection at a
+  // market stall writes the entry twice. See lib/idempotence.ts.
+  const { cle: cleIdem, terminer: idemFait } = useIdempotence();
   const [numero, setNumero] = useState('');
   const [montant, setMontant] = useState(0);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -141,8 +146,11 @@ export function UtiliserLaMonnaie({
         customerPhone: numero,
         amountCfa: montant,
         kind: 'purchase',
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: cleIdem(),
       });
+      // The proposal exists server-side; retrying THAT is what the key
+      // protected. What follows is keyed by the pending id.
+      idemFait();
       setPendingId(p.pendingId);
       setSecondes(
         Math.max(0, Math.ceil((new Date(p.expiresAt).getTime() - Date.now()) / 1000))

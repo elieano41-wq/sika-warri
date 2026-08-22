@@ -38,6 +38,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check the connection string can work from a runner
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/check-db-url.mjs
+
       - name: Insert a heartbeat and prune old rows
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

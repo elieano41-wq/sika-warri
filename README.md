@@ -324,7 +324,7 @@ Actions:
 
 | Secret | Used by | What it is |
 | --- | --- | --- |
-| `SUPABASE_DB_URL` | keepalive, backup | Production connection string. Dashboard > Project Settings > Database > Connection string > URI |
+| `SUPABASE_DB_URL` | keepalive, backup | Production connection string, **Session pooler** — Dashboard > Project Settings > Database > Connection string > Session pooler. NOT the direct `db.<ref>.supabase.co` URI: it is IPv6-only on the free tier and Actions runners have no IPv6, so it can never connect. NOT the transaction pooler on 6543 either: `pg_dump` needs session-level features it does not provide. `scripts/check-db-url.mjs` refuses both shapes before a dump is attempted |
 | `BACKUP_GPG_PASSPHRASE` | backup | A long random passphrase. **Store it somewhere other than this repository** — a backup you cannot decrypt is not a backup |
 
 Neither workflow can run before those are set. `backup.yml` checks for both and

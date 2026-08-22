@@ -65,6 +65,19 @@ jobs:
           test -n "$DB"   || { echo "SUPABASE_DB_URL secret is not set"; exit 1; }
           test -n "$PASS" || { echo "BACKUP_GPG_PASSPHRASE secret is not set"; exit 1; }
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Check the connection string can work from a runner
+        # The direct endpoint db.<ref>.supabase.co is IPv6-only on the free tier
+        # and Actions runners have no IPv6, so pg_dump reports "Network is
+        # unreachable" — true, and no help at all at 02:37. Caught here with the
+        # fix named instead.
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/check-db-url.mjs
+
       - name: pg_dump
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

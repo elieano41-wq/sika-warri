@@ -48,7 +48,11 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # client 16 ships on the runner and keeps the higher alternatives
+          # priority, so `pg_dump` on PATH would still be 16 — and a pg_dump
+          # older than the server refuses to run at all.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Fail loudly if the secrets are missing
         # Standing rule 6. Without this the dump would be an empty file, gpg

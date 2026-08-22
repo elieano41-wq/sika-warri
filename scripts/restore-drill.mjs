@@ -142,6 +142,10 @@ try {
   // The same flags as backup.yml. If they diverge, this drill stops rehearsing
   // the thing that actually runs at night.
   console.log('\n2. pg_dump');
+  // Named in the drill's own output. A pg_dump older than the server refuses to
+  // run, and that mismatch has already happened once: the runner ships client 16
+  // and keeps the alternatives priority for it.
+  console.log(`  ${pg_('pg_dump', ['--version']).trim()}`);
   const sortie = pg_('pg_dump', [
     url,
     '--format=plain',

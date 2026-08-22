@@ -176,9 +176,14 @@ try {
   });
   n += 1;
   await client.query(
+    // customer_confirmed is FALSE here, and must be. A correction inside the
+    // 15-minute window is authorised by the vendor alone precisely because no
+    // customer saw it; claiming otherwise is refused with
+    // SIKA_CORRECTION_NOT_CUSTOMER_CONFIRMED. The exact-amount rule is what
+    // makes the unilateral window safe.
     `select * from public.post_ledger_entry(
        $1::uuid, $2::uuid, 'debit', 'reversal', $3::integer, $4::text,
-       $5::uuid, true, $6::uuid, $7::text, 'vendor_correction')`,
+       $5::uuid, false, $6::uuid, $7::text, 'vendor_correction')`,
     [
       vendeurs[1].id, clients[5].id, 1200, randomUUID(),
       vendeurs[1].authId, erreur.id, 'Montant saisi par erreur',

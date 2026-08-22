@@ -5,7 +5,7 @@ import {
   Entete, Message, Montant, BoutonSecondaire, BoutonDiscret, BoutonPrimaire,
 } from '../../components/ui';
 import { formatCfa, formatPhoneLocal } from '../../lib/format';
-import { vendorInCirculation } from '../../lib/balances';
+import type { VendorSummary } from '../../lib/api';
 
 /**
  * Mes clients — who this vendor owes.
@@ -28,6 +28,7 @@ export function MesClients({
   onTermine: () => void;
 }) {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
+  const [resume, setResume] = useState<VendorSummary | null>(null);
   const [recherche, setRecherche] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<ClientRow | null>(null);
@@ -37,7 +38,17 @@ export function MesClients({
 
   const charger = useCallback(async () => {
     try {
-      setClients(await api.myClients(session.accessToken, vendeur.id, vendeur.authUserId));
+      // Two calls on purpose. The LIST is a page — bounded, and it says so. The
+      // TOTAL is computed in SQL over every row and returned as one figure.
+      // Summing the page would understate what the vendor owes the moment the
+      // page stopped being the whole book, and would disagree with the home
+      // screen while neither reported an error.
+      const [liste, sommaire] = await Promise.all([
+        api.myClients(session.accessToken, vendeur.id, vendeur.authUserId),
+        api.vendorSummary(session.accessToken, vendeur.id, vendeur.authUserId),
+      ]);
+      setClients(liste);
+      setResume(sommaire);
       setErreur(null);
     } catch (e) {
       setErreur((e as api.ApiError).message);
@@ -193,11 +204,12 @@ export function MesClients({
 
   // ---- the list ----------------------------------------------------------
   //
-  // The vendor's own total IS meaningful and is not what rule 1 forbids: it is
-  // one shopkeeper's own liability in their own shop, not a customer's change
-  // pooled across shops. "Monnaie en circulation" is the spec's own wording.
-  const { totalCfa: enCirculation, customerCount: avecSolde } =
-    vendorInCirculation(clients ?? []);
+  // Taken from the server-side aggregate, never from the page. See charger().
+  const enCirculation = resume?.circulation_cfa ?? 0;
+  const avecSolde = resume?.customers_owed ?? 0;
+  // How many the list is actually showing, versus how many exist.
+  const total = clients?.[0]?.total_count ?? clients?.length ?? 0;
+  const tronque = clients !== null && clients.length < total;
 
   return (
     <div className="ecran">
@@ -218,7 +230,7 @@ export function MesClients({
             owing nothing at all — a wrong answer presented as confidently as a
             right one. An honest "—" is better than a fast lie.
           */}
-          {clients === null ? (
+          {clients === null || resume === null ? (
             <>
               <span className="montant montant--grand" style={{ color: 'var(--sauge)' }}>
                 —
@@ -257,6 +269,15 @@ export function MesClients({
               : 'Aucun client ne correspond à cette recherche.'}
           </Message>
         ) : (
+          <>
+            {/* A truncated list must look truncated. Silently showing the first
+                200 of 1 234 is the failure mode this whole audit was about. */}
+            {tronque ? (
+              <Message ton="info">
+                Les {clients?.length} clients qui vous doivent le plus, sur {total}.
+                Utilisez la recherche pour trouver les autres.
+              </Message>
+            ) : null}
           <ul className="pile" style={{ listStyle: 'none' }}>
             {filtres.map((c) => (
               <li key={c.customer_id}>
@@ -280,6 +301,7 @@ export function MesClients({
               </li>
             ))}
           </ul>
+          </>
         )}
       </div>
     </div>

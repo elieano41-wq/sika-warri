@@ -399,7 +399,7 @@ export interface ShopRow {
 export async function myShops(token: string, actorUserId: string): Promise<ShopRow[]> {
   const rows = (await rpc(
     'customer_shop_balances',
-    { p_actor_user_id: actorUserId },
+    { p_actor_user_id: actorUserId, p_limit: 100 },
     token
   )) as ShopRow[];
   return rows ?? [];
@@ -438,6 +438,8 @@ export interface ClientRow {
   last_activity_at: string | null;
   entry_count: number;
   is_registered: boolean;
+  /** How many customers this vendor has in total, not how many rows came back. */
+  total_count: number;
 }
 
 /** Who this vendor owes, largest first. */
@@ -448,7 +450,7 @@ export async function myClients(
 ): Promise<ClientRow[]> {
   const rows = (await rpc(
     'vendor_customers',
-    { p_vendor_id: vendorId, p_actor_user_id: actorUserId },
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: 200 },
     token
   )) as ClientRow[];
   return rows ?? [];
@@ -591,6 +593,8 @@ export interface ResetRequest {
 }
 
 export interface AdminVendor {
+  /** Total vendors, regardless of how many rows this page returned. */
+  total_count?: number;
   vendor_id: string;
   business_name: string;
   quartier: string;

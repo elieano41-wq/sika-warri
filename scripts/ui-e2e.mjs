@@ -10,14 +10,16 @@
 // Requires: npm run build (env vars are baked in at build time).
 
 import { chromium } from 'playwright';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { cible, PREFIXE_TEST, telephoneTest } from './test-target.mjs';
+import { afficherCible } from './whoami.mjs';
 
 // Where this run may write. Production is REFUSED unless explicitly allowed —
 // see scripts/test-target.mjs. This harness registers accounts and records
 // ledger entries through the real API, and pointed at production it left 91 test
 // accounts sitting in the vendor list.
+afficherCible();
 const CIBLE_API = cible();
 const BASE_API = CIBLE_API.url;
 const APIKEY = CIBLE_API.apikey;
@@ -222,6 +224,14 @@ console.log(`Test numbers: vendor 225${VENDOR_PHONE}, customer 225${CUSTOMER_PHO
 
 let serveur = null;
 if (LOCAL) {
+  // Build in the mode that matches the API target. Without this the bundle
+  // bakes in .env.local — production — and the browser would drive production
+  // while the direct API calls went to test. The bundle check below is what
+  // caught that.
+  const mode = CIBLE_API.production ? 'production' : 'test';
+  console.log(`Building app for the ${mode} target…`);
+  execSync(`npx vite build --mode ${mode}`, { stdio: 'ignore' });
+
   console.log('Starting preview server…');
   serveur = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
     stdio: 'ignore', shell: true,

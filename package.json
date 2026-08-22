@@ -17,7 +17,9 @@
     "icons": "node scripts/make-icons.mjs",
     "e2e:ui": "node scripts/ui-e2e.mjs",
     "deploy": "npm run build && wrangler pages deploy dist --project-name sika-warri --branch main",
-    "make-admin": "node scripts/make-admin.mjs"
+    "make-admin": "node scripts/make-admin.mjs",
+    "target": "node scripts/whoami.mjs",
+    "build:test": "vite build --mode test"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",

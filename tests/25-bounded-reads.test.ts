@@ -392,6 +392,10 @@ const BORNE_AUTREMENT: Record<string, string> = {
   // The debt register's headline figure, for the same reason: what a vendor is
   // owed must not be summed from a bounded debtor list.
   vendor_debt_summary: 'aggregate, one row by construction',
+  // Buckets one pair's outstanding debt by age. One row, and not reachable from
+  // a client anyway — debt_unpaid_slices under it is revoked outright.
+  debt_ageing: 'aggregate, one row by construction',
+  debt_unpaid_slices: 'internal to debt_ageing; granted to no client role',
   // where p.id = p_pending_id on the primary key.
   vendor_pending_detail: 'one row, keyed on the primary key',
 };

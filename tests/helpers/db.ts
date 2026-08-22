@@ -396,7 +396,9 @@ export async function confirmPendingDebt(
 export async function reviewDebt(
   db: pg.Client,
   entryId: string,
-  decision: 'accepted' | 'disputed',
+  // 'acknowledged' applies to a REPAID entry: the customer confirming a
+  // settlement the vendor recorded. 'accepted' applies to an OWED one.
+  decision: 'accepted' | 'disputed' | 'acknowledged',
   customerAuthUserId: string,
   reason: string | null = null
 ) {

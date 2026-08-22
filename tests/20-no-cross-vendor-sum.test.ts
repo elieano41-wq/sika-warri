@@ -61,7 +61,8 @@ describe('acceptance test 8 — three vendors, three figures', () => {
   });
 
   it('the informational total ALWAYS carries its required caption', () => {
-    const total = informationalTotal(perShop(THREE_SHOPS));
+    // Takes the SERVER aggregate, not the list. The list is a page.
+    const total = informationalTotal({ totalCfa: 4300, shopCount: 3 });
 
     expect(total).not.toBeNull();
     expect(total!.amountCfa).toBe(4300);
@@ -81,10 +82,32 @@ describe('acceptance test 8 — three vendors, three figures', () => {
   });
 
   it('returns NO total for a single shop', () => {
-    const one = perShop([THREE_SHOPS[0]!]);
     // With one shop the total IS that shop's balance. Repeating it under a
     // "spread across 1 shop" caption would imply a pool where none exists.
-    expect(informationalTotal(one)).toBeNull();
+    expect(informationalTotal({ totalCfa: 2500, shopCount: 1 })).toBeNull();
+    expect(informationalTotal({ totalCfa: 0, shopCount: 0 })).toBeNull();
+    expect(informationalTotal(null)).toBeNull();
+  });
+
+  it('reports what the SERVER said, even when it disagrees with the page', () => {
+    // The regression, at the unit level. A page showing three shops worth 4 300
+    // while the server says 137 shops and 91 200 F means the customer holds
+    // change at more shops than the page lists — and the sentence they read must
+    // describe the server's answer, not the page's.
+    const total = informationalTotal({ totalCfa: 91200, shopCount: 137 });
+
+    expect(total!.amountCfa).toBe(91200);
+    expect(total!.shopCount).toBe(137);
+    expect(total!.caption).toContain('137 commerçants');
+  });
+
+  it('cannot be handed a list by mistake', () => {
+    // The old signature took ShopBalance[] and folded over it. If that ever
+    // comes back, this file stops compiling rather than silently understating a
+    // total again.
+    const source = readFileSync(path.join(SRC, 'lib', 'balances.ts'), 'utf8');
+    expect(code(source)).not.toMatch(/\.reduce\s*\(/);
+    expect(code(source)).toMatch(/CustomerAggregate/);
   });
 
   it('what is spendable is always per shop, never the total', () => {
@@ -98,7 +121,7 @@ describe('acceptance test 8 — three vendors, three figures', () => {
 
   it('no spendable figure anywhere equals the sum', () => {
     const shops = perShop(THREE_SHOPS);
-    const total = informationalTotal(shops)!.amountCfa;
+    const total = informationalTotal({ totalCfa: 4300, shopCount: 3 })!.amountCfa;
     for (const s of shops) {
       expect(spendableAt(shops, s.vendorId)).not.toBe(total);
     }

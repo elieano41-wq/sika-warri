@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
 import {
-  connect, reset, actAs, actAsAdmin, seedVendor, seedCustomer, postEntry,
+  connect, reset, actAs, actAsAdmin, seedVendor, seedCustomer, postEntry, sqlstateOf,
   type SeededVendor, type SeededCustomer,
 } from './helpers/db';
 
@@ -224,6 +224,118 @@ describe('customer_shop_balances is bounded too', () => {
   });
 });
 
+describe('the customer total does NOT come from the page either', () => {
+  /** One customer holding `amount` at each of `n` different vendors. */
+  async function chezPlusieurs(n: number, amount: number) {
+    const client = await seedCustomer(db);
+    for (let i = 0; i < n; i += 1) {
+      const v = await seedVendor(db, { cap: 100000 });
+      await actAsAdmin(db);
+      await postEntry(db, {
+        vendorId: v.id,
+        customerId: client.id,
+        direction: 'credit',
+        kind: 'change',
+        amount,
+        actorUserId: v.authUserId,
+      });
+    }
+    return client;
+  }
+
+  it('customer_summary is right when the shop page is truncated', async () => {
+    // The same regression as the vendor side, on the other side of the app.
+    // Summing a page of 2 out of 5 gives 200; the customer holds 500.
+    const client = await chezPlusieurs(5, 100);
+    await actAs(db, client.authUserId!);
+
+    const { rows: page } = await db.query(
+      'select * from public.customer_shop_balances($1::uuid, $2::integer)',
+      [client.authUserId, 2]
+    );
+    const sommeDeLaPage = page.reduce((t, r) => t + r.balance_cfa, 0);
+
+    const { rows: resume } = await db.query('select * from public.customer_summary($1::uuid)', [
+      client.authUserId,
+    ]);
+
+    expect(sommeDeLaPage).toBe(200);
+    expect(resume[0].total_cfa).toBe(500);
+    expect(resume[0].total_cfa).not.toBe(sommeDeLaPage);
+  });
+
+  it('the SHOP COUNT is the server′s too, not the page length', async () => {
+    // The half that is worse on the customer side: the caption says "Répartie
+    // chez N commerçants", and N came from the page. A page of 2 would have
+    // claimed 2 shops when the answer is 5.
+    const client = await chezPlusieurs(5, 100);
+    await actAs(db, client.authUserId!);
+
+    const { rows: page } = await db.query(
+      'select * from public.customer_shop_balances($1::uuid, $2::integer)',
+      [client.authUserId, 2]
+    );
+    const { rows: resume } = await db.query('select * from public.customer_summary($1::uuid)', [
+      client.authUserId,
+    ]);
+
+    expect(page).toHaveLength(2);
+    expect(resume[0].shop_count).toBe(5);
+  });
+
+  it('counts only shops that still hold something', async () => {
+    // Matches perShop(), which drops zero balances. A shop the customer has
+    // emptied is not a shop their change is "spread across".
+    const client = await seedCustomer(db);
+    const v1 = await seedVendor(db, { cap: 100000 });
+    const v2 = await seedVendor(db, { cap: 100000 });
+    await actAsAdmin(db);
+    await postEntry(db, {
+      vendorId: v1.id, customerId: client.id, direction: 'credit',
+      kind: 'change', amount: 500, actorUserId: v1.authUserId,
+    });
+    await postEntry(db, {
+      vendorId: v2.id, customerId: client.id, direction: 'credit',
+      kind: 'change', amount: 300, actorUserId: v2.authUserId,
+    });
+    // Spend everything at the second shop.
+    await postEntry(db, {
+      vendorId: v2.id, customerId: client.id, direction: 'debit',
+      kind: 'purchase', amount: 300, actorUserId: v2.authUserId,
+      customerConfirmed: true,
+    });
+
+    await actAs(db, client.authUserId!);
+    const { rows } = await db.query('select * from public.customer_summary($1::uuid)', [
+      client.authUserId,
+    ]);
+    expect(rows[0].shop_count).toBe(1);
+    expect(rows[0].total_cfa).toBe(500);
+  });
+
+  it('is one row, so it cannot be truncated', async () => {
+    const client = await chezPlusieurs(3, 250);
+    await actAs(db, client.authUserId!);
+    const { rows } = await db.query('select * from public.customer_summary($1::uuid)', [
+      client.authUserId,
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].total_cfa).toBe(750);
+  });
+
+  it('answers only about the caller', async () => {
+    // Standing rule 1 again: one customer must never see another's total.
+    const a = await chezPlusieurs(2, 100);
+    const b = await seedCustomer(db);
+
+    await actAs(db, b.authUserId!);
+    const code_ = await sqlstateOf(() =>
+      db.query('select * from public.customer_summary($1::uuid)', [a.authUserId])
+    );
+    expect(code_).toBe('SW002');
+  });
+});
+
 describe('pending_debits_for_customer is bounded with no caller choice', () => {
   it('takes no limit argument', async () => {
     // Deliberate. This is "what is waiting for your confirmation right now",
@@ -274,6 +386,9 @@ const BORNE_AUTREMENT: Record<string, string> = {
   // Aggregate. One row by construction, which is exactly why the circulation
   // figure was moved here.
   vendor_home_summary: 'aggregate, one row by construction',
+  // The customer-side twin, added for the same reason: the informational total
+  // and its shop count both used to be folded out of a bounded list.
+  customer_summary: 'aggregate, one row by construction',
   // where p.id = p_pending_id on the primary key.
   vendor_pending_detail: 'one row, keyed on the primary key',
 };

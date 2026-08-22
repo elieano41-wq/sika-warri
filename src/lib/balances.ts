@@ -65,22 +65,41 @@ export function perShop(
 }
 
 /**
+ * What the server says the customer holds in total, and at how many shops.
+ *
+ * Both figures come from customer_summary, which aggregates in SQL and returns
+ * one row.
+ */
+export interface CustomerAggregate {
+  totalCfa: number;
+  shopCount: number;
+}
+
+/**
  * The informational total, inseparable from its caption.
+ *
+ * TAKES THE SERVER AGGREGATE, NOT THE LIST. It used to fold over the shops
+ * handed to it, which was wrong for the same reason the vendor's circulation
+ * figure was wrong: that list is a page. Worse here, because the caption's count
+ * came from the same page, so a truncated list misstated both the amount and the
+ * number of shops — "Répartie chez 100 commerçants" when the answer is 137.
+ *
+ * A list can be a page. A total cannot.
  *
  * Returns null for a single shop. With one shop the figure IS that shop's
  * balance, and repeating it under a "spread across 1 shop" caption would
  * suggest a pooled sum where none exists — the precise impression rule 1
  * forbids.
  */
-export function informationalTotal(shops: ShopBalance[]): InformationalTotal | null {
-  if (shops.length < 2) return null;
-
-  const amountCfa = shops.reduce((sum, s) => sum + s.amountCfa, 0);
+export function informationalTotal(
+  aggregate: CustomerAggregate | null
+): InformationalTotal | null {
+  if (!aggregate || aggregate.shopCount < 2) return null;
 
   return {
-    amountCfa,
-    shopCount: shops.length,
-    caption: captionFor(shops.length),
+    amountCfa: aggregate.totalCfa,
+    shopCount: aggregate.shopCount,
+    caption: captionFor(aggregate.shopCount),
   };
 }
 

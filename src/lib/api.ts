@@ -395,7 +395,12 @@ export interface ShopRow {
   vendor_verified: boolean;
 }
 
-/** One row per shop holding this customer's change. Never a total. */
+/**
+ * One row per shop holding this customer's change. Never a total.
+ *
+ * This is a PAGE, not the whole truth. Anything that needs a figure covering
+ * every shop must call myShopSummary() instead of adding these up.
+ */
 export async function myShops(token: string, actorUserId: string): Promise<ShopRow[]> {
   const rows = (await rpc(
     'customer_shop_balances',
@@ -403,6 +408,31 @@ export async function myShops(token: string, actorUserId: string): Promise<ShopR
     token
   )) as ShopRow[];
   return rows ?? [];
+}
+
+export interface CustomerSummary {
+  total_cfa: number;
+  shop_count: number;
+  last_activity_at: string | null;
+}
+
+/**
+ * The informational total and the shop count, aggregated server-side.
+ *
+ * One row, so it cannot be truncated. Exists because both figures used to be
+ * folded out of myShops() above, which is bounded.
+ */
+export async function myShopSummary(
+  token: string,
+  actorUserId: string
+): Promise<CustomerSummary> {
+  const rows = (await rpc(
+    'customer_summary',
+    { p_actor_user_id: actorUserId },
+    token
+  )) as CustomerSummary[];
+  const r = Array.isArray(rows) ? rows[0] : rows;
+  return r ?? { total_cfa: 0, shop_count: 0, last_activity_at: null };
 }
 
 export interface EntryRow {

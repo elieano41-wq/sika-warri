@@ -36,6 +36,9 @@ export function MaMonnaie({
   onDeconnexion: () => void;
 }) {
   const [shops, setShops] = useState<ShopBalance[] | null>(null);
+  // The total and the shop count, straight from the server. Never derived from
+  // `shops` above, which is a bounded page.
+  const [resume, setResume] = useState<api.CustomerSummary | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<ShopBalance | null>(null);
   const [histoire, setHistoire] = useState<EntryRow[] | null>(null);
@@ -43,9 +46,16 @@ export function MaMonnaie({
 
   const charger = useCallback(async () => {
     try {
-      const rows: ShopRow[] = await api.myShops(session.accessToken, client.authUserId);
-      // Shaping happens in balances.ts, the one file allowed to fold over
-      // balances at all.
+      // In parallel: the page of shops to show, and the aggregate the headline
+      // figure comes from. Two calls rather than one because they answer
+      // different questions — "which shops" and "how much in total" — and only
+      // the second may be trusted as a total.
+      const [rows, agg] = await Promise.all([
+        api.myShops(session.accessToken, client.authUserId) as Promise<ShopRow[]>,
+        api.myShopSummary(session.accessToken, client.authUserId),
+      ]);
+
+      // Shaping happens in balances.ts.
       setShops(
         perShop(
           rows.map((r) => ({
@@ -57,6 +67,7 @@ export function MaMonnaie({
           }))
         )
       );
+      setResume(agg);
       setErreur(null);
     } catch (e) {
       setErreur((e as api.ApiError).message);
@@ -206,7 +217,10 @@ export function MaMonnaie({
   }
 
   // ---- all shops ---------------------------------------------------------
-  const total = shops ? informationalTotal(shops) : null;
+  // From the server aggregate, never from the list of cards above.
+  const total = resume
+    ? informationalTotal({ totalCfa: resume.total_cfa, shopCount: resume.shop_count })
+    : null;
 
   return (
     <div className="ecran">

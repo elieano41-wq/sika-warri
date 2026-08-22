@@ -1,40 +1,50 @@
-// End-to-end exercise of the five deployed Edge Functions against the REAL
+// End-to-end exercise of the five deployed Edge Functions against a REAL
 // project. Not a unit test — it makes real calls and writes real rows.
 //
 // Run: node scripts/e2e-live.mjs
 //
-// Reads the project URL and publishable key from .env.local. Requires nothing
-// secret: the publishable key is public by design, and every privileged step
-// happens inside the functions using secrets only they hold.
+// WHERE IT WRITES is decided by cible(), which prefers .env.test.local and
+// refuses production outright unless SIKA_ALLOW_PROD_TEST=1. This script used to
+// read .env.local directly, which meant it always wrote to production — it is
+// what created the "Chez Awa (test)" vendor that sat in the real vendor list,
+// and it wrote four accounts and two ledger entries into production on
+// 2026-08-22 while the very suite meant to prove the projects were separate was
+// running. The guard existed; this script just never called it.
+//
+// Requires nothing secret: the publishable key is public by design, and every
+// privileged step happens inside the functions using secrets only they hold.
 
-import { readFileSync } from 'node:fs';
+import { cible, telephoneTest, PREFIXE_TEST } from './test-target.mjs';
+import { afficherCible } from './whoami.mjs';
 
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
-const env = Object.fromEntries(
-  readFileSync('.env.local', 'utf8')
-    .split('\n')
-    .filter((l) => /^[A-Z]/.test(l))
-    .map((l) => {
-      const i = l.indexOf('=');
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    })
-);
+// Printed before anything is written, never after. There should be no run where
+// the target has to be inferred from the rows that appeared.
+afficherCible();
 
-const URL_BASE = env.VITE_SUPABASE_URL;
-const APIKEY = env.VITE_SUPABASE_PUBLISHABLE_KEY;
-if (!URL_BASE || !APIKEY) throw new Error('Missing VITE_SUPABASE_URL or key in .env.local');
+const { url: URL_BASE, apikey: APIKEY, production, source } = cible();
+console.log(`e2e:live writing to ${URL_BASE}  (${source})\n`);
+if (production) {
+  console.log('*** PRODUCTION — allowed only because SIKA_ALLOW_PROD_TEST=1 ***\n');
+}
 
 const FN = (name) => `${URL_BASE}/functions/v1/${name}`;
 const REST = (path) => `${URL_BASE}/rest/v1/${path}`;
 
-// Distinctive synthetic numbers so the rows are obvious in the dashboard.
-const stamp = Date.now().toString().slice(-6);
-const VENDOR_PHONE = `07${stamp}00`.slice(0, 10);
-const CUSTOMER_PHONE = `05${stamp}00`.slice(0, 10);
-const OTHER_PHONE = `25${stamp}00`.slice(0, 10);
+// Numbers in the reserved 0155 55 block and names under the reserved prefix, so
+// every row this script creates is filterable by clear-test-data.mjs. The old
+// timestamp-derived numbers were merely unusual, which is not the same as
+// identifiable: they looked like real customers in the dashboard.
+const stamp = Number(Date.now().toString().slice(-4));
+const VENDOR_PHONE = telephoneTest(stamp);
+const CUSTOMER_PHONE = telephoneTest(stamp + 1);
+const OTHER_PHONE = telephoneTest(stamp + 2);
+// Was 'Chez Awa (test)'. A parenthesised "(test)" is a note to a human reading
+// carefully; the reserved prefix is something a filter can rely on.
+const NOM_BOUTIQUE = `${PREFIXE_TEST}Chez Awa`;
 const VENDOR_PIN = '481627';
 const CUSTOMER_PIN = '4821';
 const OTHER_PIN = '9137';
@@ -111,7 +121,7 @@ const regVendor = await callFn('register', {
   role: 'vendor',
   phone: VENDOR_PHONE,
   pin: VENDOR_PIN,
-  businessName: 'Chez Awa (test)',
+  businessName: NOM_BOUTIQUE,
   quartier: 'Yopougon',
   commune: 'Abidjan',
   termsAccepted: true,
@@ -295,7 +305,7 @@ const pendingForCustomer = await rpc('pending_debits_for_customer',
   { p_actor_user_id: custRow.body?.[0]?.auth_user_id }, customerToken);
 check('the customer sees the request with shop name and resulting balance',
   Array.isArray(pendingForCustomer.body) &&
-  pendingForCustomer.body[0]?.business_name === 'Chez Awa (test)' &&
+  pendingForCustomer.body[0]?.business_name === NOM_BOUTIQUE &&
   pendingForCustomer.body[0]?.resulting_balance === 600,
   JSON.stringify(pendingForCustomer.body));
 
@@ -376,7 +386,11 @@ check('the OLD PIN no longer works', loginOldPin.status === 401,
 section('lockout — acceptance test 9');
 
 // Fresh number so the counter starts clean and no earlier failure interferes.
-const lockPhone = `07${stamp}99`.slice(0, 10);
+// In the reserved block like the rest. This was the one number the move to
+// telephoneTest() missed: with stamp now four digits, `07${stamp}99` came out
+// eight digits long, registration was refused for a bad number, and all three
+// lockout assertions failed against an account that had never been created.
+const lockPhone = telephoneTest(stamp + 3);
 await callFn('register', { role: 'customer', phone: lockPhone, pin: '2846' });
 
 let warnSeen = null;

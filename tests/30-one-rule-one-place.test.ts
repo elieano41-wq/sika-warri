@@ -55,7 +55,12 @@ async function gardeFonction(fonction: string, param: string): Promise<string> {
   const def: string = rows[0].def;
   const m = new RegExp(`${param}\\s+not\\s+in\\s*\\(([^)]*)\\)`).exec(def);
   expect(m, `${fonction} has no "not in" guard for ${param}`).not.toBeNull();
-  return m![1];
+  // noUncheckedIndexedAccess makes the group possibly undefined even after the
+  // null check above, and an empty string here would silently compare equal to
+  // an empty set rather than failing.
+  const groupe = m?.[1];
+  expect(groupe, `${fonction} guard for ${param} captured nothing`).toBeTruthy();
+  return groupe as string;
 }
 
 describe('the ledger kinds agree between the constraint and the function', () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, VendorProfile, VendorSummary } from '../../lib/api';
 import {
-  Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret, Version,
+  Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire,
 } from '../../components/ui';
 
 /**
@@ -23,18 +23,14 @@ export function AccueilVendeur({
   vendeur,
   onGarder,
   onUtiliser,
-  onClients,
-  onDeconnexion,
-  onAdmin,
 }: {
   session: Session;
   vendeur: VendorProfile;
+  /* Only the two TASKS are passed in. Mes clients, Historique, Compte and the
+     admin panel are destinations now and reached from the tab bar, so this
+     screen no longer needs to know they exist. */
   onGarder: () => void;
   onUtiliser: () => void;
-  onClients: () => void;
-  onDeconnexion: () => void;
-  /** Present only when the SERVER confirmed this session is an admin. */
-  onAdmin?: () => void;
 }) {
   const [resume, setResume] = useState<VendorSummary | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -63,11 +59,8 @@ export function AccueilVendeur({
     (resume.today_credit_count > 0 || resume.today_debit_count > 0);
 
   return (
-    <div className="ecran">
-      <Entete
-        sousTitre={`${vendeur.businessName} · ${vendeur.quartier}`}
-        action={<BoutonDiscret onClick={onDeconnexion}>Quitter</BoutonDiscret>}
-      />
+    <div className="ecran ecran--avec-nav vue">
+      <Entete sousTitre={`${vendeur.businessName} · ${vendeur.quartier}`} />
 
       <div className="ecran__corps">
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
@@ -123,10 +116,6 @@ export function AccueilVendeur({
         <div className="pile" style={{ gap: 'var(--espace-4)' }}>
           <BoutonPrimaire onClick={onGarder}>Garder la monnaie</BoutonPrimaire>
           <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
-          <BoutonSecondaire onClick={onClients}>Mes clients</BoutonSecondaire>
-          {onAdmin ? (
-            <BoutonSecondaire onClick={onAdmin}>Panneau support</BoutonSecondaire>
-          ) : null}
         </div>
       </div>
 
@@ -135,7 +124,6 @@ export function AccueilVendeur({
           Sika Warri enregistre seulement. La monnaie reste chez vous et
           constitue une dette envers votre client.
         </p>
-        <Version />
       </div>
     </div>
   );

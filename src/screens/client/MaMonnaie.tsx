@@ -2,11 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, CustomerProfile, ShopRow, EntryRow } from '../../lib/api';
 import {
-  Entete, Message, Montant, BoutonSecondaire, BoutonDiscret, Version,
+  Entete, Message, Montant, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
+import { Vide, IconeCarnetVide } from '../../components/Vide';
 import { perShop, informationalTotal, type ShopBalance } from '../../lib/balances';
 import { formatCfa } from '../../lib/format';
-import { QrCode } from '../../components/QrCode';
+// One source for how a movement is described, shared with the vendor's screens.
+// It was written twice before, which was two chances to drift.
+import {
+  libelleMouvement, signeMouvement, dateCourte, dateEtHeure,
+} from '../../lib/mouvements';
 
 /**
  * Ma monnaie — one carnet card per shop holding this customer's change.
@@ -29,11 +34,9 @@ import { QrCode } from '../../components/QrCode';
 export function MaMonnaie({
   session,
   client,
-  onDeconnexion,
 }: {
   session: Session;
   client: CustomerProfile;
-  onDeconnexion: () => void;
 }) {
   const [shops, setShops] = useState<ShopBalance[] | null>(null);
   // The total and the shop count, straight from the server. Never derived from
@@ -42,7 +45,6 @@ export function MaMonnaie({
   const [erreur, setErreur] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState<ShopBalance | null>(null);
   const [histoire, setHistoire] = useState<EntryRow[] | null>(null);
-  const [montrerQr, setMontrerQr] = useState(false);
 
   const charger = useCallback(async () => {
     try {
@@ -110,46 +112,10 @@ export function MaMonnaie({
     }
   }
 
-  // ---- my code -----------------------------------------------------------
-  if (montrerQr) {
-    return (
-      <div className="ecran">
-        <Entete
-          sousTitre="Client"
-          action={<BoutonDiscret onClick={() => setMontrerQr(false)}>Retour</BoutonDiscret>}
-        />
-        <div className="ecran__corps">
-          <h1>Mon code</h1>
-          <p className="discret">
-            Montrez ce code au commerçant. Il contient uniquement votre numéro.
-          </p>
-
-          <QrCode msisdn={session.msisdn} />
-
-          {/*
-            Said plainly, because it is the whole security story: the code
-            identifies, it does not authorise. Anyone who photographs it learns
-            the number and nothing else, and no debit can happen without the
-            PIN typed on this phone.
-          */}
-          <Message ton="info">
-            Ce code ne permet pas de prendre votre monnaie. Rien ne peut être
-            utilisé sans votre code à 4 chiffres, saisi sur votre téléphone.
-          </Message>
-        </div>
-        <div className="ecran__pied pile">
-          <BoutonSecondaire onClick={() => setMontrerQr(false)}>
-            Retour à ma monnaie
-          </BoutonSecondaire>
-        </div>
-      </div>
-    );
-  }
-
   // ---- one shop's history -----------------------------------------------
   if (ouvert) {
     return (
-      <div className="ecran">
+      <div className="ecran vue--tache">
         <Entete
           sousTitre={ouvert.shopName}
           action={<BoutonDiscret onClick={() => setOuvert(null)}>Retour</BoutonDiscret>}
@@ -179,9 +145,9 @@ export function MaMonnaie({
               {histoire.map((e) => (
                 <li key={e.id} className="ligne-histoire">
                   <div>
-                    <div style={{ fontWeight: 500 }}>{libelle(e)}</div>
+                    <div style={{ fontWeight: 500 }}>{libelleMouvement(e)}</div>
                     <div className="discret">
-                      {dateCourte(e.created_at)} · reçu {e.receipt_code}
+                      {dateEtHeure(e.created_at)} · reçu {e.receipt_code}
                       {e.confirmation_method === 'vendor_device'
                         ? ' · code saisi chez le commerçant'
                         : ''}
@@ -197,7 +163,7 @@ export function MaMonnaie({
                         color: e.direction === 'credit' ? 'var(--or-sika)' : 'var(--craie)',
                       }}
                     >
-                      {e.direction === 'credit' ? '+' : '−'}
+                      {signeMouvement(e)}
                       {formatCfa(e.amount_cfa)}
                     </span>
                     <div className="discret">reste {formatCfa(e.running_balance)}</div>
@@ -223,11 +189,8 @@ export function MaMonnaie({
     : null;
 
   return (
-    <div className="ecran">
-      <Entete
-        sousTitre="Votre monnaie chez les commerçants"
-        action={<BoutonDiscret onClick={onDeconnexion}>Quitter</BoutonDiscret>}
-      />
+    <div className="ecran ecran--avec-nav vue">
+      <Entete sousTitre="Votre monnaie chez les commerçants" />
 
       <div className="ecran__corps">
         <h1>Ma monnaie</h1>
@@ -236,10 +199,10 @@ export function MaMonnaie({
         {shops === null ? (
           <p className="discret">Chargement…</p>
         ) : shops.length === 0 ? (
-          <Message ton="info">
-            Vous n'avez pas encore de monnaie enregistrée. Quand un commerçant
-            gardera votre monnaie, elle apparaîtra ici.
-          </Message>
+          <Vide titre="Pas encore de monnaie" icone={IconeCarnetVide}>
+            Quand un commerçant garde votre monnaie au lieu de vous la rendre,
+            la boutique apparaît ici avec le montant qu’elle vous doit.
+          </Vide>
         ) : (
           <>
             {shops.map((s) => (
@@ -287,39 +250,11 @@ export function MaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
-        {/* Equal footing with typing on the vendor's side: some vendors scan,
-            some type, and the customer needs the code available either way. */}
-        <BoutonSecondaire onClick={() => setMontrerQr(true)}>
-          Mon code
-        </BoutonSecondaire>
         <p className="discret centre">
           Sika Warri enregistre seulement. Chaque montant reste chez le
           commerçant concerné.
         </p>
-        <Version />
       </div>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-function libelle(e: EntryRow): string {
-  if (e.kind === 'change') return 'Monnaie gardée';
-  if (e.kind === 'purchase') return 'Utilisée pour un achat';
-  if (e.kind === 'refund') return 'Remboursée en espèces';
-  if (e.kind === 'reversal') {
-    return e.direction === 'credit' ? 'Correction en votre faveur' : 'Correction';
-  }
-  return e.kind;
-}
-
-function dateCourte(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }

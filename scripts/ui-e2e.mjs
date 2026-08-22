@@ -59,6 +59,23 @@ const CUSTOMER_PIN = '2846';
 let pass = 0, fail = 0;
 const failures = [];
 
+/**
+ * Move to a destination via the tab bar.
+ *
+ * The app used to navigate by buttons on the home screen, so the harness clicked
+ * them. Destinations are tabs now, and the bar is deliberately ABSENT during a
+ * task — recording change, spending it, confirming a debit — so a call to this
+ * during one of those is a real failure worth seeing rather than a flake to
+ * retry around.
+ */
+const VENDOR_NOM = PREFIXE_TEST + 'Boutique';
+
+async function ongletVers(page, etiquette) {
+  const onglet = page.locator('.nav__item', { hasText: etiquette });
+  await onglet.first().waitFor({ timeout: 20000 });
+  await onglet.first().click();
+}
+
 function check(label, ok, detail = '') {
   if (ok) { pass += 1; console.log(`  PASS  ${label}`); }
   else { fail += 1; failures.push(label); console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`); }
@@ -303,7 +320,7 @@ try {
   // ===== vendor registers themselves, unaided ============================
   console.log('\n--- vendor registers, unaided ---');
   await registerViaUI(pv, 'vendor', {
-    phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: PREFIXE_TEST + 'Boutique', quartier: 'Yopougon',
+    phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: VENDOR_NOM, quartier: 'Yopougon',
   });
 
   await pv.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
@@ -532,7 +549,7 @@ try {
 
   // ===== Mes clients — the vendor's own book =============================
   console.log('\n--- mes clients ---');
-  await pv.getByRole('button', { name: 'Mes clients' }).click();
+  await ongletVers(pv, 'Mes clients');
   await pv.getByRole('heading', { name: 'Mes clients' }).waitFor({ timeout: 20000 });
 
   // Wait for the list itself, not just the heading. Asserting on figures while
@@ -630,9 +647,10 @@ try {
 
   // ===== QR: the customer's code =========================================
   console.log('\n--- mon code (QR) ---');
-  await pc.getByRole('button', { name: 'Retour à ma monnaie' }).click().catch(() => {});
+  // Leave the shop detail first: it is laid over the list and the bar is
+  // underneath it.
   await pc.getByRole('button', { name: 'Voir toutes mes boutiques' }).click().catch(() => {});
-  await pc.getByRole('button', { name: 'Mon code' }).click();
+  await ongletVers(pc, 'Mon code');
   await pc.getByRole('heading', { name: 'Mon code' }).waitFor({ timeout: 20000 });
 
   // The canvas must actually contain a rendered code, not just exist.
@@ -704,6 +722,121 @@ try {
   await pn.getByRole('heading', { name: 'Combien ?' }).waitFor({ timeout: 25000 });
   check('typing still works after the camera failed', true);
   await neuf.close();
+
+  // ===== app shape: the tab bar (build item 4) ============================
+  console.log('\n--- navigation et forme de l app ---');
+
+  // Back to a destination on both sides, so the bar is on screen.
+  await ongletVers(pv, 'Accueil');
+  await ongletVers(pc, 'Ma monnaie');
+
+  const ongletsVendeur = await pv.locator('.nav__item').allTextContents();
+  const ongletsClient = await pc.locator('.nav__item').allTextContents();
+  check('the vendor has a tab bar with 3-4 destinations',
+    ongletsVendeur.length >= 3 && ongletsVendeur.length <= 4, JSON.stringify(ongletsVendeur));
+  check('the customer has a tab bar with 3-4 destinations',
+    ongletsClient.length >= 3 && ongletsClient.length <= 4, JSON.stringify(ongletsClient));
+
+  // Every tab has to be hittable with a thumb. The spec floor is 48px and the
+  // token is 56px; a label that wrapped would push the row and break both.
+  const taillesOnglets = await pv.locator('.nav__item').evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect();
+      return { h: Math.round(r.height), w: Math.round(r.width) };
+    })
+  );
+  check('every tab is at least 48px tall',
+    taillesOnglets.every((t) => t.h >= 48), JSON.stringify(taillesOnglets));
+
+  // The selected state must not rest on colour alone: in glare it is the first
+  // thing to go. aria-current is both what a screen reader announces and what
+  // the stylesheet selects on, so they cannot drift apart.
+  const courant = await pv.locator('.nav__item[aria-current="page"]').count();
+  check('exactly one tab is marked current', courant === 1, `count=${courant}`);
+
+  // ===== the bar is ABSENT during a task =================================
+  // A vendor who taps away from a half-recorded entry has lost it, so recording
+  // change is a task with an end, not a destination to wander out of.
+  await pv.getByRole('button', { name: 'Garder la monnaie' }).click();
+  await pv.locator('.clavier__touche').first().waitFor({ timeout: 20000 });
+  const barrePendantTache = await pv.locator('.nav__item').count();
+  check('NO tab bar while recording change', barrePendantTache === 0,
+    `${barrePendantTache} tabs visible mid-task`);
+  await pv.screenshot({ path: 'artifacts/e1-tache-sans-barre.png' });
+
+  // And it comes back on the way out.
+  await pv.getByRole('button', { name: /Annuler|Retour/ }).first().click().catch(() => {});
+  await ongletVers(pv, 'Accueil').catch(() => {});
+
+  // ===== historique, both roles (build item 3) ===========================
+  console.log('\n--- historique ---');
+
+  await ongletVers(pv, 'Historique');
+  await pv.getByRole('heading', { name: 'Historique' }).waitFor({ timeout: 20000 });
+  await pv.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
+  const histVendeur = await pv.textContent('body');
+  check('vendor historique lists the credit and the debit',
+    /Monnaie gard/i.test(histVendeur) && /achat/i.test(histVendeur));
+  check('vendor historique groups by day',
+    /Aujourd|Hier|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche/i.test(histVendeur));
+  const sansEspaces = histVendeur.replace(/\s/g, '');
+  check('vendor historique names the counterparty',
+    sansEspaces.includes(PREFIXE_TEST + 'Nom')
+      || sansEspaces.includes(CUSTOMER_PHONE.slice(1, 6)),
+    sansEspaces.slice(0, 200));
+  // No total anywhere on it: mixing credits and debits into one figure would be
+  // meaningless, and summing a bounded page would drift from Accueil.
+  check('vendor historique shows NO running balance',
+    !/\breste\b/i.test(histVendeur), histVendeur.slice(0, 300));
+  await pv.screenshot({ path: 'artifacts/e2-historique-vendeur.png' });
+
+  await ongletVers(pc, 'Historique');
+  await pc.getByRole('heading', { name: 'Historique' }).waitFor({ timeout: 20000 });
+  await pc.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
+  const histClient = await pc.textContent('body');
+  check('customer historique names the shop on each row',
+    histClient.includes(VENDOR_NOM), histClient.slice(0, 300));
+  // ACCEPTANCE TEST 8 on the riskiest screen: a list mixing vendors must carry
+  // no accumulating column, or it becomes a pooled total one row at a time.
+  check('customer historique shows NO running balance across shops',
+    !/\breste\b/i.test(histClient), histClient.slice(0, 300));
+  check('customer historique never presents a spendable total',
+    !/total\s+disponible|monnaie\s+totale|utilisable\s+partout/i.test(histClient));
+  await pc.screenshot({ path: 'artifacts/e3-historique-client.png' });
+
+  // ===== compte (build item 4) ===========================================
+  console.log('\n--- compte ---');
+
+  await ongletVers(pv, 'Compte');
+  await pv.getByRole('heading', { name: 'Compte' }).waitFor({ timeout: 20000 });
+  const compteVendeur = await pv.textContent('body');
+  check('vendor account names the shop', compteVendeur.includes(VENDOR_NOM));
+  check('vendor account states the cap', /Vous pouvez garder jusqu/i.test(compteVendeur));
+  check('vendor account repeats that Sika Warri holds nothing',
+    /ne garde pas votre argent/i.test(compteVendeur.replace(/\s+/g, ' ')));
+  check('vendor account offers a way out',
+    (await pv.getByRole('button', { name: 'Quitter' }).count()) > 0);
+
+  // Changing a code had no screen at all before this, even though login can come
+  // back telling someone to do exactly that.
+  const boutonCode = await pv.getByRole('button', { name: 'Changer mon code' }).count();
+  check('vendor account offers changing the code', boutonCode > 0);
+  await pv.getByRole('button', { name: 'Changer mon code' }).click();
+  await pv.locator('.pin__point').first().waitFor({ timeout: 20000 });
+  const pointsCode = await pv.locator('.pin__point').count();
+  check('the vendor code field is 6 digits long', pointsCode === 6, `${pointsCode} points`);
+  await pv.screenshot({ path: 'artifacts/e4-changer-code.png' });
+  await pv.getByRole('button', { name: 'Annuler' }).click();
+
+  await ongletVers(pc, 'Compte');
+  await pc.getByRole('heading', { name: 'Compte' }).waitFor({ timeout: 20000 });
+  await pc.getByRole('button', { name: 'Changer mon code' }).click();
+  await pc.locator('.pin__point').first().waitFor({ timeout: 20000 });
+  const pointsClient = await pc.locator('.pin__point').count();
+  // Four, not six: a customer code protects their own change, a vendor code
+  // protects everyone's.
+  check('the customer code field is 4 digits long', pointsClient === 4, `${pointsClient} points`);
+  await pc.getByRole('button', { name: 'Annuler' }).click();
 
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');

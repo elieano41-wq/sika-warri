@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, VendorProfile, ClientRow, EntryRow } from '../../lib/api';
+import { Vide, IconeAucunClient } from '../../components/Vide';
+// One source for how a movement is described, shared with the customer's
+// screens. It was written three times before this.
+import {
+  libelleMouvement, signeMouvement, dateCourte, dateEtHeure,
+} from '../../lib/mouvements';
 import {
   Entete, Message, Montant, BoutonSecondaire, BoutonDiscret, BoutonPrimaire,
 } from '../../components/ui';
@@ -21,11 +27,9 @@ import type { VendorSummary } from '../../lib/api';
 export function MesClients({
   session,
   vendeur,
-  onTermine,
 }: {
   session: Session;
   vendeur: VendorProfile;
-  onTermine: () => void;
 }) {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [resume, setResume] = useState<VendorSummary | null>(null);
@@ -171,7 +175,7 @@ export function MesClients({
               {histoire.map((e) => (
                 <li key={e.id} className="ligne-histoire">
                   <div>
-                    <div style={{ fontWeight: 500 }}>{libelle(e)}</div>
+                    <div style={{ fontWeight: 500 }}>{libelleMouvement(e)}</div>
                     <div className="discret">
                       {dateCourte(e.created_at)} · reçu {e.receipt_code}
                     </div>
@@ -183,7 +187,7 @@ export function MesClients({
                         color: e.direction === 'credit' ? 'var(--or-sika)' : 'var(--craie)',
                       }}
                     >
-                      {e.direction === 'credit' ? '+' : '−'}
+                      {signeMouvement(e)}
                       {formatCfa(e.amount_cfa)}
                     </span>
                     <div className="discret">reste {formatCfa(e.running_balance)}</div>
@@ -212,11 +216,8 @@ export function MesClients({
   const tronque = clients !== null && clients.length < total;
 
   return (
-    <div className="ecran">
-      <Entete
-        sousTitre={vendeur.businessName}
-        action={<BoutonDiscret onClick={onTermine}>Retour</BoutonDiscret>}
-      />
+    <div className="ecran ecran--avec-nav vue">
+      <Entete sousTitre={vendeur.businessName} />
 
       <div className="ecran__corps">
         <h1>Mes clients</h1>
@@ -263,11 +264,16 @@ export function MesClients({
         {filtres === null ? (
           <p className="discret">Chargement…</p>
         ) : filtres.length === 0 ? (
-          <Message ton="info">
-            {clients && clients.length === 0
-              ? "Vous n'avez encore gardé la monnaie de personne."
-              : 'Aucun client ne correspond à cette recherche.'}
-          </Message>
+          clients && clients.length === 0 ? (
+            <Vide titre="Aucun client pour le moment" icone={IconeAucunClient}>
+              Dès que vous gardez la monnaie d’un client, son nom apparaît ici
+              avec ce que vous lui devez.
+            </Vide>
+          ) : (
+            <Message ton="info">
+              Aucun client ne correspond à cette recherche.
+            </Message>
+          )
         ) : (
           <>
             {/* A truncated list must look truncated. Silently showing the first
@@ -306,25 +312,4 @@ export function MesClients({
       </div>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-function libelle(e: EntryRow): string {
-  if (e.kind === 'change') return 'Monnaie gardée';
-  if (e.kind === 'purchase') return 'Utilisée pour un achat';
-  if (e.kind === 'refund') return 'Remboursée en espèces';
-  if (e.kind === 'reversal') {
-    return e.direction === 'credit' ? 'Correction en faveur du client' : 'Correction';
-  }
-  return e.kind;
-}
-
-function dateCourte(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }

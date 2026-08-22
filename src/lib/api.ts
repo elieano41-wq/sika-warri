@@ -460,6 +460,69 @@ export async function myShopHistory(
   return rows ?? [];
 }
 
+/**
+ * Every movement, across every counterparty.
+ *
+ * NO running_balance, unlike the per-pair histories above, and that is the
+ * design rather than an omission. A running balance down a list that mixes
+ * vendors would be a cross-vendor total accumulated one row at a time —
+ * standing rule 1 broken in a column, where it would look like arithmetic
+ * instead of a claim about who owes what. Each row carries its own amount and
+ * names its counterparty; nothing adds up.
+ */
+export interface MovementRow {
+  id: string;
+  direction: 'credit' | 'debit';
+  kind: string;
+  amount_cfa: number;
+  confirmation_method: string | null;
+  note: string | null;
+  created_at: string;
+  receipt_code: string;
+  /** The true number of movements, so a truncated page is visibly truncated. */
+  total_count: number;
+}
+
+export interface VendorMovementRow extends MovementRow {
+  customer_id: string;
+  customer_phone: string;
+  customer_label: string | null;
+}
+
+export interface CustomerMovementRow extends MovementRow {
+  vendor_id: string;
+  business_name: string;
+}
+
+/** A vendor's whole ledger, newest first. Bounded. */
+export async function vendorHistory(
+  token: string,
+  actorUserId: string,
+  vendorId: string,
+  limit = 100
+): Promise<VendorMovementRow[]> {
+  const rows = (await rpc(
+    'vendor_history',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as VendorMovementRow[];
+  return rows ?? [];
+}
+
+/** A customer's movements at every shop, newest first. Bounded. */
+export async function myHistory(
+  token: string,
+  actorUserId: string,
+  limit = 100
+): Promise<CustomerMovementRow[]> {
+  const rows = (await rpc(
+    'customer_history',
+    { p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as CustomerMovementRow[];
+  return rows ?? [];
+}
+
 export interface ClientRow {
   customer_id: string;
   phone: string;

@@ -464,3 +464,171 @@ h2 { font-size: var(--titre-s); }
   font-size: var(--texte-base);
   flex-shrink: 0;
 }
+
+/* --------------------------------------------------------------------------
+   Bottom navigation
+
+   Fixed to the bottom because that is where a thumb is on a phone held one-
+   handed, which is how a vendor holds it while the other hand is counting cash.
+   Above the safe-area inset, so it clears the gesture bar rather than sitting
+   under it.
+
+   NOT shown during a transaction. Recording change or confirming a debit is a
+   task with an end, and offering a tab-switch halfway through is how a vendor
+   abandons a half-recorded entry. App.tsx decides; the CSS only styles.
+   -------------------------------------------------------------------------- */
+
+.nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: var(--espace-1);
+  padding: var(--espace-2) var(--espace-2)
+           calc(var(--espace-2) + env(safe-area-inset-bottom, 0));
+  background: var(--vert-nuit-creux);
+  /* A hairline that survives glare, per the palette note. A shadow would not. */
+  border-top: 1px solid var(--trait);
+}
+
+.nav__inner {
+  display: flex;
+  width: 100%;
+  max-width: 34rem;
+  gap: var(--espace-1);
+}
+
+.nav__item {
+  flex: 1;
+  min-height: var(--cible-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--espace-2) var(--espace-1);
+  border: none;
+  border-radius: var(--rayon-petit);
+  background: transparent;
+  color: var(--sauge);
+  font: inherit;
+  /* Anchors the gold selected-state rule below. */
+  position: relative;
+  /* 16px is the spec floor and this is a caption under an icon, so it is the
+     one place the floor is the right size rather than a compromise. */
+  font-size: var(--texte-petit);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.nav__item:active { background: var(--vert-foret); }
+.nav__item:focus-visible { outline: var(--anneau); outline-offset: -3px; }
+
+/* Colour alone must not carry the selected state — in glare, on a cheap screen,
+   it is the first thing to go. So the label also goes bold and a gold rule sits
+   above the item. */
+.nav__item[aria-current='page'] {
+  color: var(--or-sika);
+  font-weight: 700;
+  background: var(--vert-foret);
+}
+
+.nav__item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  margin-top: calc(var(--espace-2) * -1 - 1px);
+  width: 2.25rem;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--or-sika);
+}
+
+.nav__item svg { width: 26px; height: 26px; flex: none; }
+
+.nav__etiquette {
+  /* Wrapping a label would change the row height and make the bar jump between
+     tabs. Better to keep every label short enough not to need it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Room for the fixed bar, so the last card is never trapped underneath it. */
+.ecran--avec-nav {
+  padding-bottom: calc(var(--cible-min) + var(--espace-6)
+                       + env(safe-area-inset-bottom, 0));
+}
+
+/* --------------------------------------------------------------------------
+   View transitions
+
+   Cheap on purpose: transform and opacity only, so it stays on the compositor
+   and does not cost a repaint on a low-end Android. 180ms is short enough to
+   feel like the screen answering rather than an animation being played.
+   -------------------------------------------------------------------------- */
+
+@keyframes vue-entre {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vue {
+  animation: vue-entre 180ms ease-out both;
+}
+
+/* A task taking over the screen comes from further down: it reads as something
+   arriving on top rather than as a sideways move between peers. */
+@keyframes tache-entre {
+  from { opacity: 0; transform: translateY(16px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vue--tache {
+  animation: tache-entre 200ms ease-out both;
+}
+
+/* --------------------------------------------------------------------------
+   Empty states
+
+   "Aucune donnée" tells someone the app works and they do not. Each of these
+   says what will appear here and what makes it appear, because the reader is
+   usually a new vendor wondering whether they have done something wrong.
+   -------------------------------------------------------------------------- */
+
+.vide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espace-3);
+  padding: var(--espace-6) var(--espace-4);
+  text-align: center;
+  border: 1px dashed var(--trait);
+  border-radius: var(--rayon);
+}
+
+.vide__titre {
+  font-family: var(--police-titre);
+  font-size: var(--texte-grand);
+  color: var(--craie);
+}
+
+.vide__corps {
+  color: var(--sauge);
+  max-width: 26ch;
+}
+
+.vide svg { width: 44px; height: 44px; color: var(--trait); }
+
+/* A day heading in a history list. Small and sauge so it separates the groups
+   without competing with the amounts beside them. */
+.jour {
+  font-size: var(--texte-petit);
+  font-weight: 600;
+  color: var(--sauge);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: var(--espace-2);
+}

@@ -31,7 +31,7 @@ const FN_DIR = path.join(process.cwd(), 'supabase', 'functions');
 const AUTHENTICATED = ['change-pin', 'initiate-debit', 'confirm-debit'];
 
 function sourceOf(fn: string): string {
-  return readFileSync(path.join(FN_DIR, fn, 'index.ts'), 'utf8');
+  return readFileSync(path.join(FN_DIR, fn, 'index.ts'), 'utf8').replace(/\r\n/g, '\n');
 }
 
 /** Strip comments so prose about identity does not satisfy or trip a check. */

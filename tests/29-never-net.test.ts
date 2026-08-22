@@ -371,7 +371,7 @@ describe('nothing anywhere subtracts one register from the other', () => {
     ];
 
     for (const f of fichiers) {
-      const src = readFileSync(f, 'utf8')
+      const src = readFileSync(f, 'utf8').replace(/\r\n/g, '\n')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .split('\n')
         .filter((l) => !/^\s*\/\//.test(l))

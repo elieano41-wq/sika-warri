@@ -26,7 +26,7 @@ const SCRIPTS = path.join(process.cwd(), 'scripts');
 const fichiers = readdirSync(SCRIPTS).filter((f) => f.endsWith('.mjs'));
 
 function source(nom: string): string {
-  return readFileSync(path.join(SCRIPTS, nom), 'utf8');
+  return readFileSync(path.join(SCRIPTS, nom), 'utf8').replace(/\r\n/g, '\n');
 }
 
 /** Strip comments, so prose describing the rule does not satisfy it. */

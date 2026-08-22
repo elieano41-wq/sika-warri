@@ -27,6 +27,13 @@ function walk(dir: string): string[] {
 
 const sourceFiles = walk(SRC).filter((f) => /\.(ts|tsx|css)$/.test(f));
 
+// The vacuity guard. A scan that finds no files has proven nothing about
+// files, and every `toEqual([])` below would still pass. See tests/32:
+// an empty collection satisfied every assertion made about it.
+if (sourceFiles.length === 0) {
+  throw new Error(`no source files found under ${SRC} — this suite would pass vacuously`);
+}
+
 /** Strip comments: the code documents the forbidden words in order to ban them. */
 function code(src: string): string {
   return src
@@ -83,7 +90,7 @@ describe('copy rules — section 6', () => {
 
   it.each(INTERDITS)('never uses %s (%s)', (pattern) => {
     const offenders = sourceFiles
-      .filter((f) => pattern.test(code(readFileSync(f, 'utf8'))))
+      .filter((f) => pattern.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(process.cwd(), f));
 
     expect(offenders).toEqual([]);
@@ -92,14 +99,14 @@ describe('copy rules — section 6', () => {
   it('uses the sanctioned wording instead', () => {
     // The replacements the spec prescribes. Their presence is the positive half
     // of the rule: banning words is not the same as saying the right thing.
-    const all = sourceFiles.map((f) => readFileSync(f, 'utf8')).join('\n');
+    const all = sourceFiles.map((f) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).join('\n');
     expect(all).toMatch(/monnaie gard[ée]e/i);
     expect(all).toMatch(/utiliser la monnaie/i);
     expect(all).toMatch(/votre monnaie/i);
   });
 
   it('states plainly that the money stays with the vendor', () => {
-    const all = sourceFiles.map((f) => readFileSync(f, 'utf8')).join('\n');
+    const all = sourceFiles.map((f) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).join('\n');
     // The vendor home carries the substance of the disclosure. The verbatim
     // legal text belongs in /conditions and onboarding, neither built yet.
     expect(all).toMatch(/reste chez (vous|le commer[çc]ant)/i);
@@ -234,8 +241,8 @@ describe('phone and countdown display', () => {
 // ---------------------------------------------------------------------------
 
 describe('sunlight legibility — the floors the spec sets', () => {
-  const tokens = readFileSync(path.join(SRC, 'styles', 'tokens.css'), 'utf8');
-  const base = readFileSync(path.join(SRC, 'styles', 'base.css'), 'utf8');
+  const tokens = readFileSync(path.join(SRC, 'styles', 'tokens.css'), 'utf8').replace(/\r\n/g, '\n');
+  const base = readFileSync(path.join(SRC, 'styles', 'base.css'), 'utf8').replace(/\r\n/g, '\n');
 
   it('uses the exact section 7 palette', () => {
     for (const hex of ['#0B2E22', '#14503A', '#C9A227', '#E8C558', '#F4F1E8', '#8FA79A', '#D96A4A']) {
@@ -282,7 +289,7 @@ describe('sunlight legibility — the floors the spec sets', () => {
 // ---------------------------------------------------------------------------
 
 describe('phone normalisation at the API boundary', () => {
-  const api = readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8');
+  const api = readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8').replace(/\r\n/g, '\n');
 
   it('normalises before looking a customer up', () => {
     // The bug: the screen passed the local 10 digits the vendor typed, but the
@@ -319,7 +326,7 @@ describe('loading is distinguishable from zero', () => {
   ] as const;
 
   it.each(ECRANS)('%s/%s guards its figures behind a null check', (dossier, fichier) => {
-    const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8'));
+    const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n'));
 
     // Data starts as null, not as an empty array or a zero: those are real
     // answers and cannot double as "still loading".
@@ -330,7 +337,7 @@ describe('loading is distinguishable from zero', () => {
   });
 
   it.each(ECRANS)('%s/%s shows a loading marker, not a number', (dossier, fichier) => {
-    const src = readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8');
+    const src = readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n');
     // Either the word or the em-dash placeholder — something that cannot be
     // mistaken for a balance.
     expect(src).toMatch(/Chargement|—/);
@@ -340,7 +347,7 @@ describe('loading is distinguishable from zero', () => {
     // A literal <Montant value={0} /> would be indistinguishable from a real
     // zero balance and is never the right thing to show.
     for (const [dossier, fichier] of ECRANS) {
-      const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8'));
+      const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n'));
       expect(src, `${fichier} hardcodes a zero amount`).not.toMatch(/<Montant\s+value=\{0\}/);
     }
   });

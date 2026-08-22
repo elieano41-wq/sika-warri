@@ -27,9 +27,9 @@ function code(src: string): string {
     .join('\n');
 }
 
-const affichage = readFileSync(path.join(SRC, 'components', 'QrCode.tsx'), 'utf8');
-const scanner = readFileSync(path.join(SRC, 'components', 'QrScanner.tsx'), 'utf8');
-const saisie = readFileSync(path.join(SRC, 'components', 'SaisieClient.tsx'), 'utf8');
+const affichage = readFileSync(path.join(SRC, 'components', 'QrCode.tsx'), 'utf8').replace(/\r\n/g, '\n');
+const scanner = readFileSync(path.join(SRC, 'components', 'QrScanner.tsx'), 'utf8').replace(/\r\n/g, '\n');
+const saisie = readFileSync(path.join(SRC, 'components', 'SaisieClient.tsx'), 'utf8').replace(/\r\n/g, '\n');
 
 describe('the QR payload is an identifier and nothing else', () => {
   it('encodes the bare msisdn', () => {

@@ -28,6 +28,13 @@ function walk(dir: string): string[] {
 
 const sourceFiles = walk(SRC).filter((f) => /\.(ts|tsx)$/.test(f));
 
+// The vacuity guard. A scan that finds no files has proven nothing about
+// files, and every `toEqual([])` below would still pass. See tests/32:
+// an empty collection satisfied every assertion made about it.
+if (sourceFiles.length === 0) {
+  throw new Error(`no source files found under ${SRC} — this suite would pass vacuously`);
+}
+
 /** Strip comments so prose describing the rule does not trip a scan for it. */
 function code(src: string): string {
   return src
@@ -105,7 +112,7 @@ describe('acceptance test 8 — three vendors, three figures', () => {
     // The old signature took ShopBalance[] and folded over it. If that ever
     // comes back, this file stops compiling rather than silently understating a
     // total again.
-    const source = readFileSync(path.join(SRC, 'lib', 'balances.ts'), 'utf8');
+    const source = readFileSync(path.join(SRC, 'lib', 'balances.ts'), 'utf8').replace(/\r\n/g, '\n');
     expect(code(source)).not.toMatch(/\.reduce\s*\(/);
     expect(code(source)).toMatch(/CustomerAggregate/);
   });
@@ -130,7 +137,7 @@ describe('acceptance test 8 — three vendors, three figures', () => {
 
 describe('acceptance test 8 — structural guarantees in the source', () => {
   it('balances.ts exports no bare total or sum function', () => {
-    const src = code(readFileSync(path.join(SRC, 'lib', 'balances.ts'), 'utf8'));
+    const src = code(readFileSync(path.join(SRC, 'lib', 'balances.ts'), 'utf8').replace(/\r\n/g, '\n'));
 
     // The only way to the figure is informationalTotal(), which returns the
     // caption with it. A bare total() would be a loaded gun for any future
@@ -147,7 +154,7 @@ describe('acceptance test 8 — structural guarantees in the source', () => {
     // file whose whole job is to keep it captioned.
     const offenders = sourceFiles
       .filter((f) => !f.endsWith(path.join('lib', 'balances.ts')))
-      .filter((f) => /\.(reduce|reduceRight)\s*\(/.test(code(readFileSync(f, 'utf8'))))
+      .filter((f) => /\.(reduce|reduceRight)\s*\(/.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(process.cwd(), f));
 
     expect(offenders).toEqual([]);
@@ -164,7 +171,7 @@ describe('acceptance test 8 — structural guarantees in the source', () => {
     ];
 
     for (const file of sourceFiles) {
-      const src = code(readFileSync(file, 'utf8'));
+      const src = code(readFileSync(file, 'utf8').replace(/\r\n/g, '\n'));
       for (const pattern of forbidden) {
         expect(src, `${path.relative(process.cwd(), file)} matches ${pattern}`)
           .not.toMatch(pattern);
@@ -173,7 +180,7 @@ describe('acceptance test 8 — structural guarantees in the source', () => {
   });
 
   it('the API layer returns rows and does not aggregate them', () => {
-    const src = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8'));
+    const src = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8').replace(/\r\n/g, '\n'));
     // Shaping belongs in balances.ts, where the caption rule lives. If the API
     // aggregated, a screen could get a total with no caption in sight.
     expect(src).not.toMatch(/\.reduce\s*\(/);
@@ -265,7 +272,7 @@ describe('acceptance test 8 — the customer balance screen', () => {
     // the page holds, and would disagree with the home screen while neither
     // reported an error. The total is aggregated in SQL and arrives as one row.
     const clients = code(
-      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8')
+      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8').replace(/\r\n/g, '\n')
     );
     expect(clients).toMatch(/resume\?\.circulation_cfa/);
     expect(clients).not.toMatch(/\.reduce\s*\(/);
@@ -276,7 +283,7 @@ describe('acceptance test 8 — the customer balance screen', () => {
     // Silently showing the first 200 of 1 234 is the failure this audit was
     // about: incomplete data that looks complete.
     const clients = code(
-      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8')
+      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8').replace(/\r\n/g, '\n')
     );
     expect(clients).toMatch(/tronque/);
     expect(clients).toMatch(/total_count/);

@@ -31,7 +31,7 @@ function walk(dir: string): string[] {
 const fichiers = walk(SRC).filter((f) => f.endsWith('.tsx'));
 
 function lire(rel: string): string {
-  return readFileSync(path.join(SRC, rel), 'utf8');
+  return readFileSync(path.join(SRC, rel), 'utf8').replace(/\r\n/g, '\n');
 }
 
 function code(src: string): string {
@@ -74,7 +74,7 @@ describe('only a shell renders the tab bar', () => {
         const rel = path.relative(SRC, f);
         return !COQUILLES.includes(rel);
       })
-      .filter((f) => /<Navigation/.test(code(readFileSync(f, 'utf8'))))
+      .filter((f) => /<Navigation/.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(SRC, f));
 
     expect(coupables).toEqual([]);
@@ -162,7 +162,7 @@ describe('the bar has three or four destinations per role', () => {
     const nav = code(lire(path.join('components', 'Navigation.tsx')));
     expect(nav).toMatch(/aria-current/);
 
-    const css = readFileSync(path.join(SRC, 'styles', 'base.css'), 'utf8');
+    const css = readFileSync(path.join(SRC, 'styles', 'base.css'), 'utf8').replace(/\r\n/g, '\n');
     const regle = /\.nav__item\[aria-current='page'\]\s*\{([^}]*)\}/.exec(css);
     expect(regle, 'no rule for the current tab').not.toBeNull();
     // Weight as well as colour.
@@ -186,7 +186,7 @@ describe('the role-wide histories carry no cross-vendor arithmetic', () => {
   });
 
   it('the API type for a role-wide movement has no running balance field', () => {
-    const api = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8'));
+    const api = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8').replace(/\r\n/g, '\n'));
     const bloc = /export interface MovementRow \{([\s\S]*?)\}/.exec(api);
     expect(bloc, 'MovementRow is gone').not.toBeNull();
     expect(bloc![1]).not.toMatch(/running_balance/);
@@ -207,7 +207,7 @@ describe('empty states say what will appear and what makes it appear', () => {
     // The banned shape: a message that tells someone the app works and they do
     // not. Every empty state names the next action instead.
     for (const f of fichiers) {
-      const src = code(readFileSync(f, 'utf8'));
+      const src = code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
       expect(src, `${path.relative(SRC, f)}`).not.toMatch(/aucune\s+donn[ée]e/i);
       expect(src, `${path.relative(SRC, f)}`).not.toMatch(/liste\s+vide/i);
     }
@@ -248,7 +248,7 @@ describe('movement wording lives in one place', () => {
     // Matches a MAPPING from a kind to words — `e.kind === 'change'` — not the
     // kind values a screen legitimately sends when recording an entry.
     const coupables = fichiers
-      .filter((f) => /kind === '/.test(code(readFileSync(f, 'utf8'))))
+      .filter((f) => /kind === '/.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(SRC, f));
 
     expect(coupables).toEqual([]);

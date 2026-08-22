@@ -38,7 +38,7 @@ function walk(dir: string): string[] {
   });
 }
 
-const adminFn = readFileSync(path.join(FONCTIONS, 'admin', 'index.ts'), 'utf8');
+const adminFn = readFileSync(path.join(FONCTIONS, 'admin', 'index.ts'), 'utf8').replace(/\r\n/g, '\n');
 
 // ---------------------------------------------------------------------------
 // No admin action can delete a user
@@ -56,13 +56,13 @@ describe('the admin panel cannot delete users', () => {
   });
 
   it('the panel offers no purge control', () => {
-    const ecran = code(readFileSync(path.join(SRC, 'screens', 'admin', 'Admin.tsx'), 'utf8'));
+    const ecran = code(readFileSync(path.join(SRC, 'screens', 'admin', 'Admin.tsx'), 'utf8').replace(/\r\n/g, '\n'));
     expect(ecran).not.toMatch(/orphelin/i);
     expect(ecran).not.toMatch(/adminPurge/);
   });
 
   it('the API layer exposes no purge call', () => {
-    const api = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8'));
+    const api = code(readFileSync(path.join(SRC, 'lib', 'api.ts'), 'utf8').replace(/\r\n/g, '\n'));
     expect(api).not.toMatch(/adminPurgeOrphanAuth/);
     expect(api).not.toMatch(/purge_orphan_auth/);
   });
@@ -73,12 +73,12 @@ describe('the admin panel cannot delete users', () => {
     // phone number permanently unregisterable.
     const appelants = walk(FONCTIONS)
       .filter((f) => f.endsWith('.ts'))
-      .filter((f) => /deleteUser/.test(code(readFileSync(f, 'utf8'))))
+      .filter((f) => /deleteUser/.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(FONCTIONS, f));
 
     expect(appelants).toEqual([path.join('register', 'index.ts')]);
 
-    const reg = code(readFileSync(path.join(FONCTIONS, 'register', 'index.ts'), 'utf8'));
+    const reg = code(readFileSync(path.join(FONCTIONS, 'register', 'index.ts'), 'utf8').replace(/\r\n/g, '\n'));
     // It can only ever name the id it just created.
     expect(reg).toMatch(/deleteUser\(authUserId\)/);
   });
@@ -183,11 +183,11 @@ describe('a non-admin cannot reach any admin action', () => {
   it('the panel is reachable only with a server-issued flag', async () => {
     // The client cannot read is_admin. The flag comes back from login, and the
     // real gate is in SQL — so a forged flag shows a button that then fails.
-    const app = code(readFileSync(path.join(SRC, 'App.tsx'), 'utf8'));
+    const app = code(readFileSync(path.join(SRC, 'App.tsx'), 'utf8').replace(/\r\n/g, '\n'));
     expect(app).toMatch(/estAdmin/);
     expect(app).not.toMatch(/is_admin/);
 
-    const login = code(readFileSync(path.join(FONCTIONS, 'login', 'index.ts'), 'utf8'));
+    const login = code(readFileSync(path.join(FONCTIONS, 'login', 'index.ts'), 'utf8').replace(/\r\n/g, '\n'));
     expect(login).toMatch(/is_admin_self/);
   });
 });

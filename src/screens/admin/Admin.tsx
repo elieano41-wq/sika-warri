@@ -35,7 +35,6 @@ export function Admin({
   const [occupe, setOccupe] = useState(false);
   // The issued code, shown once. Never re-fetchable.
   const [codeEmis, setCodeEmis] = useState<{ code: string; expiresAt: string } | null>(null);
-  const [purge, setPurge] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     setErreur(null);
@@ -334,57 +333,6 @@ export function Admin({
 
       <div className="ecran__pied pile">
         <BoutonSecondaire onClick={charger}>Rafraîchir</BoutonSecondaire>
-
-        {/* Maintenance. Deleting a vendor or customer row leaves the Supabase
-            Auth user behind, which blocks that phone number from ever being
-            re-registered. Preview first, always. */}
-        {onglet === 'vendeurs' ? (
-          <>
-            {purge ? <Message ton="info">{purge}</Message> : null}
-            <BoutonDiscret
-              onClick={async () => {
-                setOccupe(true);
-                try {
-                  const r = await api.adminPurgeOrphanAuth(session.accessToken, true);
-                  setPurge(
-                    r.orphansRemoved === 0
-                      ? `Aucun compte orphelin. ${r.examined} comptes examinés.`
-                      : `${r.orphansRemoved} compte(s) orphelin(s) sur ${r.examined}. ` +
-                        'Touchez « Supprimer » pour les enlever.'
-                  );
-                } catch (e) {
-                  setErreur((e as api.ApiError).message);
-                } finally {
-                  setOccupe(false);
-                }
-              }}
-            >
-              Vérifier les comptes orphelins
-            </BoutonDiscret>
-
-            {purge && !/Aucun compte orphelin/.test(purge) ? (
-              <BoutonSecondaire
-                onClick={async () => {
-                  setOccupe(true);
-                  try {
-                    const r = await api.adminPurgeOrphanAuth(session.accessToken, false);
-                    setPurge(
-                      `${r.orphansRemoved} compte(s) orphelin(s) supprimé(s).` +
-                        (r.failures.length ? ` ${r.failures.length} échec(s).` : '')
-                    );
-                  } catch (e) {
-                    setErreur((e as api.ApiError).message);
-                  } finally {
-                    setOccupe(false);
-                  }
-                }}
-                disabled={occupe}
-              >
-                Supprimer les comptes orphelins
-              </BoutonSecondaire>
-            ) : null}
-          </>
-        ) : null}
 
         <Version />
       </div>

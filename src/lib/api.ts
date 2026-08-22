@@ -655,25 +655,6 @@ export async function adminVerifyPhone(
   };
 }
 
-/**
- * Remove Supabase Auth users that have no profile row.
- *
- * Defaults to a preview. Passing dryRun: false deletes. Two guards inside the
- * function, both required: the address must match the synthetic pattern this app
- * creates, AND there must be no vendor or customer row for it — so a live
- * account cannot be removed even if the first check were wrong.
- */
-export async function adminPurgeOrphanAuth(token: string, dryRun = true) {
-  return (await admin(token, { action: 'purge_orphan_auth', dryRun })) as {
-    ok: true;
-    dryRun: boolean;
-    examined: number;
-    withProfile: number;
-    orphansRemoved: number;
-    failures: string[];
-  };
-}
-
 export async function adminSetVendorActive(token: string, vendorId: string, active: boolean) {
   return (await admin(token, { action: 'set_vendor_active', vendorId, active })) as {
     ok: true;

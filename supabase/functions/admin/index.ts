@@ -15,14 +15,25 @@ import {
 } from '../_runtime/runtime.ts';
 import { genererCode, genererSel, hacherCode } from '../_shared/tempcode.ts';
 
+// NO ACTION HERE DELETES A USER.
+//
+// A purge_orphan_auth action existed briefly, to clear auth users left behind by
+// a one-off data cleanup. It was removed because it could delete real accounts:
+// it built its keep-list with .select('auth_user_id') and no range, and PostgREST
+// caps rows at 1000 by default — so past 1000 accounts every real user beyond the
+// cap would have looked like an orphan and been deleted.
+//
+// The lesson is not "add a range". It is that a permanent delete-users button in
+// a support panel is the wrong shape for a one-off task, and this panel will one
+// day be handed to someone else. Enforced by tests/24.
+
 type Action =
   | 'reset_queue'
   | 'issue_reset'
   | 'reject_reset'
   | 'vendor_list'
   | 'verify_phone'
-  | 'set_vendor_active'
-  | 'purge_orphan_auth';
+  | 'set_vendor_active';
 
 interface Body {
   action?: Action;
@@ -33,8 +44,6 @@ interface Body {
   method?: 'sms' | 'in_person';
   active?: boolean;
   note?: string;
-  /** purge_orphan_auth: defaults to a preview. Pass false to actually delete. */
-  dryRun?: boolean;
 }
 
 Deno.serve(handler(async (req) => {
@@ -135,72 +144,6 @@ Deno.serve(handler(async (req) => {
       });
       if (error) throw error;
       return json({ ok: true, active: data });
-    }
-
-    // ---- remove auth users with no profile row --------------------------
-    //
-    // Deleting the vendor/customer row leaves the Supabase Auth user behind.
-    // Those are harmless — no profile means no login — but they accumulate and
-    // they block the phone number from being re-registered, because createUser
-    // reports "already exists" while nothing exists to log in against.
-    //
-    // Lives here rather than in a local script because the service key exists
-    // only in this function's secrets. Two guards, both required:
-    //   * the address must match the synthetic pattern this app creates;
-    //   * there must be NO vendor or customer row for that auth user.
-    // A real account fails the second test, so a live user cannot be deleted
-    // even if the first were somehow wrong.
-    case 'purge_orphan_auth': {
-      const { data: verif, error: verifErr } = await db.rpc('admin_is_caller', {
-        p_actor_user_id: actor,
-      });
-      if (verifErr) throw verifErr;
-      if (verif !== true) return fail('ADMIN_ONLY', 'Opération non autorisée', 403);
-
-      const garder = new Set<string>();
-      for (const table of ['vendors', 'customers'] as const) {
-        const { data } = await db.from(table).select('auth_user_id');
-        for (const r of data ?? []) if (r.auth_user_id) garder.add(r.auth_user_id);
-      }
-
-      let page = 1;
-      let examines = 0;
-      let supprimes = 0;
-      const echecs: string[] = [];
-      const apercu = body.dryRun !== false;
-
-      // Paginate: an unbounded listUsers() silently truncates.
-      for (;;) {
-        const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-        if (error) throw error;
-        const lot = data?.users ?? [];
-        if (lot.length === 0) break;
-
-        for (const u of lot) {
-          examines += 1;
-          const synthetique = (u.email ?? '').endsWith('@id.sikawarri.app');
-          if (!synthetique) continue;
-          if (garder.has(u.id)) continue;
-
-          if (apercu) { supprimes += 1; continue; }
-
-          const { error: delErr } = await db.auth.admin.deleteUser(u.id);
-          if (delErr) echecs.push(u.email ?? u.id);
-          else supprimes += 1;
-        }
-
-        if (lot.length < 200) break;
-        page += 1;
-      }
-
-      return json({
-        ok: true,
-        dryRun: apercu,
-        examined: examines,
-        withProfile: garder.size,
-        orphansRemoved: supprimes,
-        failures: echecs,
-      });
     }
 
     default:

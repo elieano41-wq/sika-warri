@@ -199,9 +199,26 @@ export function Admin({
                         </Message>
                       ) : null}
 
-                      <p className="discret">
-                        Demandez un détail de ces mouvements AVANT d'émettre.
-                      </p>
+                      {/*
+                        The honest limit of this screen, printed where it is
+                        read: everything above is knowable by anyone who stood
+                        near the counter — and by the vendor, who recorded the
+                        amounts. So the challenge cannot rely on it alone.
+                      */}
+                      <Message ton="erreur">
+                        <strong style={{ display: 'block', marginBottom: 'var(--espace-2)' }}>
+                          Avant d'émettre un code
+                        </strong>
+                        Tout ce qui est écrit ici peut être connu de quelqu'un qui
+                        était près du comptoir — et du commerçant, qui a saisi les
+                        montants. Posez une question dont la réponse n'est PAS sur
+                        cet écran : ce qu'ils ont acheté, qui les a servis, quand
+                        ils sont passés la dernière fois.
+                        <br />
+                        <br />
+                        Si c'est un commerçant qui appelle pour un client, c'est un
+                        refus, pas une demande. Le client doit appeler lui-même.
+                      </Message>
                     </>
                   )}
 

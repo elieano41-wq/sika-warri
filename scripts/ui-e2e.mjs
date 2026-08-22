@@ -12,19 +12,20 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync } from 'node:fs';
+import { cible, PREFIXE_TEST, telephoneTest } from './test-target.mjs';
 
-const env = Object.fromEntries(
-  readFileSync('.env.local', 'utf8')
-    .split('\n')
-    .filter((l) => /^[A-Z]/.test(l))
-    .map((l) => {
-      const i = l.indexOf('=');
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    })
-);
+// Where this run may write. Production is REFUSED unless explicitly allowed —
+// see scripts/test-target.mjs. This harness registers accounts and records
+// ledger entries through the real API, and pointed at production it left 91 test
+// accounts sitting in the vendor list.
+const CIBLE_API = cible();
+const BASE_API = CIBLE_API.url;
+const APIKEY = CIBLE_API.apikey;
+console.log(`API target: ${BASE_API}  (${CIBLE_API.source})`);
+if (CIBLE_API.production) {
+  console.log(`WARNING: writing to PRODUCTION. Accounts prefixed "${PREFIXE_TEST}".`);
+}
 
-const BASE_API = env.VITE_SUPABASE_URL;
-const APIKEY = env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const PORT = 4178;
 
 // Target the deployed site when given one, otherwise serve the local build.
@@ -42,9 +43,14 @@ const LOCAL = CIBLE === null;
 // A cheap Android in portrait. Not a desktop window shrunk down.
 const TELEPHONE = { width: 360, height: 740, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 
-const stamp = Date.now().toString().slice(-6);
-const VENDOR_PHONE = `07${stamp}11`.slice(0, 10);
-const CUSTOMER_PHONE = `05${stamp}11`.slice(0, 10);
+// Reserved block and prefixed names, so anything this run creates is
+// unmistakable and trivially filterable — in whichever project it lands.
+// Identifying test rows by phone-number pattern was tried and silently missed
+// four accounts from an older scheme; a prefix the harness always applies cannot
+// drift like that.
+const stamp = Date.now().toString().slice(-4);
+const VENDOR_PHONE = telephoneTest(stamp);
+const CUSTOMER_PHONE = telephoneTest(String((Number(stamp) + 1) % 10000).padStart(4, '0'));
 const VENDOR_PIN = '481627';
 const CUSTOMER_PIN = '2846';
 
@@ -287,12 +293,12 @@ try {
   // ===== vendor registers themselves, unaided ============================
   console.log('\n--- vendor registers, unaided ---');
   await registerViaUI(pv, 'vendor', {
-    phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: 'Chez Awa', quartier: 'Yopougon',
+    phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: PREFIXE_TEST + 'Boutique', quartier: 'Yopougon',
   });
 
   await pv.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
   check('vendor reaches the home screen', true);
-  check('shop name is shown', (await pv.textContent('body')).includes('Chez Awa'));
+  check('shop name is shown', (await pv.textContent('body')).includes(PREFIXE_TEST + 'Boutique'));
   await pv.screenshot({ path: 'artifacts/01-vendeur-accueil.png' });
 
   // ===== customer registers on the OTHER device ==========================
@@ -302,7 +308,7 @@ try {
   // debit, and the vendor is not permitted to register them on their behalf.
   console.log('\n--- customer registers on a second device ---');
   await registerViaUI(pc, 'customer', {
-    phone: CUSTOMER_PHONE, pin: CUSTOMER_PIN, nom: 'Awa', quartier: '',
+    phone: CUSTOMER_PHONE, pin: CUSTOMER_PIN, nom: PREFIXE_TEST + 'Client', quartier: '',
   });
   await pc.screenshot({ path: 'artifacts/00-inscription-client.png' });
 
@@ -353,7 +359,7 @@ try {
     const texteNom = (await pv.textContent('body')).replace(/\s+/g, ' ');
     check('the label is explained as private to this vendor',
       /Vous seul le voyez/i.test(texteNom), texteNom.slice(0, 200));
-    await pv.locator('input.champ__saisie').fill('Awa du marché');
+    await pv.locator('input.champ__saisie').fill((PREFIXE_TEST + 'Nom'));
     await pv.getByRole('button', { name: 'Continuer' }).click();
   }
 
@@ -361,7 +367,7 @@ try {
 
   const surMontant = (await pv.textContent('body')).replace(/\s+/g, ' ');
   check('the name is shown instead of a bare number',
-    surMontant.includes('Awa du marché'), surMontant.slice(0, 200));
+    surMontant.includes((PREFIXE_TEST + 'Nom')), surMontant.slice(0, 200));
 
   await tapDigits(pv, '1500');
 
@@ -451,7 +457,7 @@ try {
   check('request appears on the customer device without reloading', true);
 
   const corpsClient = (await pc.textContent('body')).replace(/ /g, ' ');
-  check('shows the shop name', corpsClient.includes('Chez Awa'));
+  check('shows the shop name', corpsClient.includes(PREFIXE_TEST + 'Boutique'));
   check('shows the amount 400 F', corpsClient.includes('400'));
   check('shows current and resulting figures (1 500 -> 1 100)',
     corpsClient.includes('1 500') && corpsClient.includes('1 100'), corpsClient.slice(0, 300));
@@ -530,7 +536,7 @@ try {
   check('circulation figure is 1 100 F', montantPresent(livre, '1 100'), livre.slice(0, 250));
   check('one customer is listed', livre.includes('1 client concerné'), livre.slice(0, 250));
   check('the client list shows the NAME, not just a number',
-    livre.includes('Awa du marché'), livre.slice(0, 300));
+    livre.includes((PREFIXE_TEST + 'Nom')), livre.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/c1-mes-clients.png' });
 
   // Search narrows by number.
@@ -553,7 +559,7 @@ try {
     detail.slice(0, 300));
   check('history shows a running balance', /reste/i.test(detail));
   check('the customer detail is headed by the name',
-    detail.includes('Awa du marché'), detail.slice(0, 250));
+    detail.includes((PREFIXE_TEST + 'Nom')), detail.slice(0, 250));
   // The vouching path is gone. What remains is the vendor being told plainly
   // that they cannot reset a code and must never ask for one.
   const detailPropre = detail.replace(/\s+/g, ' ');
@@ -587,7 +593,7 @@ try {
   } catch { /* assertions below report it precisely */ }
 
   const maMonnaie = (await pc.textContent('body')).replace(/ /g, ' ');
-  check('customer sees the shop by name', maMonnaie.includes('Chez Awa'));
+  check('customer sees the shop by name', maMonnaie.includes(PREFIXE_TEST + 'Boutique'));
   check('customer sees their figure at that shop (1 100 F)',
     montantPresent(maMonnaie, '1 100'), maMonnaie.slice(0, 300));
   check('states the money stays with the vendor',

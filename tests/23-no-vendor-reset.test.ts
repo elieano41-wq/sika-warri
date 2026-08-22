@@ -258,3 +258,96 @@ describe('the app offers vendors no reset path', () => {
     expect(sql).not.toMatch(/code_plain|code_clair|\bcode text\b/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// An admin account may never also be a customer account
+// ---------------------------------------------------------------------------
+
+describe('admin and customer roles cannot coexist on one account', () => {
+  // The support-desk model rests on separation: the operator issues reset codes,
+  // and the people whose accounts get reset are on the other side of that desk.
+  // An account holding both collapses it — a customer with support powers can
+  // issue themselves a code, which is the vendor-vouching hole with more reach.
+
+  it('granting admin to an existing customer is refused', async () => {
+    const customer2 = await seedCustomer(db);
+    await actAsAdmin(db);
+
+    const code_ = await sqlstateOf(() =>
+      db.query('insert into public.app_admins (auth_user_id, note) values ($1, $2)', [
+        customer2.authUserId,
+        'should be impossible',
+      ])
+    );
+
+    expect(code_).toBe('SW018');
+  });
+
+  it('creating a customer for an existing admin is refused', async () => {
+    // The other direction. Either order of operations reaches the same
+    // forbidden state, so both are blocked.
+    await actAsAdmin(db);
+    const authId = randomUUID();
+    await db.query('insert into public.app_admins (auth_user_id, note) values ($1, $2)', [
+      authId,
+      'operator',
+    ]);
+
+    const code_ = await sqlstateOf(() =>
+      db.query(
+        'insert into public.customers (auth_user_id, phone) values ($1, $2)',
+        [authId, '2250700009999']
+      )
+    );
+
+    expect(code_).toBe('SW018');
+  });
+
+  it('LINKING an admin to a vendor-created customer stub is refused', async () => {
+    // Registration claims a stub by UPDATE, not INSERT. Covering only INSERT
+    // would leave the whole registration path open.
+    await actAsAdmin(db);
+    const authId = randomUUID();
+    await db.query('insert into public.app_admins (auth_user_id) values ($1)', [authId]);
+
+    const { rows } = await db.query(
+      `insert into public.customers (phone) values ('2250700008888') returning id`
+    );
+
+    const code_ = await sqlstateOf(() =>
+      db.query('update public.customers set auth_user_id = $1 where id = $2', [
+        authId,
+        rows[0].id,
+      ])
+    );
+
+    expect(code_).toBe('SW018');
+  });
+
+  it('a VENDOR may hold admin — the operator runs a shop', async () => {
+    // Deliberately permitted. The restriction is about the customer side of the
+    // desk, not about admins being forbidden an account at all.
+    await actAsAdmin(db);
+    const vendorC = await seedVendor(db);
+
+    const code_ = await sqlstateOf(() =>
+      db.query('insert into public.app_admins (auth_user_id, note) values ($1, $2)', [
+        vendorC.authUserId,
+        'operator vendor',
+      ])
+    );
+
+    expect(code_).toBeNull();
+  });
+
+  it('no auth user currently holds both roles', async () => {
+    // Guards against a row that predates the trigger.
+    await actAsAdmin(db);
+    const { rows } = await db.query(
+      `select a.auth_user_id
+         from public.app_admins a
+         join public.customers c on c.auth_user_id = a.auth_user_id`
+    );
+    expect(rows).toEqual([]);
+  });
+});

@@ -768,3 +768,487 @@ export async function myResets(token: string, actorUserId: string) {
   }>;
   return rows ?? [];
 }
+
+// ---------------------------------------------------------------------------
+// The debt register
+//
+// THE FRAUD MODEL INVERTS HERE. Everything above assumes a vendor loses money by
+// lying, which is why recordCredit posts straight through with the vendor's own
+// session. A fabricated debt EARNS the vendor money, so there is no equivalent
+// of recordCredit for debt: creating one against a registered customer goes
+// through proposeDebt() and is confirmed by the CUSTOMER on the customer's own
+// device, and the only direct write is declareDebt(), which produces a CLAIM
+// that every screen labels as one.
+//
+// There is deliberately no function here that returns change minus debt. See
+// customerPositions(): two figures, never one.
+// ---------------------------------------------------------------------------
+
+/**
+ * confirmed — confirmée. The customer agreed on their own device. A record.
+ * declared  — déclarée. Vendor-entered, unanswered. A claim.
+ * disputed  — contestée. The customer said no. Still stands as a figure,
+ *             flagged to both parties and to the support panel.
+ */
+export type DebtState = 'confirmed' | 'declared' | 'disputed';
+
+export interface DebtorRow {
+  customer_id: string;
+  phone: string;
+  your_label: string | null;
+  is_registered: boolean;
+  debt_cfa: number;
+  confirmed_cfa: number;
+  declared_cfa: number;
+  disputed_cfa: number;
+  oldest_debt_at: string | null;
+  last_activity_at: string | null;
+  entry_count: number;
+  total_count: number;
+}
+
+/** Who owes this vendor, largest first then oldest. A PAGE, not a total. */
+export async function vendorDebtors(
+  token: string,
+  vendorId: string,
+  actorUserId: string,
+  limit = 200
+): Promise<DebtorRow[]> {
+  const rows = (await rpc(
+    'vendor_debtors',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as DebtorRow[];
+  return rows ?? [];
+}
+
+export interface VendorDebtSummary {
+  debt_cfa: number;
+  debtors: number;
+  confirmed_cfa: number;
+  declared_cfa: number;
+  disputed_cfa: number;
+  disputed_count: number;
+  oldest_debt_at: string | null;
+}
+
+/**
+ * What the vendor is owed, aggregated in SQL. One row, so it cannot be
+ * truncated — the same reason the circulation figure comes from the server.
+ */
+export async function vendorDebtSummary(
+  token: string,
+  vendorId: string,
+  actorUserId: string
+): Promise<VendorDebtSummary> {
+  const rows = (await rpc(
+    'vendor_debt_summary',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId },
+    token
+  )) as VendorDebtSummary[];
+  const r = Array.isArray(rows) ? rows[0] : rows;
+  return (
+    r ?? {
+      debt_cfa: 0,
+      debtors: 0,
+      confirmed_cfa: 0,
+      declared_cfa: 0,
+      disputed_cfa: 0,
+      disputed_count: 0,
+      oldest_debt_at: null,
+    }
+  );
+}
+
+export interface DebtEntryRow {
+  id: string;
+  direction: 'owed' | 'repaid';
+  kind: string;
+  amount_cfa: number;
+  state: DebtState;
+  dispute_reason: string | null;
+  note: string | null;
+  created_at: string;
+  /** Only on the customer's own view: whether they can still answer this. */
+  reviewable?: boolean;
+  running_debt: number;
+  total_count: number;
+}
+
+export async function vendorDebtHistory(
+  token: string,
+  vendorId: string,
+  customerId: string,
+  actorUserId: string,
+  limit = 100
+): Promise<DebtEntryRow[]> {
+  const rows = (await rpc(
+    'vendor_debt_history',
+    {
+      p_vendor_id: vendorId,
+      p_customer_id: customerId,
+      p_actor_user_id: actorUserId,
+      p_limit: limit,
+    },
+    token
+  )) as DebtEntryRow[];
+  return rows ?? [];
+}
+
+export interface PendingDebtRow {
+  id: string;
+  vendor_id: string;
+  customer_id: string;
+  amount_cfa: number;
+  note: string | null;
+  expires_at: string;
+  consumed_at: string | null;
+  cancelled_at: string | null;
+}
+
+/**
+ * Propose a debt to a REGISTERED customer.
+ *
+ * Returns a pending row the customer must confirm on their own device within
+ * 180 seconds. There is no vendor-side way to complete it — that is the point.
+ */
+export async function proposeDebt(
+  token: string,
+  input: {
+    vendorId: string;
+    customerId: string;
+    actorUserId: string;
+    amountCfa: number;
+    idempotencyKey: string;
+    note?: string | null;
+  }
+): Promise<PendingDebtRow> {
+  const row = (await rpc(
+    'create_pending_debt',
+    {
+      p_vendor_id: input.vendorId,
+      p_customer_id: input.customerId,
+      p_amount_cfa: input.amountCfa,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+      p_note: input.note ?? null,
+    },
+    token
+  )) as PendingDebtRow | PendingDebtRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+/**
+ * Record a DÉCLARÉE debt: the unregistered-customer path, and the
+ * customer-is-not-here path.
+ *
+ * A claim. Never presented as a confirmed record, and when the person registers
+ * it surfaces for review rather than becoming fact.
+ */
+export async function declareDebt(
+  token: string,
+  input: {
+    vendorId: string;
+    customerId: string;
+    actorUserId: string;
+    amountCfa: number;
+    idempotencyKey: string;
+    note?: string | null;
+  }
+): Promise<DebtEntryRow> {
+  const row = (await rpc(
+    'declare_debt',
+    {
+      p_vendor_id: input.vendorId,
+      p_customer_id: input.customerId,
+      p_amount_cfa: input.amountCfa,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+      p_note: input.note ?? null,
+    },
+    token
+  )) as DebtEntryRow | DebtEntryRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+/** The customer paid cash. Reduces the debt, so no confirmation is required. */
+export async function settleDebt(
+  token: string,
+  input: {
+    vendorId: string;
+    customerId: string;
+    actorUserId: string;
+    amountCfa: number;
+    idempotencyKey: string;
+    note?: string | null;
+  }
+): Promise<DebtEntryRow> {
+  const row = (await rpc(
+    'settle_debt',
+    {
+      p_vendor_id: input.vendorId,
+      p_customer_id: input.customerId,
+      p_amount_cfa: input.amountCfa,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+      p_note: input.note ?? null,
+    },
+    token
+  )) as DebtEntryRow | DebtEntryRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+/** The vendor writes it off. A new entry, never a deletion. */
+export async function cancelDebt(
+  token: string,
+  input: {
+    vendorId: string;
+    customerId: string;
+    actorUserId: string;
+    amountCfa: number;
+    idempotencyKey: string;
+    note?: string | null;
+  }
+): Promise<DebtEntryRow> {
+  const row = (await rpc(
+    'cancel_debt',
+    {
+      p_vendor_id: input.vendorId,
+      p_customer_id: input.customerId,
+      p_amount_cfa: input.amountCfa,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+      p_note: input.note ?? null,
+    },
+    token
+  )) as DebtEntryRow | DebtEntryRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+// ---------------------------------------------------------------------------
+// Customer side
+// ---------------------------------------------------------------------------
+
+export interface ShopPositionRow {
+  vendor_id: string;
+  business_name: string;
+  quartier: string | null;
+  /** Change the customer HOLDS. Never combined with the next field. */
+  change_cfa: number;
+  /** Debt the customer OWES. */
+  debt_cfa: number;
+  debt_confirmed_cfa: number;
+  debt_declared_cfa: number;
+  debt_disputed_cfa: number;
+  /**
+   * The most that could be offset if the customer asked: min(change, debt).
+   * A bound on an ACTION, not a net position. Never negative, and never
+   * rendered as a balance.
+   */
+  compensable_cfa: number;
+  last_activity_at: string | null;
+  total_count: number;
+}
+
+/**
+ * Per shop: what the customer holds AND what they owe, as two figures.
+ *
+ * There is no third field combining them and there must never be one. 500 F of
+ * change against 2 000 F of debt is two true facts; −1 500 F is a false one.
+ */
+export async function customerPositions(
+  token: string,
+  actorUserId: string,
+  limit = 100
+): Promise<ShopPositionRow[]> {
+  const rows = (await rpc(
+    'customer_shop_positions',
+    { p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as ShopPositionRow[];
+  return rows ?? [];
+}
+
+export async function customerDebtHistory(
+  token: string,
+  actorUserId: string,
+  vendorId: string,
+  limit = 100
+): Promise<DebtEntryRow[]> {
+  const rows = (await rpc(
+    'customer_debt_history',
+    { p_actor_user_id: actorUserId, p_vendor_id: vendorId, p_limit: limit },
+    token
+  )) as DebtEntryRow[];
+  return rows ?? [];
+}
+
+export interface ReviewRow {
+  register: 'debt' | 'change';
+  entry_id: string;
+  vendor_id: string;
+  business_name: string;
+  quartier: string | null;
+  kind: string;
+  amount_cfa: number;
+  note: string | null;
+  created_at: string;
+  total_count: number;
+}
+
+/**
+ * Everything recorded against this customer that they have never answered.
+ *
+ * Shown at first login. A vendor can record a claim against any phone number,
+ * so if registering silently turned those into established fact, pre-loading
+ * debts against a list of numbers would be a working attack. Nothing is ever
+ * accepted by signup or by the passage of time.
+ */
+export async function myReviewQueue(
+  token: string,
+  actorUserId: string,
+  limit = 100
+): Promise<ReviewRow[]> {
+  const rows = (await rpc(
+    'my_review_queue',
+    { p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as ReviewRow[];
+  return rows ?? [];
+}
+
+/** Accept or dispute one claim. Only the debtor may, and only once. */
+export async function reviewEntry(
+  token: string,
+  input: {
+    register: 'debt' | 'change';
+    entryId: string;
+    decision: 'accepted' | 'disputed';
+    actorUserId: string;
+    reason?: string | null;
+  }
+) {
+  // Two functions rather than one polymorphic call, matching the two tables.
+  const nom = input.register === 'debt' ? 'review_debt_entry' : 'review_ledger_entry';
+  return rpc(
+    nom,
+    {
+      p_entry_id: input.entryId,
+      p_decision: input.decision,
+      p_actor_user_id: input.actorUserId,
+      p_reason: input.reason ?? null,
+    },
+    token
+  );
+}
+
+/**
+ * Propose offsetting change against debt at one shop.
+ *
+ * Bounded server-side by BOTH balances. The customer confirms on their own
+ * device, which writes the pair.
+ */
+export async function proposeCompensation(
+  token: string,
+  input: {
+    vendorId: string;
+    customerId: string;
+    actorUserId: string;
+    amountCfa: number;
+    idempotencyKey: string;
+  }
+): Promise<PendingDebtRow> {
+  const row = (await rpc(
+    'create_pending_compensation',
+    {
+      p_vendor_id: input.vendorId,
+      p_customer_id: input.customerId,
+      p_amount_cfa: input.amountCfa,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+    },
+    token
+  )) as PendingDebtRow | PendingDebtRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+/**
+ * The customer confirms a debt, on their own device.
+ *
+ * Goes through the Edge Function because the SQL path refuses any session-bound
+ * caller: a confirmed debt can only be written by something that has just
+ * verified this customer's PIN. There is no vendor-side equivalent and no
+ * vendor-device fallback — a vendor who could type the customer's code would be
+ * able to mint a debt from nothing.
+ */
+export async function confirmDebt(
+  token: string,
+  pendingId: string,
+  pin: string
+): Promise<{ entryId: string; amountCfa: number; confirmationMethod: string }> {
+  const r = (await fn('confirm-debt', { action: 'debt', pendingId, pin }, token)) as any;
+  return {
+    entryId: r.entryId,
+    amountCfa: r.amountCfa,
+    confirmationMethod: r.confirmationMethod,
+  };
+}
+
+/**
+ * The customer confirms an offset of change against debt.
+ *
+ * Returns both remaining figures, separately. There is no combined number in the
+ * response and there must not be one: the point of the compensation is that it
+ * moved money between two registers which remain two registers.
+ */
+export async function confirmCompensation(
+  token: string,
+  pendingId: string,
+  pin: string
+): Promise<{
+  compensationId: string;
+  amountCfa: number;
+  remainingChangeCfa: number;
+  remainingDebtCfa: number;
+}> {
+  const r = (await fn(
+    'confirm-debt',
+    { action: 'compensation', pendingId, pin },
+    token
+  )) as any;
+  return {
+    compensationId: r.compensationId,
+    amountCfa: r.amountCfa,
+    remainingChangeCfa: r.remainingChangeCfa,
+    remainingDebtCfa: r.remainingDebtCfa,
+  };
+}
+
+/** Debt proposals waiting for this customer to answer, with time left. */
+export async function pendingDebtsForMe(
+  token: string,
+  actorUserId: string
+): Promise<
+  Array<{
+    id: string;
+    vendorId: string;
+    businessName: string;
+    amountCfa: number;
+    note: string | null;
+    secondsLeft: number;
+  }>
+> {
+  const rows = (await rpc(
+    'pending_debts_for_customer',
+    { p_actor_user_id: actorUserId },
+    token
+  )) as any[];
+  return (rows ?? []).map((r) => ({
+    id: r.id,
+    vendorId: r.vendor_id,
+    businessName: r.business_name,
+    amountCfa: r.amount_cfa,
+    note: r.note,
+    secondsLeft: r.seconds_left,
+  }));
+}

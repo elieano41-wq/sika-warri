@@ -52,3 +52,10 @@ verify_jwt = false
 # the gate is at the data, not at the screen.
 [functions.admin]
 verify_jwt = false
+
+# The debt confirmation. verify_jwt = false like every other function
+# (amendment K): the platform check only understands legacy JWT keys, and this
+# project uses the sb_publishable_/sb_secret_ format. The session is validated
+# in code by requireCaller(), and a PIN is demanded on top of it.
+[functions."confirm-debt"]
+verify_jwt = false

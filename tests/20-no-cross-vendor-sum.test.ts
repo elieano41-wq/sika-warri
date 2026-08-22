@@ -14,8 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  perShop, informationalTotal, captionFor, spendableAt, vendorInCirculation,
-  type ShopBalance,
+  perShop, informationalTotal, captionFor, spendableAt, type ShopBalance,
 } from '../src/lib/balances';
 
 const SRC = path.join(process.cwd(), 'src');
@@ -225,28 +224,28 @@ describe('acceptance test 8 — the customer balance screen', () => {
     expect(texte).toMatch(/reste chez le\s*commer[çc]ant/i);
   });
 
-  it('the vendor total is computed by its own named function, not inline', () => {
-    // A vendor's own liability IS a legitimate single figure. Keeping it in
-    // balances.ts means the one file that folds over balances is still the only
-    // one, and the distinction is documented where it is made.
-    const clients = readFileSync(
-      path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8'
+  it('the vendor total comes from the SERVER, not from the page', () => {
+    // Stronger than "computed by a named helper", which is what this asserted
+    // before. The client list is BOUNDED — a page — so summing it would
+    // understate what the vendor owes the moment there were more customers than
+    // the page holds, and would disagree with the home screen while neither
+    // reported an error. The total is aggregated in SQL and arrives as one row.
+    const clients = code(
+      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8')
     );
-    expect(code(clients)).toMatch(/vendorInCirculation\(/);
-    expect(code(clients)).not.toMatch(/\.reduce\s*\(/);
+    expect(clients).toMatch(/resume\?\.circulation_cfa/);
+    expect(clients).not.toMatch(/\.reduce\s*\(/);
+    expect(clients).not.toMatch(/vendorInCirculation/);
   });
 
-  it('vendorInCirculation sums one vendor only and clamps negatives', () => {
-    const r = vendorInCirculation([
-      { balance_cfa: 2500 }, { balance_cfa: 600 }, { balance_cfa: 0 },
-    ]);
-    expect(r.totalCfa).toBe(3100);
-    expect(r.customerCount).toBe(2);
-
-    // Rule 2 makes a negative impossible; clamping means a bug could never
-    // understate what the vendor owes.
-    const avecNegatif = vendorInCirculation([{ balance_cfa: 1000 }, { balance_cfa: -500 }]);
-    expect(avecNegatif.totalCfa).toBe(1000);
-    expect(avecNegatif.customerCount).toBe(1);
+  it('a truncated client list says it is truncated', () => {
+    // Silently showing the first 200 of 1 234 is the failure this audit was
+    // about: incomplete data that looks complete.
+    const clients = code(
+      readFileSync(path.join(SRC, 'screens', 'vendeur', 'MesClients.tsx'), 'utf8')
+    );
+    expect(clients).toMatch(/tronque/);
+    expect(clients).toMatch(/total_count/);
   });
+
 });

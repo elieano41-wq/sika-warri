@@ -98,35 +98,3 @@ export function captionFor(shopCount: number): string {
 export function spendableAt(shops: ShopBalance[], vendorId: string): number {
   return shops.find((s) => s.vendorId === vendorId)?.amountCfa ?? 0;
 }
-
-// ---------------------------------------------------------------------------
-// The vendor's own side
-// ---------------------------------------------------------------------------
-
-/**
- * "Monnaie en circulation" — what ONE vendor owes across their own customers.
- *
- * This is a sum, and it lives here because this file is the only place allowed
- * to fold over balances. But it is not the thing rule 1 forbids, and the
- * difference is the whole point:
- *
- *   * A CUSTOMER total pools debts owed by different shopkeepers. Presenting it
- *     as spendable would claim Sika Warri holds a single balance. It does not,
- *     and no shopkeeper would honour another's debt.
- *
- *   * A VENDOR total is one shopkeeper's own liability in their own till. It is
- *     a real, single, meaningful figure — the money they are holding for other
- *     people — and the spec asks for it by name on the vendor home screen.
- *
- * Negative balances cannot occur (standing rule 2); clamping at zero means a
- * bug could never make the figure understate what is owed.
- */
-export function vendorInCirculation(
-  rows: Array<{ balance_cfa: number }>
-): { totalCfa: number; customerCount: number } {
-  const positifs = rows.filter((r) => r.balance_cfa > 0);
-  return {
-    totalCfa: positifs.reduce((sum, r) => sum + r.balance_cfa, 0),
-    customerCount: positifs.length,
-  };
-}

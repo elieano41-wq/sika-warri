@@ -335,11 +335,142 @@ The restore drill needs no secrets: it uses its own throwaway container.
 
 ---
 
+## SMS — what it costs and what it would buy
+
+Researched 22 August 2026. Prices are what the providers publish; the FX used for
+conversions is 1 USD = 561.52 XOF, 1 EUR = 1.1699 USD, and XOF is pegged at
+655.957/EUR.
+
+### The spread is 40×, and it decides the feature
+
+| Route | Per SMS | In FCFA |
+| --- | --- | --- |
+| Twilio | $0.4925 | ~277 |
+| AWS End User Messaging | $0.34992 | ~196 |
+| Plivo (Orange / MTN / Moov) | $0.30 / $0.3312 / $0.50 | ~168 / 186 / 281 |
+| BulkGate, **registered** alpha sender | €0.0182 | ~12 |
+| Africa's Talking (Orange) | ~$0.021 → $0.016 | **12 → 9** |
+| Africa's Talking (MTN) | ~$0.032 → $0.027 | 18 → 15 |
+| Local aggregators (IvoireSMS, Yellika, proSMS) | ~$0.015–0.036 | **8.3 – 20** |
+| **Orange Developer "SMS CI 2.0" API** | ~$0.0129 | **7.25** |
+
+Orange's own API is the cheapest and covers *"any operator"* in and to Côte
+d'Ivoire, not just Orange. 1 000 SMS costs 7 260 FCFA. Constraints: 5 TPS, a
+100 000 FCFA/day purchase cap per SIM (≈13 800 SMS/day), and payment by airtime
+or Orange Money only.
+
+The international CPaaS options are 20–40× that. **Twilio at 277 FCFA per message
+costs more than the median change entry this product records.** That is the
+number that makes SMS-on-every-event impossible and SMS-on-debt-creation
+affordable.
+
+Registering the alphanumeric sender ID is worth roughly **10–14× on price**, not
+only on deliverability: BulkGate's unregistered Orange route is €0.2478 and its
+registered route is €0.0182.
+
+### What SMS would actually buy us
+
+One thing, and it is the largest hole in the debt register: **a vendor can record
+a déclarée debt against any phone number, including numbers belonging to people
+who have never heard of Sika Warri, and that person never learns of it.** A claim
+nobody can see is a claim nobody can dispute. Everything else in the design
+assumes the person eventually registers and meets the review queue.
+
+At Orange's 7.25 FCFA, notifying on **debt creation only** is the affordable
+version. A vendor writing twenty debts a month costs 145 FCFA to notify. It does
+**not** need to cover change credits, which are in the customer's favour and
+carry no fraud incentive.
+
+It would **not** stop a vendor fabricating a debt against someone standing in
+front of them — that is what the two-device handshake is for.
+
+### Before sending a single message
+
+**Register the sender ID, and budget for MTN.** Orange's own FAQ:
+
+> *"the processing time is within 5 working days (**for MTN 15 working days**).
+> Please do not use Sender Name/Names before you get email confirmation."*
+
+Registration is with the **operators**, not with ARTCI — there is no ARTCI
+sender-ID registry. Nobody publishes a registration fee; Orange, Twilio and
+Africa's Talking all list it as free. Documents Orange CI Business asks for:
+statuts d'entreprise, récépissé d'existence, pièce d'identité du responsable,
+facture de service.
+
+**MTN is the hard gate**, stated consistently by Twilio, Telnyx, Bird and Vonage:
+an unregistered alphanumeric sender is rewritten or dropped, and a **numeric
+sender ID fails outright on MTN**. Use a brand-specific sender; generic ones
+(INFO, Verify, Notify) are refused, and "Google" is prohibited outright.
+
+### Deliverability, from the operator's own mouth
+
+Orange's SMS CI API FAQ:
+
+> **"Delivery issues to MTN users — We are aware that there are some delivery
+> issues towards MTN users. This is due to SMS management rules on MTN."**
+
+The largest operator publicly states its A2P platform has structural delivery
+problems into the second largest (~35% of subscribers, the 05 prefix). **Do not
+run OTP or debt notifications to MTN on a single route.**
+
+Also true, and each of these would bite:
+
+- **Handset delivery receipts are unreliable in CI.** A DLR is not proof of
+  receipt, so "we notified them" is not a claim the ledger can make.
+- **No two-way SMS and no domestic long codes.** A customer cannot reply to
+  dispute a claim by SMS; the reply path has to be the app.
+- **Content filtering is aggressive and Orange CI is the strictest.** Money words
+  (FCFA, Gain, Gratuit, Prêt), urgency words, and **URL shorteners** are filtered.
+  A debt notification that names an amount in FCFA is exactly the shape of
+  message that gets dropped — this needs testing against real handsets on all
+  three networks before it is relied on.
+- **Moov's international routes are being re-gated.** Moov Africa CI signed an
+  exclusive A2P firewall agreement with Omobio on 15–16 July 2026. Expect
+  international routes into Moov to be re-priced upward and bypass routes closed.
+- Moov publishes **no** A2P rate card at all. Reach Moov subscribers through
+  Orange's all-operator API or a local aggregator.
+
+### The law that binds us
+
+Not an ARTCI decision but statute: **Loi n°2013-546 du 30 juillet 2013, art. 14**
+prohibits direct marketing by SMS without prior express consent, and **art. 15**
+requires a free opt-out path. A debt notification is transactional rather than
+marketing, so art. 14 does not bite — but a "your neighbour also uses Sika Warri"
+message would, and so would anything promotional. **Loi n°2013-450** covers
+personal data.
+
+### Decision
+
+Not now. `SIKA_REQUIRE_VENDOR_SMS_VERIFICATION` and
+`SIKA_REQUIRE_CUSTOMER_SMS_VERIFICATION` both stay **false**, and the plumbing is
+written and tested so turning them on is a configuration change.
+
+When it is turned on, the order is: Orange Developer API as the primary route, a
+second route for MTN, sender ID registered as transactional **15 working days
+before** launch, debt creation only, and a real-handset test on all three
+networks before anyone relies on it.
+
+---
+
 ## Known gaps
 
 Recorded so they are not quietly forgotten.
 
-1. **Expired-token rejection is reasoned, not proven.** Every authenticated
+1. **A vendor can record a debt against a number and the owner never learns of
+   it.** The largest hole in the debt register. `déclarée` entries are required —
+   it is how the paper carnet works and what makes this usable on day one — and
+   a claim nobody can see is a claim nobody can dispute. Everything else in the
+   design assumes the person eventually registers and meets the review queue,
+   which is where every pre-loaded claim surfaces unconfirmed.
+
+   The fix is an SMS on debt creation, and it is now costed rather than waved
+   at: **7.25 FCFA** through Orange's own API, which covers all three operators.
+   A vendor writing twenty debts a month costs 145 FCFA to notify. See "SMS —
+   what it costs and what it would buy" above for why it is not on yet, and what
+   has to happen first — 15 working days of MTN sender-ID registration being the
+   long pole.
+
+2. **Expired-token rejection is reasoned, not proven.** Every authenticated
    function validates the caller through `auth.getUser()`, which sends the token
    to Supabase, where signature and expiry are both checked. Rejection has been
    verified live for a missing token, a malformed token, a tampered signature,
@@ -349,7 +480,7 @@ Recorded so they are not quietly forgotten.
    narrow — the same code path is exercised by the tampered-token case — but it
    is not evidence.
 
-2. **A restore into a new project cannot restore logins.** The backup covers the
+3. **A restore into a new project cannot restore logins.** The backup covers the
    `public` schema. `auth.users` does not live there and is not dumped, so after
    restoring into a fresh project every `vendors.auth_user_id` and
    `customers.auth_user_id` points at a user that does not exist and **nobody can
@@ -363,28 +494,28 @@ Recorded so they are not quietly forgotten.
    place, which is the far likelier disaster, is unaffected: the auth users are
    still there.
 
-3. **One phone number, one role.** The auth user is keyed on the phone number
+4. **One phone number, one role.** The auth user is keyed on the phone number
    and a vendor PIN is 6 digits where a customer's is 4, so a single number
    cannot be both. Registration says so plainly rather than creating a
    half-usable account.
 
-4. **Phone enumeration is possible by design.** A vendor must be able to tell
+5. **Phone enumeration is possible by design.** A vendor must be able to tell
    whether a number is already known before offering to create it inline.
    Minimised rather than eliminated: the lookup returns existence plus the
    asking vendor's own label, never a name entered by another vendor, and is
    rate limited to 60 lookups per 10 minutes per vendor.
 
-5. **`v_vendor_confirmation_mix` is a signal, not a verdict.** A vendor
+6. **`v_vendor_confirmation_mix` is a signal, not a verdict.** A vendor
    legitimately serving customers without smartphones shows a high
    `vendor_device` share; so does a vendor harvesting PINs. The number says
    where to look, nothing more.
 
-6. **Acceptance test 8 is half-proven.** The database keeps per-vendor balances
+7. **Acceptance test 8 is half-proven.** The database keeps per-vendor balances
    structurally separate and no query sums them. The promise that no *screen*
    ever presents a single spendable total cannot be tested until the customer
    app exists.
 
-7. **Acceptance test 10 is not started.** Offline queueing, service worker, and
+8. **Acceptance test 10 is not started.** Offline queueing, service worker, and
    sync-on-reconnect all belong to the app layer.
 
 ---

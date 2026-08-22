@@ -55,7 +55,10 @@ const VENDEURS = [
     quartier: 'Treichville',
     commune: 'Abidjan',
     phone: '2250709101112',
-    plafond: 5000,
+    // High enough to hold the 12 500 F entry below, which exists to exercise the
+    // thousands separator. A cap of 5 000 refused it with SIKA_CAP_EXCEEDED —
+    // the guard working, and the seed being wrong about its own arithmetic.
+    plafond: 15000,
   },
 ];
 

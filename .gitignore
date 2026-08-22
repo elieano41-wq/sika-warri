@@ -31,3 +31,6 @@ artifacts/
 # Vite writes this into the project root while loading a TypeScript config.
 vite.config.ts.timestamp-*
 vite.config.*.timestamp-*
+
+# Local Claude Code settings — machine-specific, not shared.
+.claude/settings.local.json

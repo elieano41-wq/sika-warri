@@ -84,15 +84,13 @@ await db.connect();
  * than "something of about the right size came back".
  */
 async function census(etiquette) {
-  const { rows } = await db.query(`
+  // The catalog half always answers, including on an empty schema. Asked first
+  // and separately BECAUSE the census is taken immediately after the schema is
+  // dropped: a subquery naming public.vendors fails at parse time when the table
+  // is gone, so it cannot be guarded with a CASE or a coalesce. It has to not be
+  // in the statement at all.
+  const { rows: cat } = await db.query(`
     select
-      (select count(*)::int from public.vendors)        as vendors,
-      (select count(*)::int from public.customers)      as customers,
-      (select count(*)::int from public.ledger_entries) as entries,
-      (select coalesce(md5(string_agg(
-          e.id::text || e.vendor_id::text || e.customer_id::text ||
-          e.direction || e.kind || e.amount_cfa::text, '|' order by e.id)), 'vide')
-       from public.ledger_entries e)                    as empreinte,
       (select count(*)::int from pg_tables where schemaname = 'public') as tables,
       (select count(*)::int from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
@@ -103,7 +101,25 @@ async function census(etiquette) {
         where n.nspname = 'public' and not t.tgisinternal) as triggers,
       (select count(*)::int from pg_policies where schemaname = 'public') as policies
   `);
-  const r = rows[0];
+
+  const vide = { vendors: 0, customers: 0, entries: 0, empreinte: 'vide' };
+  let data = vide;
+
+  if (cat[0].tables > 0) {
+    const { rows } = await db.query(`
+      select
+        (select count(*)::int from public.vendors)        as vendors,
+        (select count(*)::int from public.customers)      as customers,
+        (select count(*)::int from public.ledger_entries) as entries,
+        (select coalesce(md5(string_agg(
+            e.id::text || e.vendor_id::text || e.customer_id::text ||
+            e.direction || e.kind || e.amount_cfa::text, '|' order by e.id)), 'vide')
+         from public.ledger_entries e)                    as empreinte
+    `);
+    data = rows[0];
+  }
+
+  const r = { ...data, ...cat[0] };
   console.log(
     `  ${etiquette.padEnd(10)} ${r.vendors}v ${r.customers}c ${r.entries}e · ` +
       `${r.tables} tables · ${r.fonctions} fn · ${r.triggers} trg · ${r.policies} pol · ` +

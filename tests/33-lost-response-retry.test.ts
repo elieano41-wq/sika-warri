@@ -228,9 +228,15 @@ describe('no screen mints a key per attempt', () => {
   });
 
   it('every screen that writes uses the held key', () => {
-    const ecrivains = fichiers.filter((f) =>
-      /idempotencyKey:/.test(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
-    );
+    // SCREENS only. api.ts DECLARES idempotencyKey in its parameter types and
+    // never mints one — it is the transport, not a caller, and requiring it to
+    // hold a React ref would be nonsense. The rule is about who DECIDES a key,
+    // not who passes one along.
+    const ecrivains = fichiers
+      .filter((f) => f.includes(`${path.sep}screens${path.sep}`))
+      .filter((f) =>
+        /idempotencyKey:/.test(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
+      );
     expect(ecrivains.length).toBeGreaterThan(0);
 
     for (const f of ecrivains) {
@@ -246,9 +252,11 @@ describe('no screen mints a key per attempt', () => {
     // Held across a SUCCESS, the next transaction would replay the previous one
     // and the vendor would be shown an old entry for a new amount. Both halves
     // matter.
-    const ecrivains = fichiers.filter((f) =>
-      /idempotencyKey:\s*cleIdem\(\)/.test(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
-    );
+    const ecrivains = fichiers
+      .filter((f) => f.includes(`${path.sep}screens${path.sep}`))
+      .filter((f) =>
+        /idempotencyKey:\s*cleIdem\(\)/.test(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))
+      );
     for (const f of ecrivains) {
       const src = readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
       expect(src, `${path.relative(process.cwd(), f)} never clears its key`).toMatch(

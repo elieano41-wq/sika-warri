@@ -20,7 +20,10 @@
     "make-admin": "node scripts/make-admin.mjs",
     "target": "node scripts/whoami.mjs",
     "build:test": "vite build --mode test",
-    "audit:bounds": "node scripts/audit-bounds.mjs"
+    "audit:bounds": "node scripts/audit-bounds.mjs",
+    "keepalive": "node scripts/keepalive.mjs",
+    "restore:drill": "node scripts/restore-drill.mjs",
+    "seed": "node scripts/seed.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",

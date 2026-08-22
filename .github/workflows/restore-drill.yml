@@ -1,0 +1,106 @@
+name: Restore drill
+
+# Proves the backup can actually be restored.
+#
+# "A backup whose restore path has never been executed is not a backup" is the
+# spec's wording. backup.yml going green proves a file was written; it proves
+# nothing about whether that file brings the ledger back. This job dumps with the
+# SAME pg_dump flags, encrypts with the SAME gpg step, then drops the schema and
+# replays the archive into it — and compares a fingerprint of every ledger entry
+# before and after.
+#
+# Weekly, not once. A restore path that worked in August is not evidence about a
+# schema that has had four migrations since.
+#
+# Nothing here touches Supabase. The target is this job's own throwaway Postgres
+# container, and scripts/restore-drill.mjs REFUSES any URL that looks like a
+# Supabase project — the schema gets dropped, so that guard has no override.
+
+on:
+  schedule:
+    # Sunday 03:19 UTC, after Saturday night's backup has run.
+    - cron: '19 3 * * 0'
+  workflow_dispatch:
+  push:
+    # Also on any change to the backup machinery itself, so a broken restore is
+    # caught by the commit that broke it rather than the following Sunday.
+    paths:
+      - 'scripts/restore-drill.mjs'
+      - 'scripts/seed.mjs'
+      - '.github/workflows/backup.yml'
+      - '.github/workflows/restore-drill.yml'
+      - 'supabase/migrations/**'
+
+jobs:
+  drill:
+    name: Dump, encrypt, destroy, restore, verify
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # 17 to match production, unlike ci.yml which deliberately uses stock 15
+        # to prove portability. A restore rehearsal should rehearse the version
+        # the dump will actually come from.
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sika_drill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/sika_drill
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pg_dump and psql 17
+        # The runner's default client is older than the server. A pg_dump older
+        # than the server refuses to run at all.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -sSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+          psql --version
+
+      - name: Apply migrations
+        run: npm run migrate
+
+      - name: Seed realistic data
+        # Restoring an empty database proves nothing, so the drill refuses to run
+        # without entries. This is also the seed script section 10 asks for.
+        run: node scripts/seed.mjs
+
+      - name: Run the drill
+        run: node scripts/restore-drill.mjs
+
+      - name: Keep the evidence
+        # The archive and the dump, so a failure can be read rather than guessed
+        # at. Seed data only — no real phone numbers, no real balances.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-drill
+          path: artifacts/restore-drill/
+          retention-days: 7
+          if-no-files-found: warn

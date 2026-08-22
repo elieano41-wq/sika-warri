@@ -1,0 +1,136 @@
+name: Backup
+
+# THE ONLY BACKUP THAT EXISTS. The Supabase free tier has zero backup retention:
+# if the project is deleted, corrupted, or the account is lost, whatever is not
+# in this repository is gone. Every ledger entry is a record of money one person
+# owes another, so losing it is not an inconvenience.
+#
+# Nightly, encrypted, committed. Thirty days kept, older ones pruned.
+#
+# The restore path is in README.md under "Restauration" and has actually been
+# executed — see scripts/restore-drill.mjs. A backup whose restore has never been
+# run is not a backup.
+
+on:
+  schedule:
+    # 02:37 UTC — 02:37 in Abidjan, which is UTC+0 all year. The quietest hour
+    # for a shop, and off the hour because GitHub's scheduler drops queued crons
+    # at busy times.
+    - cron: '37 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  # The job commits the dump back to the repository. Nothing else is needed.
+  contents: write
+
+jobs:
+  dump:
+    name: Dump, encrypt, commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install a matching pg_dump
+        # The runner ships an older client by default. A pg_dump older than the
+        # server refuses to run at all, and this database is Postgres 17 — so the
+        # client comes from the PGDG repository rather than from whatever the
+        # image happens to carry.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -sSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Fail loudly if the secrets are missing
+        # Standing rule 6. Without this the dump would be an empty file, gpg
+        # would happily encrypt it, and the job would go green while backing up
+        # nothing at all — the worst possible outcome for a backup job.
+        env:
+          DB: ${{ secrets.SUPABASE_DB_URL }}
+          PASS: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          test -n "$DB"   || { echo "SUPABASE_DB_URL secret is not set"; exit 1; }
+          test -n "$PASS" || { echo "BACKUP_GPG_PASSPHRASE secret is not set"; exit 1; }
+
+      - name: pg_dump
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          # --no-owner / --no-privileges: a restore may well go into a project
+          # with different role names, and a dump that insists on the originals
+          # fails on every GRANT. The migrations own the grants anyway.
+          # --clean --if-exists so a restore is idempotent against a used database.
+          pg_dump "$SUPABASE_DB_URL" \
+            --format=plain \
+            --no-owner \
+            --no-privileges \
+            --clean \
+            --if-exists \
+            --schema=public \
+            --file=dump.sql
+          # A dump that is suspiciously small means something failed quietly.
+          # 20 KB is well under a real dump of this schema and well over an error.
+          taille=$(stat -c%s dump.sql)
+          echo "dump: ${taille} bytes"
+          test "$taille" -gt 20480 || { echo "dump is too small to be real"; exit 1; }
+          grep -q 'CREATE TABLE public.ledger_entries' dump.sql \
+            || { echo "dump does not contain the ledger"; exit 1; }
+
+      - name: Encrypt
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          horodatage=$(date -u +%Y-%m-%d)
+          # Symmetric, AES-256. A passphrase in repository secrets is the whole
+          # protection: the ciphertext lives in a private repo, but a private
+          # repo is not a secure store, and this file contains every phone number
+          # and every balance.
+          gpg --batch --yes --quiet \
+            --symmetric \
+            --cipher-algo AES256 \
+            --passphrase "$PASSPHRASE" \
+            --output "backups/sika-warri-${horodatage}.sql.gpg" \
+            dump.sql
+          # The plaintext must not survive into the commit.
+          shred -u dump.sql
+          ls -la backups/
+
+      - name: Prune anything older than 30 days
+        run: |
+          set -euo pipefail
+          # By count, not by mtime: a fresh checkout gives every file today's
+          # mtime, so `find -mtime` would either delete everything or nothing.
+          # The names sort chronologically, so keeping the last 30 is exact.
+          cd backups
+          ls -1 sika-warri-*.sql.gpg 2>/dev/null | sort | head -n -30 \
+            | xargs -r git rm --quiet -f --
+          echo "kept: $(ls -1 sika-warri-*.sql.gpg 2>/dev/null | wc -l)"
+
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name  'sika-warri-backup'
+          git config user.email 'backup@users.noreply.github.com'
+          git add backups/
+          # Nothing to do is a normal outcome when a run repeats on the same day.
+          if git diff --cached --quiet; then
+            echo 'no change'
+            exit 0
+          fi
+          git commit -m "Backup $(date -u +%Y-%m-%d)"
+          # Rebase rather than force: a backup must never overwrite real work
+          # that landed on main while the dump was running.
+          git pull --rebase --quiet origin main
+          git push origin HEAD:main

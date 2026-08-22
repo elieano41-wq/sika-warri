@@ -1,0 +1,44 @@
+name: Keepalive
+
+# Supabase free-tier projects pause after 7 days with no activity and must be
+# restored by hand from the dashboard. For a vendor at a counter that is not a
+# delay, it is an outage with no error message anyone can act on.
+#
+# Twice weekly rather than daily. The threshold is 7 days, so two runs a week
+# leaves days of margin after a single failure — and a daily job hides a broken
+# schedule for longer, because nobody notices one skipped run out of thirty.
+
+on:
+  schedule:
+    # Monday and Thursday, 04:12 UTC. Off the hour on purpose: GitHub's shared
+    # scheduler is busiest exactly on the hour, and a queued cron can be delayed
+    # by tens of minutes or dropped.
+    - cron: '12 4 * * 1,4'
+  workflow_dispatch:
+
+# Two overlapping runs would both insert and both prune. Harmless, but the log
+# becomes hard to read, and this is a job whose log is the only thing that tells
+# you it is working.
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Touch the database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Insert a heartbeat and prune old rows
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/keepalive.mjs

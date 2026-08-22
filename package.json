@@ -19,7 +19,8 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name sika-warri --branch main",
     "make-admin": "node scripts/make-admin.mjs",
     "target": "node scripts/whoami.mjs",
-    "build:test": "vite build --mode test"
+    "build:test": "vite build --mode test",
+    "audit:bounds": "node scripts/audit-bounds.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",

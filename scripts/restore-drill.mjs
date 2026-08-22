@@ -268,8 +268,15 @@ try {
   } catch (err) {
     refuse = err.code;
   }
-  const guardeOk = refuse === 'SW005' || refuse === 'SW004' || refuse !== null;
-  console.log(`  ${guardeOk ? 'OK  ' : 'FAIL'}  an over-balance debit is still refused (${refuse ?? 'ACCEPTED'})`);
+  // SW006 is insufficient balance, and it must be exactly that. Accepting any
+  // error at all was the first version of this check and it was too loose: after
+  // a failed restore, `function post_ledger_entry does not exist` would also be
+  // an error, and would have passed as though the guard had held.
+  const guardeOk = refuse === 'SW006';
+  console.log(
+    `  ${guardeOk ? 'OK  ' : 'FAIL'}  an over-balance debit is refused with SW006 ` +
+      `(got ${refuse ?? 'NO ERROR — IT WAS ACCEPTED'})`
+  );
   if (!guardeOk) tout = false;
 
   console.log('');

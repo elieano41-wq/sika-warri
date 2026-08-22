@@ -187,6 +187,41 @@ rows came back but whose constraints did not is not restored.
 Weekly rather than once: a restore that worked in August is not evidence about a
 schema that has had four migrations since.
 
+**Last executed 2026-08-22**, against Postgres 17.11, `pg_dump` 17.11:
+
+```
+1. census before
+  before     3v 8c 13e · 12 tables · 47 fn · 2 trg · 5 pol · d09e56dd2ffe
+2. pg_dump                    111137 bytes
+3. encrypt (AES256)            20656 bytes
+4. decrypt                    round trip identical
+5. DESTROY                    0v 0c 0e · 0 tables · 0 fn · 0 trg · 0 pol
+6. restore (psql)             replayed with ON_ERROR_STOP=1
+7. verify
+  after      3v 8c 13e · 12 tables · 47 fn · 2 trg · 5 pol · d09e56dd2ffe
+  OK  vendors 3->3   customers 8->8   entries 13->13
+  OK  empreinte d09e56dd2ffe8d6b4c2c005e22dfa3ab -> (identical)
+  OK  tables 12->12  fonctions 47->47  triggers 2->2  policies 5->5
+8. OK  an over-balance debit is refused with SW006
+```
+
+It took four attempts to get there, and the three failures are the reason this
+job exists rather than a documented procedure nobody runs:
+
+1. The seed claimed customer confirmation on a `vendor_correction` and was
+   refused — the guard was right, the seed was wrong.
+2. `pg_dump` resolved to **16.15 against a Postgres 17 server**. Installing
+   `postgresql-client-17` is not enough: the runner already carries client 16 and
+   keeps the higher `alternatives` priority for `pg_dump`, so the name on `PATH`
+   stayed 16 while `psql` resolved to 17. A `pg_dump` older than the server
+   refuses outright — `backup.yml` would have failed the same way on its first
+   night, at 02:37, with nothing but a version error.
+3. The drill's own post-destroy census still queried `public.vendors`. A subquery
+   naming a missing relation fails at *parse* time, so it cannot be guarded with
+   `CASE` or `coalesce` — it has to not be in the statement.
+
+None of those would have been visible from a green backup job.
+
 ### Restoring for real
 
 You need the dated archive, the `BACKUP_GPG_PASSPHRASE`, and a target database.

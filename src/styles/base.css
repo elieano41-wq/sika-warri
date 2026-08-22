@@ -423,3 +423,44 @@ h2 { font-size: var(--titre-s); }
 }
 .choix__option:active { background: var(--vert-foret-haut); }
 .choix__icone { font-size: 1.75rem; line-height: 1; }
+
+/* --------------------------------------------------------------------------
+   Banners — update available, offline ready
+   -------------------------------------------------------------------------- */
+
+/* Pinned to the top, never over the primary action: a banner that covers the
+   button someone is reaching for is worse than no banner. */
+.banniere {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-3);
+  padding: var(--espace-3) var(--espace-4);
+  font-size: var(--texte-petit);
+  font-weight: 500;
+}
+
+.banniere--maj {
+  background: var(--or-sika);
+  color: var(--vert-nuit-creux);
+}
+
+.banniere--info {
+  background: var(--vert-foret);
+  color: var(--craie);
+  border-bottom: 1px solid var(--trait);
+}
+
+.banniere__action {
+  min-height: var(--cible-min);
+  padding: 0 var(--espace-4);
+  border-radius: var(--rayon-petit);
+  background: var(--vert-nuit-creux);
+  color: var(--or-clair);
+  font-weight: 600;
+  font-size: var(--texte-base);
+  flex-shrink: 0;
+}

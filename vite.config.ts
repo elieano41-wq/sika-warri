@@ -60,7 +60,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // prompt, not autoUpdate. autoUpdate reloads the page as soon as a new
+      // build is cached, which could happen while a vendor is mid-transaction
+      // or a customer has a 180-second confirmation open. The banner lets them
+      // choose the moment.
+      registerType: 'prompt',
       // The app shell must open with no network (spec section 8).
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],

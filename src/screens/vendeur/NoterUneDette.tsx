@@ -145,15 +145,28 @@ export function NoterUneDette({
    */
   function surveiller(pendingId: string) {
     const debut = Date.now();
+    // Whether we have actually HEARD from the server during this wait. Without
+    // it, a run of failed polls is indistinguishable from a customer who did
+    // nothing — and the app would blame the customer for the network.
+    let vuLeServeur = false;
+
     const minuteur = window.setInterval(async () => {
       const restant = 180 - Math.floor((Date.now() - debut) / 1000);
       setAttente({ id: pendingId, secondes: Math.max(0, restant) });
 
       if (restant <= 0) {
         window.clearInterval(minuteur);
-        setErreur("Le client n'a pas confirmé à temps. Vous pouvez recommencer, ou enregistrer la dette comme déclarée.");
-        setEtape('montant');
         setAttente(null);
+        setEtape('montant');
+        // ONLY CLAIM WHAT WE KNOW. The old message said "le client n'a pas
+        // confirmé à temps", which the app cannot know: the countdown is local,
+        // so a bad connection produced the same words as a refusal. If the polls
+        // were failing, say that instead — the vendor's next move is different.
+        setErreur(
+          vuLeServeur
+            ? "Le client n'a pas confirmé à temps. Recommencez, ou notez la dette sans confirmation."
+            : "Connexion perdue pendant l'attente. Vérifiez dans « Mes dettes » si la dette a été enregistrée avant de recommencer."
+        );
         return;
       }
 
@@ -161,6 +174,7 @@ export function NoterUneDette({
         const du = await api.debtWith(
           session.accessToken, vendeur.id, clientId!, vendeur.authUserId
         );
+        vuLeServeur = true;
         if (du >= dejaDu + montant) {
           window.clearInterval(minuteur);
           setResultat({ confirmee: true, total: du });
@@ -168,7 +182,7 @@ export function NoterUneDette({
           setEtape('fait');
         }
       } catch {
-        // A failed poll on patchy signal is normal. Keep waiting rather than
+        // A failed poll is not a failed transaction. Keep waiting rather than
         // telling the vendor something went wrong when it may not have.
       }
     }, 2000);

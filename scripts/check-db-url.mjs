@@ -27,11 +27,13 @@ if (!url) {
 let hote;
 let port;
 let utilisateur;
+let motdepasse;
 try {
   const u = new URL(url);
   hote = u.hostname;
   port = u.port || '5432';
   utilisateur = decodeURIComponent(u.username || '');
+  motdepasse = u.password || '';
 } catch {
   console.error('SUPABASE_DB_URL is not a valid URL.');
   console.error('Expected postgresql://user:password@host:5432/postgres');
@@ -85,6 +87,66 @@ if (/\.pooler\.supabase\.com$/.test(hote) && !/^postgres\.[a-z0-9]{20}$/.test(ut
   );
 }
 
+// ---------------------------------------------------------------------------
+// The password, checked WITHOUT ever printing it.
+//
+// The dashboard hands you the connection string with a literal [YOUR-PASSWORD]
+// placeholder in the middle, and "copy the whole string" is exactly the
+// instruction that leaves it there. The pooler then answers
+//
+//   FATAL: password authentication failed for user "postgres"
+//
+// — note it reports the tenant-stripped name, so the message looks identical to
+// the wrong-username failure. Two different mistakes, one message.
+//
+// Everything below reports character CLASSES and lengths. Never the value: this
+// runs in CI, where stdout is a log anyone with repository access can read.
+// ---------------------------------------------------------------------------
+if (/^\[.*\]$/.test(motdepasse) || /YOUR.?PASSWORD|MOT.?DE.?PASSE|<password>/i.test(motdepasse)) {
+  messages.push(
+    '',
+    'The password is still the dashboard PLACEHOLDER, not a password.',
+    '',
+    'The connection string arrives as',
+    '  postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-N-....pooler.supabase.com:5432/postgres',
+    'and the [YOUR-PASSWORD] part has to be replaced with the database password.',
+    '',
+    'If you do not have it: Project Settings > Database > Reset database password.',
+    ''
+  );
+} else if (motdepasse === '') {
+  messages.push('', 'The connection string has no password at all.', '');
+} else {
+  // Characters that must be percent-encoded inside a URL. Un-encoded, they
+  // silently truncate or re-parse the string: a # ends it, a / starts the
+  // database name, a @ moves the host. The URL still parses, so nothing
+  // complains until the pooler rejects a password that is not the one intended.
+  // A correctly encoded password CONTAINS % — "%40" is the right way to write an
+  // @ — so flagging % outright would reject the fix. What is wrong is a BARE
+  // one: a % not followed by two hex digits, or any other reserved character
+  // sitting there unencoded.
+  const sansEchappes = motdepasse.replace(/%[0-9A-Fa-f]{2}/g, '');
+  const problematiques = [
+    ...new Set([...sansEchappes].filter((c) => '@:/?#[]%'.includes(c))),
+  ];
+  if (problematiques.length > 0) {
+    messages.push(
+      '',
+      `The password contains ${problematiques.length} character(s) that must be`,
+      'percent-encoded in a URL: ' + problematiques.map((c) => `"${c}"`).join(' '),
+      '',
+      'Un-encoded, these re-parse the string rather than failing loudly — a "#"',
+      'truncates it, a "@" moves the host, a "/" starts the database name. The URL',
+      'still looks valid, so the only symptom is a rejected password.',
+      '',
+      'Encode them, or reset the password to one without them:',
+      '  @ -> %40    : -> %3A    / -> %2F    ? -> %3F',
+      '  # -> %23    [ -> %5B    ] -> %5D    % -> %25',
+      ''
+    );
+  }
+}
+
 if (port === '6543') {
   messages.push(
     '',
@@ -106,3 +168,6 @@ if (messages.length > 0) {
 // Not a guarantee — only the connection itself proves reachability. This rules
 // out the two shapes that are known-impossible before spending a dump on them.
 console.log(`SUPABASE_DB_URL looks usable: ${utilisateur}@${hote}:${port}`);
+// Length only. Enough to tell "the secret changed" from "the secret did not",
+// which is the question after a failed run, and not enough to be a leak.
+console.log(`  password: ${motdepasse.length} characters, no encoding issues`);

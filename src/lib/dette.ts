@@ -158,3 +158,15 @@ export function ageEnMots(jours: number): string {
 export function estAncienne(jours: number): boolean {
   return jours > 30;
 }
+
+/**
+ * Is this debit the vendor handing cash back?
+ *
+ * A predicate rather than a bare string comparison at the call site, so the one
+ * place that knows what 'refund' means is this module — the same reason
+ * libelleMouvement exists. A customer confirming and a vendor recording must
+ * read the same words for the same entry.
+ */
+export function estRemboursement(m: { kind: string }): boolean {
+  return m.kind === 'refund';
+}

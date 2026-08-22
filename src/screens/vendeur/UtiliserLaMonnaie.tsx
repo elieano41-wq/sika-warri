@@ -42,6 +42,12 @@ export function UtiliserLaMonnaie({
   const [clientId, setClientId] = useState<string | null>(null);
   const [dispo, setDispo] = useState<number | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // Purchase or cash back. Both are debits, both need the customer's own-device
+  // confirmation (amendment D covers refunds precisely so a vendor cannot mark a
+  // balance repaid without handing over the money), and they differ only in what
+  // the entry MEANS — which is exactly why the customer must see which one they
+  // are agreeing to.
+  const [motif, setMotif] = useState<'purchase' | 'refund'>('purchase');
   const [secondes, setSecondes] = useState(0);
   const [restant, setRestant] = useState<number | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -145,7 +151,7 @@ export function UtiliserLaMonnaie({
       const p = await api.initiateDebit(session.accessToken, {
         customerPhone: numero,
         amountCfa: montant,
-        kind: 'purchase',
+        kind: motif,
         idempotencyKey: cleIdem(),
       });
       // The proposal exists server-side; retrying THAT is what the key
@@ -272,6 +278,23 @@ export function UtiliserLaMonnaie({
           </>
         )}
       </div>
+
+      {etape === 'montant' ? (
+        <div className="pile" style={{ paddingInline: 'var(--espace-4)' }}>
+          <p className="discret">Pourquoi le client utilise-t-il sa monnaie ?</p>
+          <div style={{ display: 'flex', gap: 'var(--espace-2)' }}>
+            <BoutonSecondaire onClick={() => setMotif('purchase')}>
+              {motif === 'purchase' ? '● ' : ''}Un achat
+            </BoutonSecondaire>
+            {/* RULE 9, made reachable. The customer can always demand the money
+                back, and until now a vendor had no way to record that they gave
+                it — so the promise on Garder la monnaie could not be kept. */}
+            <BoutonSecondaire onClick={() => setMotif('refund')}>
+              {motif === 'refund' ? '● ' : ''}Rendu en espèces
+            </BoutonSecondaire>
+          </div>
+        </div>
+      ) : null}
 
       <div className="ecran__pied pile">
         {etape === 'montant' && (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import { useIdempotence } from '../../lib/idempotence';
 import type { Session, VendorProfile } from '../../lib/api';
@@ -49,6 +49,7 @@ export function NoterUneDette({
   onTermine: () => void;
 }) {
   const [etape, setEtape] = useState<Etape>('numero');
+  const [enLigne, setEnLigne] = useState(navigator.onLine);
   // ONE KEY PER TRANSACTION, not per attempt. A retry after a lost
   // response must be recognised as a replay, or a dropped connection at a
   // market stall writes the entry twice. See lib/idempotence.ts.
@@ -70,6 +71,20 @@ export function NoterUneDette({
   // wrong in the worse direction, letting them reach the amount step before the
   // server refused it in front of a customer.
   const plafond = vendeur.maxDebtPerCustomer;
+
+  // Rule 7. Recording a debt needs the server: the cap and the running total
+  // both live there, so offline a vendor could write a claim that breaches a
+  // ceiling the whole design rests on and not find out until later.
+  useEffect(() => {
+    const enHaut = () => setEnLigne(true);
+    const enBas = () => setEnLigne(false);
+    window.addEventListener('online', enHaut);
+    window.addEventListener('offline', enBas);
+    return () => {
+      window.removeEventListener('online', enHaut);
+      window.removeEventListener('offline', enBas);
+    };
+  }, []);
 
   async function trouver(msisdn: string, label?: string) {
     setErreur(null);
@@ -231,6 +246,27 @@ export function NoterUneDette({
   // Shown BEFORE the vendor commits. A refusal mid-transaction, in front of a
   // customer, is the thing to avoid.
   const depasse = total > plafond;
+
+  if (!enLigne) {
+    return (
+      <div className="ecran vue--tache">
+        <Entete
+          sousTitre={vendeur.businessName}
+          action={<BoutonDiscret onClick={onTermine}>Retour</BoutonDiscret>}
+        />
+        <div className="ecran__corps">
+          <Message ton="erreur">Connexion requise pour noter une dette</Message>
+          <p className="discret">
+            Sans réseau, impossible de vérifier ce que ce client vous doit déjà.
+            Notez-le sur papier et enregistrez-le dès que la connexion revient.
+          </p>
+        </div>
+        <div className="ecran__pied">
+          <BoutonSecondaire onClick={onTermine}>Retour</BoutonSecondaire>
+        </div>
+      </div>
+    );
+  }
 
   // ---- who ---------------------------------------------------------------
   if (etape === 'numero') {

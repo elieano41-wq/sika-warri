@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, CustomerProfile, PendingRequest } from '../../lib/api';
+// The shared vocabulary. A vendor recording an entry and a customer confirming
+// it must read the same words for it, so no screen decides what 'refund' means.
+import { estRemboursement } from '../../lib/dette';
 import {
   Clavier, PinPoints, Entete, Message, Cadran, Montant, Compteur,
   BoutonSecondaire, BoutonDiscret,
@@ -31,7 +34,11 @@ export function Confirmation({
   const [pin, setPin] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
-  const [fait, setFait] = useState<{ montant: number; restant: number | null } | null>(null);
+  // `kind` is carried through so the receipt names what happened. A customer
+  // rereading their history needs to tell a purchase from cash they were handed.
+  const [fait, setFait] = useState<
+    { montant: number; restant: number | null; kind: string } | null
+  >(null);
   const [chargeUnFois, setChargeUneFois] = useState(false);
 
   const minuteur = useRef<number | null>(null);
@@ -74,7 +81,7 @@ export function Confirmation({
       setOccupe(true);
       try {
         const r = await api.confirmDebit(session.accessToken, demande.id, suivant);
-        setFait({ montant: r.amountCfa, restant: r.remainingCfa });
+        setFait({ montant: r.amountCfa, restant: r.remainingCfa, kind: demande.kind });
         setPin('');
       } catch (e) {
         setPin('');
@@ -92,7 +99,7 @@ export function Confirmation({
         <Entete sousTitre="Client" />
         <div className="ecran__corps">
           <h1>C'est confirmé</h1>
-          <Cadran etiquette="Montant utilisé">
+          <Cadran etiquette={fait && estRemboursement(fait) ? 'Rendu en espèces' : 'Montant utilisé'}>
             <Montant value={fait.montant} taille="geant" />
           </Cadran>
           {fait.restant !== null ? (
@@ -143,7 +150,23 @@ export function Confirmation({
       <Entete sousTitre="Client" />
 
       <div className="ecran__corps">
-        <h1>Confirmer ?</h1>
+        {/* WHAT is being confirmed, not just how much. A purchase and a cash
+            refund are the same amount in the same direction and mean opposite
+            things — in one the customer receives goods, in the other they must
+            receive banknotes before agreeing. A customer who confirms a refund
+            without the money in their hand has no recourse afterwards, so the
+            distinction has to be on the screen where they decide. */}
+        <h1>
+          {estRemboursement(demande)
+            ? 'Le commerçant vous rend cette somme en espèces ?'
+            : 'Confirmer ?'}
+        </h1>
+
+        {estRemboursement(demande) ? (
+          <Message ton="info">
+            Ne confirmez qu’après avoir reçu l’argent en main.
+          </Message>
+        ) : null}
 
         {/* Le carnet: the shop asking, named, with the amount large. */}
         <article className="carnet">

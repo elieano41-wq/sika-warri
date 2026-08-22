@@ -20,7 +20,7 @@ import { registerSW } from 'virtual:pwa-register';
 export function MiseAJour() {
   const [pret, setPret] = useState(false);
   const [horsLigne, setHorsLigne] = useState(false);
-  const [recharger, setRecharger] = useState<(() => Promise<void>) | null>(null);
+  const [appliquer, setAppliquer] = useState<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     const update = registerSW({
@@ -37,7 +37,7 @@ export function MiseAJour() {
       },
     });
 
-    setRecharger(() => () => update(true));
+    setAppliquer(() => () => update(true));
   }, []);
 
   if (pret) {
@@ -47,7 +47,7 @@ export function MiseAJour() {
         <button
           type="button"
           className="banniere__action"
-          onClick={() => recharger?.()}
+          onClick={() => appliquer?.()}
         >
           Mettre à jour
         </button>

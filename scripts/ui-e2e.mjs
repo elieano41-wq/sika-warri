@@ -1009,9 +1009,11 @@ try {
       await compte(pv.locator('button').filter({ hasText: /^500\s*F$/ }).first());
     }
 
-    await compte(pv.getByRole('button', { name: /Enregistrer/i }).first());
-    await pv.getByRole('heading', { name: /gard[ée]e|Re[çc]u/i }).waitFor({ timeout: 25000 })
-      .catch(() => {});
+    // The confirm button repeats the screen's own verb -- "Garder la monnaie" --
+    // so it is scoped to the footer, where the primary action lives, rather than
+    // matched by name against a label that also appears on Accueil.
+    await compte(pv.locator('.ecran__pied button.bouton--primaire').first());
+    await pv.locator('.montant').first().waitFor({ timeout: 25000 }).catch(() => {});
 
     console.log(`  taps: ${taps}`);
     // Four: start, pick the client, pick the amount, confirm. The old path was

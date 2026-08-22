@@ -116,6 +116,29 @@ if (/^\[.*\]$/.test(motdepasse) || /YOUR.?PASSWORD|MOT.?DE.?PASSE|<password>/i.t
   );
 } else if (motdepasse === '') {
   messages.push('', 'The connection string has no password at all.', '');
+} else if (/\s/.test(decodeURIComponent(motdepasse))) {
+  // Whitespace inside or around the password. Pasting into a secret field can
+  // carry a trailing space or a newline, and the URL parses fine either way --
+  // the password is simply one character longer than the one that was set, and
+  // the pooler answers with the same "password authentication failed" as every
+  // other mistake in this string.
+  // new URL() silently percent-encodes a raw space to %20, so the check must
+  // look at the DECODED value -- otherwise the valid-escape stripping below
+  // treats the very whitespace being hunted as correct encoding. That false
+  // negative is why this check reads decodeURIComponent and not the raw string.
+  const clair = decodeURIComponent(motdepasse);
+  const debut = /^\s/.test(clair);
+  const fin = /\s$/.test(clair);
+  messages.push(
+    '',
+    'The password contains whitespace.',
+    `  leading: ${debut}   trailing: ${fin}   length: ${clair.length}`,
+    '',
+    'A space or newline that came along with a paste is still part of the',
+    'password as far as the URL is concerned. Re-enter the secret with no',
+    'trailing newline — select the value precisely rather than the whole line.',
+    ''
+  );
 } else {
   // Characters that must be percent-encoded inside a URL. Un-encoded, they
   // silently truncate or re-parse the string: a # ends it, a / starts the

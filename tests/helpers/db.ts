@@ -32,6 +32,12 @@ export async function reset(db: pg.Client): Promise<void> {
       public.vendor_customer_labels,
       public.vendor_lookup_log,
       public.auth_attempts,
+      public.debt_entries,
+      public.debt_reviews,
+      public.ledger_reviews,
+      public.pending_debts,
+      public.pending_compensations,
+      public.compensations,
       public.vendors,
       public.customers
     restart identity cascade
@@ -285,6 +291,153 @@ export async function sqlstateOf(fn: () => Promise<unknown>): Promise<string | n
   } catch (err) {
     return (err as { code?: string }).code ?? 'UNKNOWN';
   }
+}
+
+/* ---------------------------------------------------------------------------
+   The debt register
+   --------------------------------------------------------------------------- */
+
+export type DebtConfirmation = 'own_device' | 'declared';
+
+export interface DebtArgs {
+  vendorId: string;
+  customerId: string;
+  direction: 'owed' | 'repaid';
+  kind: 'debt' | 'settlement' | 'cancellation' | 'compensation' | 'reversal';
+  amount: number;
+  actorUserId: string;
+  idempotencyKey?: string;
+  /** Omitted means 'declared' — the safe value, and the only one a session may use. */
+  confirmation?: DebtConfirmation;
+  reversesEntryId?: string | null;
+  note?: string | null;
+}
+
+/** Call post_debt_entry exactly as a client would, positionally. */
+export async function postDebt(db: pg.Client, a: DebtArgs) {
+  const { rows } = await db.query(
+    `select * from public.post_debt_entry(
+       $1::uuid, $2::uuid, $3::text, $4::text, $5::integer, $6::text,
+       $7::uuid, $8::text, $9::uuid, $10::text)`,
+    [
+      a.vendorId,
+      a.customerId,
+      a.direction,
+      a.kind,
+      a.amount,
+      a.idempotencyKey ?? randomUUID(),
+      a.actorUserId,
+      a.confirmation ?? 'declared',
+      a.reversesEntryId ?? null,
+      a.note ?? null,
+    ]
+  );
+  return rows[0];
+}
+
+/** The unregistered-customer path: a claim, not a record. */
+export async function declareDebt(
+  db: pg.Client,
+  a: { vendorId: string; customerId: string; amount: number; actorUserId: string;
+       idempotencyKey?: string; note?: string | null }
+) {
+  const { rows } = await db.query(
+    `select * from public.declare_debt($1::uuid, $2::uuid, $3::integer, $4::text, $5::uuid, $6::text)`,
+    [a.vendorId, a.customerId, a.amount, a.idempotencyKey ?? randomUUID(),
+     a.actorUserId, a.note ?? null]
+  );
+  return rows[0];
+}
+
+export async function settleDebt(
+  db: pg.Client,
+  a: { vendorId: string; customerId: string; amount: number; actorUserId: string;
+       idempotencyKey?: string }
+) {
+  const { rows } = await db.query(
+    `select * from public.settle_debt($1::uuid, $2::uuid, $3::integer, $4::text, $5::uuid, null)`,
+    [a.vendorId, a.customerId, a.amount, a.idempotencyKey ?? randomUUID(), a.actorUserId]
+  );
+  return rows[0];
+}
+
+/** Vendor proposes a debt; the customer must confirm on their own device. */
+export async function createPendingDebt(
+  db: pg.Client,
+  a: { vendorId: string; customerId: string; amount: number; actorUserId: string;
+       idempotencyKey?: string; note?: string | null }
+) {
+  const { rows } = await db.query(
+    `select * from public.create_pending_debt($1::uuid, $2::uuid, $3::integer, $4::text, $5::uuid, $6::text)`,
+    [a.vendorId, a.customerId, a.amount, a.idempotencyKey ?? randomUUID(),
+     a.actorUserId, a.note ?? null]
+  );
+  return rows[0];
+}
+
+/**
+ * The customer confirms. Runs PRIVILEGED, because that is the only way it can
+ * run: confirm_pending_debt refuses any session-bound caller, which is what
+ * stops a vendor forging the agreement.
+ */
+export async function confirmPendingDebt(
+  db: pg.Client,
+  pendingId: string,
+  customerAuthUserId: string
+) {
+  await actAsAdmin(db);
+  const { rows } = await db.query(
+    'select * from public.confirm_pending_debt($1::uuid, $2::uuid)',
+    [pendingId, customerAuthUserId]
+  );
+  return rows[0];
+}
+
+export async function reviewDebt(
+  db: pg.Client,
+  entryId: string,
+  decision: 'accepted' | 'disputed',
+  customerAuthUserId: string,
+  reason: string | null = null
+) {
+  const { rows } = await db.query(
+    'select * from public.review_debt_entry($1::uuid, $2::text, $3::uuid, $4::text)',
+    [entryId, decision, customerAuthUserId, reason]
+  );
+  return rows[0];
+}
+
+/** What the customer owes this vendor, derived the same way the app derives it. */
+export async function debtOf(
+  db: pg.Client,
+  vendorId: string,
+  customerId: string
+): Promise<number> {
+  const { rows } = await db.query(
+    `select coalesce(sum(case when direction = 'owed' then amount_cfa else -amount_cfa end), 0)::int as d
+       from public.debt_entries where vendor_id = $1 and customer_id = $2`,
+    [vendorId, customerId]
+  );
+  return rows[0].d;
+}
+
+/** Register a stub: give an existing customer row an auth user, as signup does. */
+export async function claimCustomer(
+  db: pg.Client,
+  customerId: string
+): Promise<string> {
+  await actAsAdmin(db);
+  const authUserId = randomUUID();
+  await db.query('update public.customers set auth_user_id = $1 where id = $2', [
+    authUserId,
+    customerId,
+  ]);
+  return authUserId;
+}
+
+export async function debtEntryCount(db: pg.Client): Promise<number> {
+  const { rows } = await db.query('select count(*)::int as n from public.debt_entries');
+  return rows[0].n;
 }
 
 export { randomUUID };

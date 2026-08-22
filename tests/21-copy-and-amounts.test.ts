@@ -59,6 +59,26 @@ describe('copy rules — section 6', () => {
     [/\bd[ée]p[ôo]t\b/i, 'implies funds were deposited with Sika Warri'],
     [/recharger/i, 'implies topping up an account'],
     [/votre argent chez nous/i, 'states outright that Sika Warri holds funds'],
+    // The debt register's copy rules. "Crédit" and "prêt" both describe a
+    // lending product: they imply a facility that was granted, on terms, by
+    // somebody. What this records is a debt that already exists between two
+    // people who were standing in front of each other. Use "dette", "à payer",
+    // "régler".
+    //
+    // THE ACCENT IS LOAD-BEARING in these four. Written as /cr[ée]dit/ they
+    // matched direction: 'credit', recordCredit() and the `pret` flag in the
+    // update banner — English identifiers the ledger is built on, which no
+    // vendor in Abidjan ever reads. Requiring é and ê narrows the guard to
+    // French prose, which is the only thing these rules are about.
+    //
+    // The gap that leaves: French copy written without its accent slips
+    // through. Accepted deliberately — an unaccented "credit" in a sentence is
+    // visible to anyone reading the screen, whereas a false positive on every
+    // ledger identifier makes the whole rule useless.
+    [/crédit/i, 'describes a lending product; this is a debt already owed'],
+    [/\bprêts?\b/i, 'describes a loan; Sika Warri lends nothing and facilitates no lending'],
+    [/emprunt/i, 'describes borrowing; same problem as prêt'],
+    [/intérêts?\b/i, 'no interest is ever charged or facilitated'],
   ];
 
   it.each(INTERDITS)('never uses %s (%s)', (pattern) => {

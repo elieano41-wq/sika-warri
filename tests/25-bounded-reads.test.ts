@@ -389,6 +389,9 @@ const BORNE_AUTREMENT: Record<string, string> = {
   // The customer-side twin, added for the same reason: the informational total
   // and its shop count both used to be folded out of a bounded list.
   customer_summary: 'aggregate, one row by construction',
+  // The debt register's headline figure, for the same reason: what a vendor is
+  // owed must not be summed from a bounded debtor list.
+  vendor_debt_summary: 'aggregate, one row by construction',
   // where p.id = p_pending_id on the primary key.
   vendor_pending_detail: 'one row, keyed on the primary key',
 };

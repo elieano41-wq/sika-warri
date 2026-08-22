@@ -24,7 +24,9 @@
     "keepalive": "node scripts/keepalive.mjs",
     "restore:drill": "node scripts/restore-drill.mjs",
     "seed": "node scripts/seed.mjs",
-    "e2e:debt": "node scripts/e2e-debt.mjs"
+    "e2e:debt": "node scripts/e2e-debt.mjs",
+    "reload:schema": "node scripts/reload-schema.mjs",
+    "db:push": "npx supabase db push && node scripts/reload-schema.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.5",

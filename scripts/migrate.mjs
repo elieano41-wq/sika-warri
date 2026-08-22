@@ -76,4 +76,34 @@ for (const file of files) {
 }
 
 console.log(`\n${count} migration(s) applied, ${files.length - count} already current.`);
+
+// ---------------------------------------------------------------------------
+// Tell PostgREST its schema changed.
+//
+// THE FAILURE THIS PREVENTS. PostgREST caches the schema it exposes. A migration
+// that adds or changes a function is live in SQL immediately and can still 404
+// from the app -- PGRST202, "Could not find the function ... in the schema
+// cache". The database is right, the API is stale, and the only symptom is a
+// screen where nothing loaded.
+//
+// It happened during the debt-register deploy and cost half an hour of chasing
+// grants that were already correct. A step needed every time and remembered by
+// hand is a step that gets forgotten, and forgetting it on a production deploy
+// means an app that is silently broken while every check reports green.
+//
+// Harmless when nothing is listening: on a stock Postgres with no PostgREST --
+// which is what CI runs against -- this is a notification nobody receives.
+if (count > 0) {
+  try {
+    await client.query("notify pgrst, 'reload schema'");
+    console.log('PostgREST schema cache: reload requested.');
+  } catch (err) {
+    // Never fatal. The migrations are applied and committed; a failed notify
+    // means the cache reloads on its own schedule instead.
+    console.error(`Could not notify PostgREST: ${err.message}`);
+    console.error('If the app reports a missing function, run this by hand:');
+    console.error("  notify pgrst, 'reload schema';");
+  }
+}
+
 await client.end();

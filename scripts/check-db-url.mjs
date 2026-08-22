@@ -26,10 +26,12 @@ if (!url) {
 
 let hote;
 let port;
+let utilisateur;
 try {
   const u = new URL(url);
   hote = u.hostname;
   port = u.port || '5432';
+  utilisateur = decodeURIComponent(u.username || '');
 } catch {
   console.error('SUPABASE_DB_URL is not a valid URL.');
   console.error('Expected postgresql://user:password@host:5432/postgres');
@@ -57,6 +59,32 @@ if (/^db\..*\.supabase\.co$/.test(hote)) {
   );
 }
 
+// The pooler multiplexes every project on one hostname, so the USERNAME is how
+// it knows which database to reach: it must be postgres.<project-ref>, not bare
+// postgres. Get that wrong and the pooler answers
+//
+//   FATAL: password authentication failed for user "postgres"
+//
+// which reads as a wrong password and is not. That cost a backup run, and the
+// password is the last thing anyone should be rotating in response.
+if (/\.pooler\.supabase\.com$/.test(hote) && !/^postgres\.[a-z0-9]{20}$/.test(utilisateur)) {
+  messages.push(
+    '',
+    `The pooler needs a project-qualified user. Yours is "${utilisateur || '(empty)'}".`,
+    '',
+    'It must look like postgres.<project-ref> — for this project:',
+    '  postgres.bltiifxlfmlfdoqnsdrz',
+    '',
+    'A bare "postgres" makes the pooler answer',
+    '  FATAL: password authentication failed for user "postgres"',
+    'which looks like a wrong password and is not. Do not rotate the password.',
+    '',
+    'Copy the whole string from the dashboard rather than editing one you have:',
+    '  Project Settings > Database > Connection string > Session pooler',
+    ''
+  );
+}
+
 if (port === '6543') {
   messages.push(
     '',
@@ -77,4 +105,4 @@ if (messages.length > 0) {
 
 // Not a guarantee — only the connection itself proves reachability. This rules
 // out the two shapes that are known-impossible before spending a dump on them.
-console.log(`SUPABASE_DB_URL looks usable: ${hote}:${port}`);
+console.log(`SUPABASE_DB_URL looks usable: ${utilisateur}@${hote}:${port}`);

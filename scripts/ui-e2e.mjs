@@ -536,11 +536,15 @@ try {
 
   const accueilVendeur = await pv.textContent('body');
   check('vendor home names what they are holding',
-    /Monnaie que vous gardez/i.test(accueilVendeur));
+    /Monnaie gard[ée]e/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
+  // And what they are OWED, as a separate figure. Never one net number: money
+  // in the till and money that may never arrive are not the same thing.
+  check('vendor home names what they are owed separately',
+    /Dette [àa] payer/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   check('vendor home shows the figure without tapping anywhere (1 100 F)',
     vuAccueil, accueilVendeur.slice(0, 250));
   check('vendor home shows how many customers are concerned',
-    /clients? concern/i.test(accueilVendeur));
+    /\d+\s*clients?/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   check("vendor home shows today's activity", /Aujourd'hui/i.test(accueilVendeur));
   check("today's activity shows both directions",
     /Gard[ée]e ·/i.test(accueilVendeur) && /Utilis[ée]e ·/i.test(accueilVendeur),
@@ -771,7 +775,8 @@ try {
   // ===== historique, both roles (build item 3) ===========================
   console.log('\n--- historique ---');
 
-  await ongletVers(pv, 'Historique');
+  await ongletVers(pv, 'Accueil');
+  await pv.getByRole('button', { name: 'Historique' }).click();
   await pv.getByRole('heading', { name: 'Historique' }).waitFor({ timeout: 20000 });
   await pv.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
   const histVendeur = await pv.textContent('body');
@@ -789,6 +794,8 @@ try {
   check('vendor historique shows NO running balance',
     !/\breste\b/i.test(histVendeur), histVendeur.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/e2-historique-vendeur.png' });
+
+  await pv.getByRole('button', { name: 'Retour' }).click().catch(() => {});
 
   await ongletVers(pc, 'Historique');
   await pc.getByRole('heading', { name: 'Historique' }).waitFor({ timeout: 20000 });
@@ -837,6 +844,131 @@ try {
   // protects everyone's.
   check('the customer code field is 4 digits long', pointsClient === 4, `${pointsClient} points`);
   await pc.getByRole('button', { name: 'Annuler' }).click();
+
+  // ===== the debt register ================================================
+  //
+  // THE FRAUD MODEL INVERTS HERE. Every other write assumes a vendor loses money
+  // by lying; a fabricated debt earns them money. So these checks are about what
+  // the vendor CANNOT do, and about whether the screen says plainly whose word
+  // each figure rests on.
+  console.log('\n--- noter une dette ---');
+
+  await ongletVers(pv, 'Accueil');
+  // Wait for the aggregate, not for the mount: reading the body immediately
+  // after a tab switch catches "Chargement…" every time.
+  await pv.getByText('Dette à payer').first().waitFor({ timeout: 25000 });
+  const accueilAvant = await pv.textContent('body');
+  check('the vendor home shows what they hold AND what they are owed',
+    /Monnaie gard[ée]e/i.test(accueilAvant) && /Dette [àa] payer/i.test(accueilAvant),
+    accueilAvant.slice(0, 400));
+
+  await pv.getByRole('button', { name: 'Noter une dette' }).click();
+  await pv.getByRole('heading', { name: /Noter une dette|Le num[ée]ro du client/ })
+    .waitFor({ timeout: 20000 }).catch(() => {});
+  await saisirNumero(pv, CUSTOMER_PHONE);
+
+  // The customer is registered, so the handshake must be offered and must be
+  // the primary action: a confirmed debt is a record, a declared one is a claim.
+  await pv.getByText('Montant de la dette').waitFor({ timeout: 25000 });
+  await tapDigits(pv, '800');
+  const ecranDette = await pv.textContent('body');
+  check('a registered customer gets the confirmation path',
+    /confirmation du client/i.test(ecranDette), ecranDette.slice(0, 400));
+  check('and the vendor is told what noting it without confirmation means',
+    /d[ée]claration de votre part/i.test(ecranDette.replace(/\s+/g, ' ')));
+
+  const tailleBoutons = await pv.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].filter((x) =>
+      /confirmation du client|Noter sans confirmation/i.test(x.textContent || '')
+    );
+    return b.map((x) => Math.round(x.getBoundingClientRect().height));
+  });
+  check('both debt paths are full-size targets',
+    tailleBoutons.length === 2 && tailleBoutons.every((h) => h >= 48),
+    JSON.stringify(tailleBoutons));
+
+  await pv.screenshot({ path: 'artifacts/f1-noter-dette.png' });
+
+  // Record it as déclarée, which is the unregistered-customer path too.
+  await pv.getByRole('button', { name: 'Noter sans confirmation' }).click();
+  await pv.getByRole('heading', { name: /vous doit maintenant/i }).waitFor({ timeout: 20000 })
+    .catch(() => {});
+  const apresDette = await pv.textContent('body');
+  check('the result is labelled DÉCLARÉE, not confirmed',
+    /D[ée]clar[ée]e/.test(apresDette), apresDette.slice(0, 400));
+  check('and says the customer can still answer it',
+    /confirmer ou contester/i.test(apresDette.replace(/\s+/g, ' ')));
+  await pv.screenshot({ path: 'artifacts/f2-dette-declaree.png' });
+
+  await pv.getByRole('button', { name: 'Terminé' }).click().catch(() => {});
+
+  // ===== the debtor list ==================================================
+  console.log('\n--- mes dettes ---');
+
+  await ongletVers(pv, 'Dettes');
+  await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
+  await pv.locator('.ligne-client').first().waitFor({ timeout: 25000 });
+  const listeDettes = await pv.textContent('body');
+  check('the debtor list shows the amount owed',
+    montantPresent(listeDettes, '800'), listeDettes.slice(0, 400));
+  check('and flags what is not confirmed',
+    /non confirm[ée]s/i.test(listeDettes), listeDettes.slice(0, 400));
+  check('and shows how old it is',
+    /Aujourd|Depuis/i.test(listeDettes), listeDettes.slice(0, 400));
+  await pv.screenshot({ path: 'artifacts/f3-mes-dettes.png' });
+
+  // ===== the customer sees a claim, and can answer it =====================
+  console.log('\n--- le client r[ée]pond ---');
+
+  await ongletVers(pc, 'Ma monnaie');
+  await pc.reload();
+  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 20000 });
+  // Wait for the shop card, not the mount.
+  await pc.getByText('Dette à payer').first().waitFor({ timeout: 25000 });
+  const deuxRegistres = await pc.textContent('body');
+
+  // TWO REGISTERS, NEVER MERGED. The customer holds 1 100 F here and owes 800 F.
+  // Both figures must appear and the difference must not.
+  check('the shop card shows change AND debt separately',
+    /Monnaie gard[ée]e/i.test(deuxRegistres) && /Dette [àa] payer/i.test(deuxRegistres),
+    deuxRegistres.slice(0, 500));
+  check('the netted figure 300 is NOT shown as a balance',
+    !/\b300\s*F\b/.test(deuxRegistres.replace(/ /g, ' ')), deuxRegistres.slice(0, 500));
+  check('nothing negative is displayed',
+    !/-\s*\d/.test(deuxRegistres.replace(/‑|–|—/g, '')), deuxRegistres.slice(0, 300));
+  await pc.screenshot({ path: 'artifacts/f4-deux-registres.png' });
+
+  check('the customer is told something needs verifying',
+    /[àa] v[ée]rifier/i.test(deuxRegistres), deuxRegistres.slice(0, 500));
+
+  await pc.getByRole('button', { name: /v[ée]rifier/i }).first().click();
+  await pc.getByRole('heading', { name: /Ce que des commer/i }).waitFor({ timeout: 20000 });
+  const aVerifier = await pc.textContent('body');
+  check('the review screen names who is claiming what',
+    aVerifier.includes(VENDOR_NOM), aVerifier.slice(0, 400));
+  check('and says nothing is confirmed until the customer says so',
+    /Rien n[’']est confirm[ée]/i.test(aVerifier.replace(/\s+/g, ' ')),
+    aVerifier.slice(0, 500));
+  check('accepting and disputing are offered as equal choices',
+    /Je reconnais cette dette/i.test(aVerifier) && /Je conteste/i.test(aVerifier));
+  await pc.screenshot({ path: 'artifacts/f5-a-verifier.png' });
+
+  // Dispute it: the figure must stand and the disagreement must be recorded.
+  await pc.getByRole('button', { name: 'Je conteste' }).first().click();
+  await pc.locator('input.champ__saisie').fill("Je n'ai rien pris");
+  await pc.getByRole('button', { name: /Envoyer la contestation/i }).click();
+  await pc.waitForTimeout(1500);
+
+  await pv.reload();
+  await ongletVers(pv, 'Dettes');
+  await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
+  await pv.getByText(/contest/i).first().waitFor({ timeout: 25000 });
+  const apresContestation = await pv.textContent('body');
+  check('the vendor sees the dispute', /contest[ée]s/i.test(apresContestation),
+    apresContestation.slice(0, 400));
+  check('and the amount still stands', montantPresent(apresContestation, '800'),
+    apresContestation.slice(0, 400));
+  await pv.screenshot({ path: 'artifacts/f6-dette-contestee.png' });
 
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');

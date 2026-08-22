@@ -801,7 +801,21 @@ export interface DebtorRow {
   confirmed_cfa: number;
   declared_cfa: number;
   disputed_cfa: number;
-  oldest_debt_at: string | null;
+  /**
+   * Ageing buckets, FIFO — a payment clears the oldest debt first, which is what
+   * a shopkeeper means and what crossing entries off a carnet does. The four
+   * always sum to debt_cfa; if they ever do not, one of the two figures on the
+   * screen is wrong and there is no way to tell which.
+   */
+  bucket_0_7: number;
+  bucket_8_30: number;
+  bucket_31_90: number;
+  bucket_90: number;
+  oldest_days: number;
+  over_30_cfa: number;
+  last_settled_at: string | null;
+  /** The customer says they paid something that was never recorded. */
+  open_claim: boolean;
   last_activity_at: string | null;
   entry_count: number;
   total_count: number;
@@ -812,11 +826,17 @@ export async function vendorDebtors(
   token: string,
   vendorId: string,
   actorUserId: string,
-  limit = 200
+  limit = 200,
+  /**
+   * Two different jobs: "who owes me most" when deciding who to chase, "what has
+   * gone stale" when deciding what to write off. Whitelisted server-side — an
+   * unknown key falls back to amount rather than reaching SQL.
+   */
+  sort: 'amount' | 'age' = 'amount'
 ): Promise<DebtorRow[]> {
   const rows = (await rpc(
     'vendor_debtors',
-    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit },
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit, p_sort: sort },
     token
   )) as DebtorRow[];
   return rows ?? [];
@@ -829,7 +849,16 @@ export interface VendorDebtSummary {
   declared_cfa: number;
   disputed_cfa: number;
   disputed_count: number;
-  oldest_debt_at: string | null;
+  /** The share worth worrying about, BESIDE the total rather than inside it. */
+  over_30_cfa: number;
+  oldest_days: number;
+  /**
+   * Books that turn over versus books that only grow. Two counts rather than a
+   * ratio, because a ratio hides the scale.
+   */
+  settled_count: number;
+  ageing_count: number;
+  open_claims: number;
 }
 
 /**
@@ -855,7 +884,11 @@ export async function vendorDebtSummary(
       declared_cfa: 0,
       disputed_cfa: 0,
       disputed_count: 0,
-      oldest_debt_at: null,
+      over_30_cfa: 0,
+      oldest_days: 0,
+      settled_count: 0,
+      ageing_count: 0,
+      open_claims: 0,
     }
   );
 }
@@ -1046,6 +1079,10 @@ export interface ShopPositionRow {
    * rendered as a balance.
    */
   compensable_cfa: number;
+  /** How old the oldest unpaid franc is. The nudge that gets debts paid. */
+  debt_oldest_days: number;
+  debt_over_30_cfa: number;
+  open_claim: boolean;
   last_activity_at: string | null;
   total_count: number;
 }
@@ -1235,6 +1272,13 @@ export async function pendingDebtsForMe(
     businessName: string;
     amountCfa: number;
     note: string | null;
+    /**
+     * What they owe this shop now, and what they would owe after agreeing.
+     * Carried through because agreeing to 2 000 F when it makes 9 000 F is a
+     * different decision, and the vendor asking will not always say so.
+     */
+    currentDebt: number;
+    resultingDebt: number;
     secondsLeft: number;
   }>
 > {
@@ -1249,6 +1293,264 @@ export async function pendingDebtsForMe(
     businessName: r.business_name,
     amountCfa: r.amount_cfa,
     note: r.note,
+    currentDebt: r.current_debt,
+    resultingDebt: r.resulting_debt,
+    secondsLeft: r.seconds_left,
+  }));
+}
+
+/**
+ * Find the customer behind a phone number, creating the row if it is new.
+ *
+ * The unregistered path, and the reason the debt register is usable on day one:
+ * a vendor must be able to write down what Aya owes whether or not Aya has ever
+ * heard of Sika Warri. The row created this way has no auth user, so nothing
+ * about it is confirmed and everything recorded against it surfaces for review
+ * when that number eventually registers.
+ *
+ * Normalisation happens server-side. Two spellings of one number is how a person
+ * ends up with two rows and a split balance.
+ */
+export async function ensureCustomerForDebt(
+  token: string,
+  vendorId: string,
+  actorUserId: string,
+  phone: string,
+  label: string | null
+): Promise<{
+  customerId: string;
+  isRegistered: boolean;
+  yourLabel: string | null;
+  wasCreated: boolean;
+}> {
+  const rows = (await rpc(
+    'ensure_customer_for_debt',
+    {
+      p_vendor_id: vendorId,
+      p_phone: phone,
+      p_actor_user_id: actorUserId,
+      p_label: label,
+    },
+    token
+  )) as any[];
+  const r = Array.isArray(rows) ? rows[0] : rows;
+  return {
+    customerId: r.customer_id,
+    isRegistered: Boolean(r.is_registered),
+    yourLabel: r.your_label ?? null,
+    wasCreated: Boolean(r.was_created),
+  };
+}
+
+/**
+ * What one customer owes THIS vendor. Never a figure spanning vendors — that
+ * would be the credit-reference product the hard rules forbid.
+ */
+export async function debtWith(
+  token: string,
+  vendorId: string,
+  customerId: string,
+  actorUserId: string
+): Promise<number> {
+  const rows = (await rpc(
+    'vendor_debt_history',
+    {
+      p_vendor_id: vendorId,
+      p_customer_id: customerId,
+      p_actor_user_id: actorUserId,
+      p_limit: 1,
+    },
+    token
+  )) as DebtEntryRow[];
+  // running_debt on the newest row IS the outstanding figure: the window runs
+  // oldest-first and the list comes back newest-first, so row zero carries the
+  // final total.
+  return rows?.[0]?.running_debt ?? 0;
+}
+
+/** Either party may withdraw a proposal before it is confirmed. */
+export async function cancelPendingDebt(
+  token: string,
+  pendingId: string,
+  actorUserId: string
+) {
+  return rpc(
+    'cancel_pending_debt',
+    { p_pending_id: pendingId, p_actor_user_id: actorUserId },
+    token
+  );
+}
+
+export async function cancelPendingCompensation(
+  token: string,
+  pendingId: string,
+  actorUserId: string
+) {
+  return rpc(
+    'cancel_pending_compensation',
+    { p_pending_id: pendingId, p_actor_user_id: actorUserId },
+    token
+  );
+}
+
+export interface SettlementRow {
+  id: string;
+  vendor_id: string;
+  business_name: string;
+  kind: string;
+  amount_cfa: number;
+  note: string | null;
+  created_at: string;
+  state: 'confirmed' | 'acknowledged' | 'declared' | 'disputed';
+  answerable: boolean;
+  remaining_debt: number;
+  total_count: number;
+}
+
+/**
+ * Settlements recorded against this customer.
+ *
+ * Informational, not a gate: the money moved when the vendor recorded it. The
+ * customer may acknowledge — making the record mutual rather than one party's
+ * word — or dispute a payment they never made.
+ */
+export async function mySettlements(
+  token: string,
+  actorUserId: string,
+  limit = 50
+): Promise<SettlementRow[]> {
+  const rows = (await rpc(
+    'my_settlements',
+    { p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as SettlementRow[];
+  return rows ?? [];
+}
+
+export interface PaymentClaimRow {
+  id: string;
+  vendor_id: string;
+  business_name: string;
+  customer_id: string;
+  customer_phone: string;
+  customer_label: string | null;
+  amount_cfa: number;
+  paid_on: string | null;
+  note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolution: 'recorded' | 'rejected' | 'withdrawn' | null;
+  total_count: number;
+}
+
+/**
+ * "J'ai payé, ce n'est pas enregistré."
+ *
+ * The case with no recourse before this: a customer hands over cash, the vendor
+ * does not type it in, and a month later there is a disagreement with nothing on
+ * either side but memory.
+ *
+ * IT DOES NOT CHANGE THE DEBT. A customer who could unilaterally reduce what
+ * they owe would expose the vendor exactly as the vendor currently exposes them.
+ * It is a flag both parties and the support panel can see, created at the time
+ * rather than reconstructed afterwards.
+ */
+export async function claimUnrecordedPayment(
+  token: string,
+  input: {
+    vendorId: string;
+    actorUserId: string;
+    amountCfa: number;
+    paidOn?: string | null;
+    note?: string | null;
+  }
+): Promise<PaymentClaimRow> {
+  const row = (await rpc(
+    'claim_unrecorded_payment',
+    {
+      p_vendor_id: input.vendorId,
+      p_amount_cfa: input.amountCfa,
+      p_actor_user_id: input.actorUserId,
+      p_paid_on: input.paidOn ?? null,
+      p_note: input.note ?? null,
+    },
+    token
+  )) as PaymentClaimRow | PaymentClaimRow[];
+  return Array.isArray(row) ? row[0]! : row;
+}
+
+export async function myPaymentClaims(
+  token: string,
+  actorUserId: string,
+  limit = 50
+): Promise<PaymentClaimRow[]> {
+  const rows = (await rpc(
+    'my_payment_claims',
+    { p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as PaymentClaimRow[];
+  return rows ?? [];
+}
+
+/**
+ * Resolve a claim.
+ *
+ * Only the customer may withdraw; only the vendor may record or reject. A vendor
+ * withdrawing a customer's claim would be deleting the complaint against them.
+ * A rejected claim STAYS VISIBLE — the disagreement is the thing worth keeping.
+ */
+export async function resolvePaymentClaim(
+  token: string,
+  input: {
+    claimId: string;
+    resolution: 'recorded' | 'rejected' | 'withdrawn';
+    actorUserId: string;
+    settledEntryId?: string | null;
+  }
+) {
+  return rpc(
+    'resolve_payment_claim',
+    {
+      p_claim_id: input.claimId,
+      p_resolution: input.resolution,
+      p_actor_user_id: input.actorUserId,
+      p_settled_entry_id: input.settledEntryId ?? null,
+    },
+    token
+  );
+}
+
+/** Offset proposals waiting for this customer, with all three figures. */
+export async function pendingCompensationsForMe(
+  token: string,
+  actorUserId: string
+): Promise<
+  Array<{
+    id: string;
+    vendorId: string;
+    businessName: string;
+    amountCfa: number;
+    currentChange: number;
+    currentDebt: number;
+    resultingChange: number;
+    resultingDebt: number;
+    secondsLeft: number;
+  }>
+> {
+  const rows = (await rpc(
+    'pending_compensations_for_customer',
+    { p_actor_user_id: actorUserId },
+    token
+  )) as any[];
+  return (rows ?? []).map((r) => ({
+    id: r.id,
+    vendorId: r.vendor_id,
+    businessName: r.business_name,
+    amountCfa: r.amount_cfa,
+    currentChange: r.current_change,
+    currentDebt: r.current_debt,
+    resultingChange: r.resulting_change,
+    resultingDebt: r.resulting_debt,
     secondsLeft: r.seconds_left,
   }));
 }

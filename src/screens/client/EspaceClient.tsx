@@ -6,6 +6,8 @@ import { MaMonnaie } from './MaMonnaie';
 import { MonCode } from './MonCode';
 import { Historique } from './Historique';
 import { Compte, ChangerCode } from '../Compte';
+import { AVerifier } from './AVerifier';
+import { DemandesDette } from './ConfirmerDette';
 import {
   Navigation, IconeMonnaie, IconeHistorique, IconeCode, IconeCompte,
   type Onglet,
@@ -49,16 +51,28 @@ export function EspaceClient({
   onDeconnexion: () => void;
 }) {
   const [enAttente, setEnAttente] = useState(false);
+  // A debt proposal or an offset waiting for an answer. Separate from the debit
+  // handshake above because they are different decisions with different screens,
+  // and because each pending table maps to exactly one outcome.
+  const [demandeDette, setDemandeDette] = useState(false);
   const [onglet, setOnglet] = useState<OngletClient>('monnaie');
   // The one task on this side. Held here rather than inside Compte so the tab
   // bar can be taken off the screen while it runs.
   const [changeCode, setChangeCode] = useState(false);
+  // Answering claims made in your name is a task, not a destination: it takes
+  // the whole screen and the tab bar goes with it.
+  const [revue, setRevue] = useState(false);
   const minuteur = useRef<number | null>(null);
 
   const verifier = useCallback(async () => {
     try {
-      const demandes = await api.pendingForMe(session.accessToken, client.authUserId);
+      const [demandes, dettes, comps] = await Promise.all([
+        api.pendingForMe(session.accessToken, client.authUserId),
+        api.pendingDebtsForMe(session.accessToken, client.authUserId),
+        api.pendingCompensationsForMe(session.accessToken, client.authUserId),
+      ]);
       setEnAttente(demandes.length > 0);
+      setDemandeDette(dettes.length > 0 || comps.length > 0);
     } catch {
       // A failed poll on patchy signal is normal. Leave the current view in
       // place rather than yanking the customer out of whatever they are doing.
@@ -91,13 +105,36 @@ export function EspaceClient({
     );
   }
 
+  // Urgency order: a debit spends change the customer already holds, a debt
+  // creates an obligation. Both have a vendor waiting, so whichever is pending
+  // takes the screen; the debit first because it is the more common act.
+  if (demandeDette && !enAttente) {
+    return (
+      <DemandesDette
+        session={session}
+        client={client}
+        onRien={() => setDemandeDette(false)}
+      />
+    );
+  }
+
+  if (revue) {
+    return (
+      <AVerifier
+        session={session}
+        client={client}
+        onTermine={() => setRevue(false)}
+      />
+    );
+  }
+
   return (
     <>
       {/* key on the tab so the entry animation replays per destination. Without
           it React reuses the node and the screen changes with no transition. */}
       <div key={onglet}>
         {onglet === 'monnaie' ? (
-          <MaMonnaie session={session} client={client} />
+          <MaMonnaie session={session} client={client} onVerifier={() => setRevue(true)} />
         ) : onglet === 'historique' ? (
           <Historique session={session} client={client} />
         ) : onglet === 'code' ? (

@@ -211,10 +211,21 @@ describe('acceptance test 8 — the customer balance screen', () => {
     path.join(SRC, 'screens', 'client', 'MaMonnaie.tsx'), 'utf8'
   );
 
-  it('renders one card per shop, from perShop', () => {
-    expect(code(ecran)).toMatch(/perShop\(/);
-    // One map over shops, one card each. No grouping or merging step.
-    expect(code(ecran)).toMatch(/shops\.map\(/);
+  it('renders one card per shop, never a merged one', () => {
+    // One map over the per-shop rows, one card each. No grouping step, and the
+    // rows come from customer_shop_positions, which returns change and debt as
+    // two columns.
+    expect(code(ecran)).toMatch(/positions\.map\(/);
+    expect(code(ecran)).toMatch(/customerPositions\(/);
+  });
+
+  it('a shop card shows change and debt as TWO figures', () => {
+    // The forbidden figure is -1500: 500 F held against 2 000 F owed collapsed
+    // into one signed number. DeuxRegistres takes two amounts and has no prop
+    // for a combined one.
+    expect(code(ecran)).toMatch(/<DeuxRegistres/);
+    expect(code(ecran)).not.toMatch(/change_cfa\s*-\s*debt/);
+    expect(code(ecran)).not.toMatch(/debt_cfa\s*-\s*change/);
   });
 
   it('obtains the total ONLY through informationalTotal', () => {

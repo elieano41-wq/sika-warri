@@ -12,6 +12,8 @@ import { EspaceClient } from './screens/client/EspaceClient';
 import { MesClients } from './screens/vendeur/MesClients';
 import { AccueilVendeur } from './screens/vendeur/Accueil';
 import { Historique as HistoriqueVendeur } from './screens/vendeur/Historique';
+import { MesDettes } from './screens/vendeur/MesDettes';
+import { NoterUneDette } from './screens/vendeur/NoterUneDette';
 import { Compte, ChangerCode } from './screens/Compte';
 import {
   Navigation, IconeBoutique, IconeClients, IconeHistorique, IconeCompte,
@@ -51,13 +53,22 @@ function enregistrerSession(s: Session | null) {
  * disappears while one is open. Accueil is where both are started, which is why
  * there is no fifth tab for them.
  */
-type OngletVendeur = 'accueil' | 'clients' | 'historique' | 'compte';
-type Tache = null | 'garder' | 'utiliser' | 'code';
+type OngletVendeur = 'accueil' | 'clients' | 'dettes' | 'compte';
+
+/**
+ * A destination without a tab, reached from Accueil.
+ *
+ * Distinct from a Tache: a task is a transaction that must not be abandoned
+ * halfway, so the bar disappears for it. This is just a screen further in, and
+ * the bar stays.
+ */
+type SousVue = null | 'historique';
+type Tache = null | 'garder' | 'utiliser' | 'code' | 'dette';
 
 const ONGLETS_VENDEUR: Array<Onglet<OngletVendeur>> = [
   { cle: 'accueil', etiquette: 'Accueil', icone: IconeBoutique },
   { cle: 'clients', etiquette: 'Mes clients', icone: IconeClients },
-  { cle: 'historique', etiquette: 'Historique', icone: IconeHistorique },
+  { cle: 'dettes', etiquette: 'Dettes', icone: IconeHistorique },
   { cle: 'compte', etiquette: 'Compte', icone: IconeCompte },
 ];
 type Porte = 'bienvenue' | 'connexion' | 'inscription' | 'oubli';
@@ -68,6 +79,7 @@ export default function App() {
   const [client, setClient] = useState<CustomerProfile | null>(null);
   const [onglet, setOnglet] = useState<OngletVendeur>('accueil');
   const [tache, setTache] = useState<Tache>(null);
+  const [sousVue, setSousVue] = useState<SousVue>(null);
   const [avis, setAvis] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
@@ -132,12 +144,14 @@ export default function App() {
     enregistrerSession(s);
     setOnglet('accueil');
     setTache(null);
+    setSousVue(null);
   }
 
   function deconnexion() {
     setEstAdmin(false);
     setVueAdmin(false);
     setTache(null);
+    setSousVue(null);
     setSession(null);
     setVendeur(null);
     setClient(null);
@@ -273,23 +287,41 @@ export default function App() {
     );
   }
 
+  if (tache === 'dette') {
+    return (
+      <NoterUneDette
+        session={session}
+        vendeur={vendeur}
+        onTermine={() => setTache(null)}
+      />
+    );
+  }
+
   return (
     <>
       {/* keyed on the tab so the entry animation replays per destination.
           Without the key React reuses the node and the screen swaps with no
           transition at all. */}
-      <div key={onglet}>
-        {onglet === 'accueil' ? (
+      <div key={sousVue ?? onglet}>
+        {sousVue === 'historique' ? (
+          <HistoriqueVendeur
+            session={session}
+            vendeur={vendeur}
+            onRetour={() => setSousVue(null)}
+          />
+        ) : onglet === 'accueil' ? (
           <AccueilVendeur
             session={session}
             vendeur={vendeur}
             onGarder={() => setTache('garder')}
             onUtiliser={() => setTache('utiliser')}
+            onNoterDette={() => setTache('dette')}
+            onHistorique={() => setSousVue('historique')}
           />
         ) : onglet === 'clients' ? (
           <MesClients session={session} vendeur={vendeur} />
-        ) : onglet === 'historique' ? (
-          <HistoriqueVendeur session={session} vendeur={vendeur} />
+        ) : onglet === 'dettes' ? (
+          <MesDettes session={session} vendeur={vendeur} />
         ) : (
           <Compte
             session={session}
@@ -302,7 +334,11 @@ export default function App() {
         )}
       </div>
 
-      <Navigation onglets={ONGLETS_VENDEUR} actif={onglet} onChoisir={setOnglet} />
+      <Navigation
+        onglets={ONGLETS_VENDEUR}
+        actif={onglet}
+        onChoisir={(c) => { setSousVue(null); setOnglet(c); }}
+      />
     </>
   );
 }

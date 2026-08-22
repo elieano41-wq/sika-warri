@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, VendorProfile, VendorSummary } from '../../lib/api';
+import { DeuxRegistres } from '../../components/Dette';
+import { formatCfa } from '../../lib/format';
 import {
   Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire,
 } from '../../components/ui';
@@ -23,6 +25,8 @@ export function AccueilVendeur({
   vendeur,
   onGarder,
   onUtiliser,
+  onNoterDette,
+  onHistorique,
 }: {
   session: Session;
   vendeur: VendorProfile;
@@ -31,13 +35,23 @@ export function AccueilVendeur({
      screen no longer needs to know they exist. */
   onGarder: () => void;
   onUtiliser: () => void;
+  onNoterDette: () => void;
+  onHistorique: () => void;
 }) {
   const [resume, setResume] = useState<VendorSummary | null>(null);
+  // What the vendor is OWED, from its own aggregate. Kept in separate state from
+  // the change summary so the two can never be added together by accident.
+  const [dettes, setDettes] = useState<api.VendorDebtSummary | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     try {
-      setResume(await api.vendorSummary(session.accessToken, vendeur.id, vendeur.authUserId));
+      const [m, d] = await Promise.all([
+        api.vendorSummary(session.accessToken, vendeur.id, vendeur.authUserId),
+        api.vendorDebtSummary(session.accessToken, vendeur.id, vendeur.authUserId),
+      ]);
+      setResume(m);
+      setDettes(d);
       setErreur(null);
     } catch (e) {
       setErreur((e as api.ApiError).message);
@@ -65,12 +79,17 @@ export function AccueilVendeur({
       <div className="ecran__corps">
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
 
-        {/* What the vendor owes, in the carnet. The one figure that matters
-            before any action is taken. */}
+        {/* TWO FIGURES, NEVER MERGED.
+
+            What the vendor HOLDS for customers is a liability; what they are
+            OWED is an asset. A single net number would be meaningless — it would
+            add money in the till to money that may never arrive — and it would
+            hide the one thing that matters, which is how much of what they are
+            owed has gone stale. */}
         <article className="carnet">
-          <div className="carnet__etiquette">Monnaie que vous gardez</div>
-          {resume === null ? (
+          {resume === null || dettes === null ? (
             <>
+              <div className="carnet__etiquette">Monnaie que vous gardez</div>
               <span className="montant montant--geant" style={{ color: 'var(--sauge)' }}>
                 —
               </span>
@@ -78,12 +97,39 @@ export function AccueilVendeur({
             </>
           ) : (
             <>
-              <Montant value={resume.circulation_cfa} taille="geant" />
-              <div className="carnet__quartier">
-                {resume.customers_owed === 0
-                  ? 'Aucun client concerné'
-                  : `${resume.customers_owed} client${resume.customers_owed === 1 ? '' : 's'} concerné${resume.customers_owed === 1 ? '' : 's'}`}
-              </div>
+              <DeuxRegistres
+                monnaieCfa={resume.circulation_cfa}
+                detteCfa={dettes.debt_cfa}
+                taille="grand"
+                noteMonnaie={
+                  resume.customers_owed === 0
+                    ? 'Aucun client'
+                    : `${resume.customers_owed} client${resume.customers_owed === 1 ? '' : 's'}`
+                }
+                noteDette={
+                  dettes.debtors === 0
+                    ? 'Personne'
+                    : `${dettes.debtors} client${dettes.debtors === 1 ? '' : 's'}`
+                }
+              />
+
+              {/* The share worth worrying about, beside the total rather than
+                  inside it. A 47 000 F book that is all recent is healthy; the
+                  same figure at 90 days is not, and one number cannot say. */}
+              {dettes.over_30_cfa > 0 ? (
+                <p className="discret" style={{ color: 'var(--alerte)' }}>
+                  {formatCfa(dettes.over_30_cfa)} vous sont dus depuis plus de 30 jours.
+                </p>
+              ) : null}
+
+              {dettes.open_claims > 0 ? (
+                <p className="discret" style={{ color: 'var(--alerte)' }}>
+                  {dettes.open_claims} client
+                  {dettes.open_claims === 1 ? '' : 's'} déclare
+                  {dettes.open_claims === 1 ? '' : 'nt'} avoir payé sans que ce
+                  soit enregistré.
+                </p>
+              ) : null}
             </>
           )}
         </article>
@@ -116,6 +162,11 @@ export function AccueilVendeur({
         <div className="pile" style={{ gap: 'var(--espace-4)' }}>
           <BoutonPrimaire onClick={onGarder}>Garder la monnaie</BoutonPrimaire>
           <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
+          {/* Same weight as the other two: writing down a debt is an everyday
+              act at a counter, and a vendor who has to hunt for it will reach
+              for the paper carnet instead. */}
+          <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
+          <BoutonSecondaire onClick={onHistorique}>Historique</BoutonSecondaire>
         </div>
       </div>
 

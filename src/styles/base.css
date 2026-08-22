@@ -632,3 +632,146 @@ h2 { font-size: var(--titre-s); }
   letter-spacing: 0.06em;
   margin-top: var(--espace-2);
 }
+
+
+/* --------------------------------------------------------------------------
+   The debt register
+
+   CONFIRMÉE / DÉCLARÉE / CONTESTÉE must be distinguishable in direct sunlight on
+   a cheap screen, so none of them rests on colour alone: each carries a shape as
+   well. A filled dot for confirmed, a hollow one for declared, a bar for
+   contested. Somebody photocopying this in black and white should still be able
+   to tell them apart.
+   -------------------------------------------------------------------------- */
+
+.etat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espace-2);
+  padding: 2px var(--espace-2);
+  border-radius: var(--rayon-petit);
+  font-size: var(--texte-petit);
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.etat::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+}
+
+/* Agreed by both. Filled. */
+.etat--confirme {
+  color: var(--craie);
+  border-color: var(--trait);
+}
+.etat--confirme::before { background: var(--or-sika); }
+
+/* One party's word. Hollow — the shape says "not filled in yet". */
+.etat--declare {
+  color: var(--sauge);
+  border-color: var(--trait);
+  border-style: dashed;
+}
+.etat--declare::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--sauge);
+}
+
+/* Disagreement. A bar, not a dot: a different shape entirely. */
+.etat--contest {
+  color: var(--alerte);
+  border-color: var(--alerte);
+}
+.etat--contest::before {
+  border-radius: 2px;
+  width: 12px;
+  height: 4px;
+  background: var(--alerte);
+}
+
+/* The explanation under a badge, the first time someone meets the word. */
+.etat__note {
+  color: var(--sauge);
+  font-size: var(--texte-petit);
+  margin-top: var(--espace-1);
+}
+
+/* --------------------------------------------------------------------------
+   Two registers, side by side, never merged
+
+   The layout IS the argument: two boxes with their own labels and their own
+   figures, with a rule between them. There is deliberately no third box, and no
+   arithmetic joining the two.
+   -------------------------------------------------------------------------- */
+
+.registres {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  overflow: hidden;
+}
+
+.registre {
+  padding: var(--espace-4) var(--espace-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-1);
+  min-width: 0;
+}
+
+/* The rule between them. The point of the whole component. */
+.registre + .registre { border-left: 1px solid var(--trait); }
+
+.registre__etiquette {
+  font-size: var(--texte-petit);
+  color: var(--sauge);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.registre--dette .registre__etiquette { color: var(--alerte); }
+
+.registre__note { font-size: var(--texte-petit); color: var(--sauge); }
+
+/* --------------------------------------------------------------------------
+   Ageing
+   -------------------------------------------------------------------------- */
+
+.tranches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-2);
+}
+
+.tranche {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-3);
+  padding-block: var(--espace-1);
+  border-bottom: 1px dotted var(--trait);
+}
+
+.tranche:last-child { border-bottom: none; }
+.tranche__age { color: var(--sauge); font-size: var(--texte-petit); }
+
+/* Old money, marked. Over 30 days is where a shopkeeper starts chasing. */
+.tranche--ancienne .tranche__age { color: var(--alerte); font-weight: 600; }
+
+.puce-age {
+  display: inline-block;
+  padding: 1px var(--espace-2);
+  border-radius: var(--rayon-petit);
+  font-size: var(--texte-petit);
+  border: 1px solid var(--trait);
+  color: var(--sauge);
+}
+
+.puce-age--ancienne { color: var(--alerte); border-color: var(--alerte); }

@@ -396,6 +396,8 @@ const BORNE_AUTREMENT: Record<string, string> = {
   // a client anyway — debt_unpaid_slices under it is revoked outright.
   debt_ageing: 'aggregate, one row by construction',
   debt_unpaid_slices: 'internal to debt_ageing; granted to no client role',
+  // Returns the one customer matching a normalised phone, creating it if absent.
+  ensure_customer_for_debt: 'one row, keyed on the unique phone',
   // where p.id = p_pending_id on the primary key.
   vendor_pending_detail: 'one row, keyed on the primary key',
 };

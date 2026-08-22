@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, VendorProfile, VendorMovementRow } from '../../lib/api';
-import { Entete, Message } from '../../components/ui';
+import { Entete, Message, BoutonDiscret } from '../../components/ui';
 import { Vide, IconeCarnetVide } from '../../components/Vide';
 import { formatCfa, formatPhoneLocal } from '../../lib/format';
 import { libelleMouvement, signeMouvement, parJour, dateEtHeure } from '../../lib/mouvements';
@@ -25,9 +25,16 @@ import { libelleMouvement, signeMouvement, parJour, dateEtHeure } from '../../li
 export function Historique({
   session,
   vendeur,
+  onRetour,
 }: {
   session: Session;
   vendeur: VendorProfile;
+  /**
+   * Present when this is reached from Accueil rather than from a tab. It keeps
+   * the tab bar — unlike a task, nothing here is half-recorded — but it still
+   * needs a way back to where you came from.
+   */
+  onRetour?: () => void;
 }) {
   const [lignes, setLignes] = useState<VendorMovementRow[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -55,7 +62,10 @@ export function Historique({
 
   return (
     <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Tout ce que vous avez enregistré" />
+      <Entete
+        sousTitre="Tout ce que vous avez enregistré"
+        action={onRetour ? <BoutonDiscret onClick={onRetour}>Retour</BoutonDiscret> : undefined}
+      />
 
       <div className="ecran__corps">
         <h1>Historique</h1>

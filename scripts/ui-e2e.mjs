@@ -1024,9 +1024,113 @@ try {
     check('and it actually recorded 500 F', montantPresent(recu, '500'), recu.slice(0, 300));
   }
 
-  await pv.getByRole('button', { name: /Termin|Nouveau client/i }).first().click()
-    .catch(() => {});
+  // LEAVE the task, do not restart it. The old pattern matched "Nouveau client"
+  // first -- which restarts the flow -- so the vendor stayed inside a task with
+  // no tab bar, and the next section's tab click had nothing to click. The
+  // .catch() hid it until a later section failed instead.
+  await pv.getByRole('button', { name: 'Terminer' }).first().click().catch(() => {});
+  await pv.locator('.nav__item').first().waitFor({ timeout: 20000 });
+  await ongletVers(pv, 'Accueil');
+
+  // ===== correcting a typo ================================================
+  //
+  // The likeliest thing to go wrong on day one: a vendor types 5000 instead of
+  // 500 with a customer standing there. Migration 0013 built the 15-minute
+  // unilateral window and nothing surfaced it until now, so the only routes out
+  // were the two-device handshake or the support desk.
+  console.log('\n--- corriger une erreur ---');
+
+  await ongletVers(pv, 'Accueil');
+  await pv.getByRole('button', { name: /Corriger une [ée]criture|Corriger une erreur/i })
+    .first().click();
+  await pv.getByRole('heading', { name: 'Corriger une erreur' }).waitFor({ timeout: 20000 });
+  await pv.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
+
+  const listeCorr = await pv.textContent('body');
+  check('recent entries are listed with a Corriger option',
+    /Corriger/.test(listeCorr), listeCorr.slice(0, 300));
+  check('and the 15-minute rule is explained up front',
+    /15 minutes/.test(listeCorr), listeCorr.slice(0, 400));
+
+  const boutonsCorr = await pv.getByRole('button', { name: /^Corriger$/ }).count();
+  check('at least one entry is still inside the window', boutonsCorr > 0,
+    `${boutonsCorr} correctable`);
+
+  if (boutonsCorr > 0) {
+    await pv.getByRole('button', { name: /^Corriger$/ }).first().click();
+    await pv.getByRole('heading', { name: /Confirmer la correction/i })
+      .waitFor({ timeout: 20000 }).catch(() => {});
+
+    const confirmation = (await pv.textContent('body')).replace(/\s+/g, ' ');
+    // Rule 3, in the words the vendor reads, BEFORE they commit. A vendor who
+    // believes they deleted something is surprised by their own history later.
+    check('it says plainly that nothing is deleted',
+      /ne sera pas supprim[ée]e/i.test(confirmation), confirmation.slice(0, 300));
+    check('and that both entries stay visible',
+      /les deux resteront visibles/i.test(confirmation), confirmation.slice(0, 300));
+    await pv.screenshot({ path: 'artifacts/g1-corriger-confirmer.png' });
+
+    await pv.getByRole('button', { name: /Oui, corriger/i }).click();
+    await pv.getByRole('heading', { name: /Corrig[ée]/i }).waitFor({ timeout: 25000 })
+      .catch(() => {});
+
+    const apres = (await pv.textContent('body')).replace(/\s+/g, ' ');
+    check('the correction is recorded', /correction est enregistr/i.test(apres),
+      apres.slice(0, 300));
+    check('and it says both entries remain', /restent .* visibles/i.test(apres),
+      apres.slice(0, 300));
+    await pv.screenshot({ path: 'artifacts/g2-corrige.png' });
+
+    await pv.getByRole('button', { name: 'Terminé' }).click().catch(() => {});
+  }
+
   await ongletVers(pv, 'Accueil').catch(() => {});
+
+  // ===== the card is a card, not a notebook ===============================
+  console.log('\n--- forme des cartes ---');
+
+  const styleCarte = await pv.evaluate(() => {
+    const c = document.querySelector('.carte');
+    if (!c) return null;
+    const s = getComputedStyle(c);
+    const avant = getComputedStyle(c, '::before');
+    const apres = getComputedStyle(c, '::after');
+    return {
+      // The LEFT edge. The top edge is 3px gold on a primary card, by design --
+      // measuring it tested the variant rather than the hairline rule, which is
+      // what "separation by hairline" is actually about.
+      border: s.borderLeftWidth + ' ' + s.borderLeftStyle,
+      borderTop: s.borderTopWidth,
+      radius: s.borderTopLeftRadius,
+      ombre: s.boxShadow,
+      image: s.backgroundImage,
+      avant: avant.content,
+      apres: apres.content,
+    };
+  });
+
+  check('a card exists to measure', styleCarte !== null);
+  if (styleCarte) {
+    check('it has a hairline border, not a shadow',
+      /1px solid/.test(styleCarte.border) && styleCarte.ombre === 'none',
+      JSON.stringify(styleCarte));
+    // The gold top edge is the primary variant and the whole visual hierarchy:
+    // 1px means an ordinary card, 3px means the figure that matters.
+    check('the accent edge is 3px when present, 1px otherwise',
+      ['1px', '3px'].includes(styleCarte.borderTop), styleCarte.borderTop);
+    check('no ruled-paper texture', styleCarte.image === 'none', styleCarte.image);
+    check('no margin-rule pseudo-element',
+      styleCarte.avant === 'none' && styleCarte.apres === 'none',
+      `${styleCarte.avant} / ${styleCarte.apres}`);
+    check('and a real radius, so it reads as an object',
+      parseInt(styleCarte.radius, 10) >= 8, styleCarte.radius);
+  }
+
+  // At most one gold-topped card per screen: that variant IS the hierarchy, and
+  // used twice it means nothing.
+  const principales = await pv.locator('.carte--principale').count();
+  check('at most one primary card on screen', principales <= 1, String(principales));
+  await pv.screenshot({ path: 'artifacts/g3-cartes.png' });
 
   // ===== 320px, the spec floor ===========================================
   console.log('\n--- 320px viewport ---');

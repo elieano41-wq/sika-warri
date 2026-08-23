@@ -4,7 +4,7 @@ import type { Session, VendorProfile, VendorSummary } from '../../lib/api';
 import { DeuxRegistres } from '../../components/Dette';
 import { formatCfa } from '../../lib/format';
 import {
-  Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire,
+  Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
 
 /**
@@ -186,6 +186,14 @@ export function AccueilVendeur({
                   </span>
                   <Montant value={resume.today_debit_cfa} taille="ligne" />
                 </div>
+
+                {/* The correction, offered against the figures a vendor is
+                    actually looking at when they notice the mistake. Discreet
+                    rather than prominent: it should be findable at a glance and
+                    should not read as something a vendor is expected to need. */}
+                <BoutonDiscret onClick={onCorriger}>
+                  Une erreur ? Corriger une écriture
+                </BoutonDiscret>
               </div>
             ) : (
               <p className="discret">Aucun mouvement aujourd'hui.</p>
@@ -201,10 +209,6 @@ export function AccueilVendeur({
               for the paper carnet instead. */}
           <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
           <BoutonSecondaire onClick={onHistorique}>Historique</BoutonSecondaire>
-          {/* Where the mistake is visible. A vendor who has just mistyped an
-              amount is still on this screen, and the fix has to be one tap from
-              here rather than buried. */}
-          <BoutonSecondaire onClick={onCorriger}>Corriger une erreur</BoutonSecondaire>
         </div>
       </div>
 

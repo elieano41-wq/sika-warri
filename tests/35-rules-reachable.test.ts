@@ -220,6 +220,9 @@ describe('rule 3: no screen offers to delete or edit an entry', () => {
     // of a waiting customer.
     const accueil = lire(SRC, 'screens', 'vendeur', 'Accueil.tsx');
     expect(accueil).toMatch(/onCorriger/);
-    expect(accueil).toMatch(/Corriger une erreur/);
+    // On the activity block, where the vendor is looking when they notice the
+    // mistake — not a utility button below the fold on a 390x844 phone, which is
+    // where it was until a screenshot showed it needed a scroll to reach.
+    expect(accueil).toMatch(/Corriger une [ée]criture/);
   });
 });

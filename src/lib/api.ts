@@ -51,10 +51,81 @@ export class ApiError extends Error {
 /** Anything the user reads is French; this is the last-resort wording. */
 const ERREUR_RESEAU = 'Pas de connexion. Vérifiez votre réseau.';
 
+// ---------------------------------------------------------------------------
+// The live session, so an expired token can be repaired in place.
+//
+// THE THIRD THING THAT ONLY REFRESHED AT LOGIN. The refresh token was captured
+// from the login response, stored, persisted across reloads — and never used.
+// An access token lasts an hour, so after an hour at the counter every request
+// came back 401 and the shopkeeper read "Une erreur est survenue, réessayez".
+// Retrying is the one thing that could never work. The only cure was a sign-out
+// nobody thinks to try, which is exactly the shape of the support-panel bug.
+//
+// App registers the live session here; `request` renews it on a 401 and retries
+// once. Rule 8 makes the retry safe: the body is unchanged, so it carries the
+// same idempotency key and the server collapses the two attempts into one
+// entry — the property tests/33 proves.
+// ---------------------------------------------------------------------------
+
+let sessionVivante: Session | null = null;
+let quandRenouvelee: ((s: Session) => void) | null = null;
+
+/** Called by App on every session change. Pass null on sign-out. */
+export function brancherSession(
+  s: Session | null,
+  renouvelee: (s: Session) => void
+) {
+  sessionVivante = s;
+  quandRenouvelee = renouvelee;
+}
+
+/**
+ * One renewal at a time.
+ *
+ * Two screens can be mid-request when a token expires. Without this they would
+ * both spend the refresh token, and GoTrue rotates it — the second call would
+ * fail and log out a session that had just been repaired.
+ */
+let renouvellementEnCours: Promise<Session> | null = null;
+
+async function renouveler(): Promise<Session> {
+  const courante = sessionVivante;
+  if (!courante?.refreshToken) {
+    throw new ApiError('SESSION_EXPIREE', 'Session expirée. Reconnectez-vous.', 401);
+  }
+
+  if (!renouvellementEnCours) {
+    renouvellementEnCours = (async () => {
+      // Straight to GoTrue, not through an Edge Function: renewing a session is
+      // not a decision the app gets to make, and no PIN is involved.
+      const r = (await request(
+        '/auth/v1/token?grant_type=refresh_token',
+        { method: 'POST', body: JSON.stringify({ refresh_token: courante.refreshToken }) }
+      )) as any;
+
+      if (!r?.access_token || !r?.refresh_token) {
+        throw new ApiError('SESSION_EXPIREE', 'Session expirée. Reconnectez-vous.', 401);
+      }
+
+      const suivante: Session = {
+        ...courante,
+        accessToken: r.access_token,
+        refreshToken: r.refresh_token,
+      };
+      sessionVivante = suivante;
+      quandRenouvelee?.(suivante);
+      return suivante;
+    })().finally(() => { renouvellementEnCours = null; });
+  }
+
+  return renouvellementEnCours;
+}
+
 async function request(
   path: string,
   init: RequestInit,
-  token?: string | null
+  token?: string | null,
+  dejaRenouvele = false
 ): Promise<unknown> {
   const headers = new Headers(init.headers);
   headers.set('apikey', CLE);
@@ -74,6 +145,29 @@ async function request(
   let body: any = null;
   if (text) {
     try { body = JSON.parse(text); } catch { body = null; }
+  }
+
+  // An expired token, once. Only for the token this session is actually
+  // holding: a 401 from a stale token passed by some other caller is a real
+  // failure, not something to paper over.
+  if (
+    res.status === 401 &&
+    !dejaRenouvele &&
+    token &&
+    sessionVivante &&
+    token === sessionVivante.accessToken
+  ) {
+    let suivante: Session;
+    try {
+      suivante = await renouveler();
+    } catch (e) {
+      // Offline stays offline. Saying "session expirée" to someone whose
+      // network dropped would send them to re-enter a PIN they do not need to
+      // re-enter, and it would fail too.
+      if (e instanceof ApiError && e.code === 'OFFLINE') throw e;
+      throw new ApiError('SESSION_EXPIREE', 'Session expirée. Reconnectez-vous.', 401);
+    }
+    return request(path, init, suivante.accessToken, true);
   }
 
   if (!res.ok || body?.ok === false) {

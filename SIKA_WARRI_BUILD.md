@@ -68,6 +68,10 @@ Required protections, all of which must be implemented:
 - Reject sequential and repeated PINs (`1234`, `0000`, `1111`, etc.) at registration
 - Never log a PIN, never include one in an error message or telemetry payload
 
+**Session lifetime.** A vendor enters a PIN once and works all day. The access token lasts an hour, so the client renews it from the refresh token on the first 401 and retries the request once — a renewal is invisible, and a retried write reuses its idempotency key so it can never post twice (rule 8). Only a refresh token the server actually rejects ends the session, and it ends it with *Session expirée. Reconnectez-vous.* A network failure during renewal is reported as a network failure, never as an expired session.
+
+**Nothing that can change is read only at login.** Whether an account is a support account, and whether a customer's PIN has been seen on a vendor's phone, are both re-read from the server on every load. A value captured once into session state goes stale the moment it changes and stays stale until someone happens to sign out, which nobody does.
+
 Note in `README.md` that a 4-digit PIN is deliberately weak-but-appropriate: exposure is capped at 3 000 F per vendor by design, and the alternative (SMS OTP) costs money the product does not have.
 
 ---

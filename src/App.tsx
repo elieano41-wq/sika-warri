@@ -100,6 +100,17 @@ export default function App() {
   const [estAdmin, setEstAdmin] = useState(false);
   const [vueAdmin, setVueAdmin] = useState(false);
 
+  // Hand the live session to the API layer so an expired access token renews
+  // itself instead of surfacing as "Une erreur est survenue, réessayez" an hour
+  // into the day. Declared BEFORE the profile effect so the plumbing is in
+  // place by the time the first request goes out — effects run in order.
+  useEffect(() => {
+    api.brancherSession(session, (renouvelee) => {
+      setSession(renouvelee);
+      enregistrerSession(renouvelee);
+    });
+  }, [session]);
+
   // Resolve the profile behind the session. A stored token that no longer
   // works logs the user out rather than leaving a half-loaded screen.
   useEffect(() => {

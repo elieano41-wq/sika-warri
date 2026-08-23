@@ -30,8 +30,16 @@ import {
 
 const SRC = path.join(process.cwd(), 'src');
 
+/**
+ * Read a file under src/, with line endings normalised.
+ *
+ * Rooted at SRC rather than the cwd: every call site here passes a path
+ * relative to src, and joining them without the root resolved 'App.tsx' against
+ * the repo root and threw ENOENT. Normalised because the repo is CRLF on
+ * Windows and `.` does not match \r — see tests/32.
+ */
 function lire(...p: string[]): string {
-  return readFileSync(path.join(...p), 'utf8').replace(/\r\n/g, '\n');
+  return readFileSync(path.join(SRC, ...p), 'utf8').replace(/\r\n/g, '\n');
 }
 
 let db: pg.Client;

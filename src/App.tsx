@@ -86,10 +86,17 @@ export default function App() {
   const [chargement, setChargement] = useState(false);
   // First-time visitors land on Bienvenue; anyone with a session skips it.
   const [porte, setPorte] = useState<Porte>('bienvenue');
-  // Whether this session is an admin is decided by the SERVER. The client cannot
-  // read is_admin, so it probes once: if the queue call succeeds, the entry point
-  // appears. A non-admin is simply refused, and hiding a button was never the
-  // control anyway.
+  // Whether this session is an admin is decided by the SERVER, and asked ON LOAD
+  // rather than carried from the login response.
+  //
+  // It used to be set once at login and held here. A grant made while someone
+  // was logged in stayed invisible until they happened to log out, and a page
+  // reload restored the session but reset this to false — so the support panel
+  // was missing for an account that had held the grant the whole time, with
+  // "log out and back in" as the undiscoverable workaround.
+  //
+  // Hiding the button was never the control: every admin action is gated again
+  // in SQL, so a wrong answer here changes what is visible and nothing else.
   const [estAdmin, setEstAdmin] = useState(false);
   const [vueAdmin, setVueAdmin] = useState(false);
 
@@ -109,10 +116,16 @@ export default function App() {
       try {
         if (session.role === 'vendor') {
           const v = await api.myVendor(session.accessToken);
-          if (!annule) setVendeur(v);
+          if (annule) return;
+          setVendeur(v);
+          // Asked here rather than at login, so a reload and a fresh grant both
+          // pick it up without anyone signing out.
+          setEstAdmin(await api.amIAdmin(session.accessToken, v.authUserId));
         } else {
           const c = await api.myCustomer(session.accessToken);
-          if (!annule) setClient(c);
+          if (annule) return;
+          setClient(c);
+          setEstAdmin(await api.amIAdmin(session.accessToken, c.authUserId));
         }
       } catch (e) {
         if (annule) return;
@@ -138,6 +151,9 @@ export default function App() {
   }
 
   function connexion(s: Session, notice: string | null, admin = false) {
+    // Seeded from the login response so the button is there immediately, then
+    // confirmed by the load effect. Both agree; the effect is what survives a
+    // reload.
     setEstAdmin(admin);
     setErreur(null);
     setAvis(notice);

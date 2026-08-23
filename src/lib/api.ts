@@ -1653,3 +1653,28 @@ export async function correctOwnEntry(
     token
   );
 }
+
+/**
+ * Is THIS session an admin?
+ *
+ * Asked on load, not carried from the login response. The flag used to be
+ * captured once at login and held in React state, so a grant made while someone
+ * was logged in stayed invisible until they happened to log out — and a page
+ * reload restored the session but silently reset the flag to false, which is how
+ * the support panel went missing for an account that had the grant all along.
+ *
+ * Answers only about the caller: admin_is_caller raises SW002 if a session asks
+ * about anyone else, so this cannot enumerate admins. And it is not the security
+ * boundary — every admin action is gated again in SQL, so a wrong answer here
+ * shows or hides a button and nothing more.
+ */
+export async function amIAdmin(token: string, actorUserId: string): Promise<boolean> {
+  try {
+    const r = await rpc('admin_is_caller', { p_actor_user_id: actorUserId }, token);
+    return r === true;
+  } catch {
+    // A failed check is not an admin. Never the other way round: on a flaky
+    // connection the safe answer is the one that shows less.
+    return false;
+  }
+}

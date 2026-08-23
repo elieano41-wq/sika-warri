@@ -77,6 +77,24 @@ export function Compte({
           </section>
         ) : null}
 
+        <section className="carte">
+          <span className="carte__etiquette">Compte support</span>
+          <p style={{ fontSize: 'var(--texte-grand)', fontWeight: 600 }}>
+            {estAdmin ? 'Oui' : 'Non'}
+          </p>
+          <p className="discret">
+            {estAdmin
+              ? 'Vous pouvez ouvrir le panneau support depuis cet écran.'
+              : 'Ce compte n’a pas accès au panneau support.'}
+          </p>
+          {/* The build, beside the answer. If the status looks wrong, the next
+              question is always "is this the build I think it is", and having
+              both in one place saves asking. */}
+          <p className="discret">
+            Version {__BUILD_SHA__}
+          </p>
+        </section>
+
         <BoutonSecondaire onClick={onChangerCode}>
           Changer mon code
         </BoutonSecondaire>

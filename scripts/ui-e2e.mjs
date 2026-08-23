@@ -499,8 +499,21 @@ try {
     confirme = false;
   }
   check('customer confirms on their OWN device', confirme,
-    confirme ? '' : (await pc.textContent('body')).replace(/s+/g, ' ').slice(0, 400));
+    // \s, not s. Written as /s+/g this stripped every letter s from the failure
+    // detail — "chose enregistrée" came out as "cho e enregi trée" — which made
+    // a real failure look like mojibake and hid what the screen actually said.
+    confirme ? '' : (await pc.textContent('body')).replace(/\s+/g, ' ').slice(0, 400));
   if (!confirme) { await pc.screenshot({ path: 'artifacts/echec-confirmation.png' }); }
+
+  // The receipt STAYS until the customer dismisses it. That is the fix for a
+  // real bug: the shell used to unmount it about two seconds after confirming,
+  // when the poll found no pending request, so nobody ever read what they had
+  // just agreed to. Dismissing it is what a customer does, so the harness does
+  // it too rather than waiting for the screen to vanish on its own.
+  const recu = await pc.textContent('body');
+  check('the receipt says what was used and what remains',
+    /C'est confirm/i.test(recu) && /Il vous reste/i.test(recu), recu.slice(0, 300));
+  await pc.getByRole('button', { name: 'Retour' }).first().click().catch(() => {});
 
   const apres = (await pc.textContent('body')).replace(/ /g, ' ');
   check('customer told what remains (1 100 F)', apres.includes('1 100'), apres.slice(0, 200));

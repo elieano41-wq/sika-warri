@@ -51,6 +51,10 @@ export function EspaceClient({
   onDeconnexion: () => void;
 }) {
   const [enAttente, setEnAttente] = useState(false);
+  // Latched. Once a request has been shown, the confirmation screen stays until
+  // IT says it is done — otherwise consuming the request pulls the receipt off
+  // the screen before the customer can read it.
+  const [montreDemande, setMontreDemande] = useState(false);
   // A debt proposal or an offset waiting for an answer. Separate from the debit
   // handshake above because they are different decisions with different screens,
   // and because each pending table maps to exactly one outcome.
@@ -72,6 +76,7 @@ export function EspaceClient({
         api.pendingCompensationsForMe(session.accessToken, client.authUserId),
       ]);
       setEnAttente(demandes.length > 0);
+      if (demandes.length > 0) setMontreDemande(true);
       setDemandeDette(dettes.length > 0 || comps.length > 0);
     } catch {
       // A failed poll on patchy signal is normal. Leave the current view in
@@ -87,9 +92,14 @@ export function EspaceClient({
     };
   }, [verifier]);
 
-  if (enAttente) {
+  if (enAttente || montreDemande) {
     return (
-      <Confirmation session={session} client={client} onDeconnexion={onDeconnexion} />
+      <Confirmation
+        session={session}
+        client={client}
+        onDeconnexion={onDeconnexion}
+        onTermine={() => setMontreDemande(false)}
+      />
     );
   }
 

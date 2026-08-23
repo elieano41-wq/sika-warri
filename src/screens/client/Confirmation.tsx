@@ -25,10 +25,19 @@ export function Confirmation({
   session,
   client,
   onDeconnexion,
+  onTermine,
 }: {
   session: Session;
   client: CustomerProfile;
   onDeconnexion: () => void;
+  /**
+   * Tells the shell this screen is finished.
+   *
+   * The shell used to decide by polling: no pending request, no screen. That
+   * unmounted the receipt about two seconds after the customer confirmed, so
+   * they never saw what they had just agreed to. The screen owns the exit now.
+   */
+  onTermine?: () => void;
 }) {
   const [demandes, setDemandes] = useState<PendingRequest[]>([]);
   const [pin, setPin] = useState('');
@@ -68,6 +77,22 @@ export function Confirmation({
   }, [refresh, fait]);
 
   const demande = demandes[0] ?? null;
+
+  /**
+   * Nothing to show, so hand the screen back.
+   *
+   * The shell latches this screen open once a request appears, because
+   * otherwise consuming the request unmounts the receipt about two seconds
+   * after the customer confirms and they never see what they agreed to. The
+   * latch has to be released by the screen — here, once there is no pending
+   * request AND no receipt: a request that expired unanswered, or a receipt the
+   * customer has dismissed. Stranding them on "Aucune demande" would be the
+   * mirror of the bug the latch fixes.
+   */
+  useEffect(() => {
+    if (chargeUnFois && !demande && !fait) onTermine?.();
+  }, [chargeUnFois, demande, fait, onTermine]);
+
 
   async function chiffre(d: string) {
     if (!demande || occupe) return;
@@ -112,6 +137,7 @@ export function Confirmation({
           <BoutonSecondaire
             onClick={() => {
               setFait(null);
+              onTermine?.();
               refresh();
             }}
           >
@@ -138,6 +164,11 @@ export function Confirmation({
                 ? 'Quand un commerçant vous demandera de confirmer, la demande apparaîtra ici.'
                 : 'Chargement…'}
             </p>
+            {chargeUnFois ? (
+              <BoutonSecondaire onClick={() => onTermine?.()}>
+                Retour à ma monnaie
+              </BoutonSecondaire>
+            ) : null}
           </div>
         </div>
       </div>

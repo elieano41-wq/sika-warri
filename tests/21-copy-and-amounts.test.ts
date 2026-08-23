@@ -288,13 +288,26 @@ describe('sunlight legibility — the floors the spec sets', () => {
   });
 
   it('but it is still a deliberate object, not a bare div', () => {
-    // The other half. "Not skeuomorphic" must not become "not designed": the
-    // card carries a hairline, a real radius and generous padding.
+    // The other half. "Not skeuomorphic" must not become "not designed".
+    //
+    // THE RULE CHANGED. A plain card used to carry a 1px outline; six outlines
+    // per screen turned out to be the weakest possible way of saying "this is a
+    // thing", so separation moved to the fill and the space around it. What a
+    // card still owes the reader is a real radius and room inside it.
     const bloc = /\.carte \{([^}]*)\}/.exec(base);
     expect(bloc, '.carte rule not found').not.toBeNull();
-    expect(bloc![1]).toMatch(/border:\s*1px solid var\(--trait\)/);
+    expect(bloc![1], 'a plain card must not be outlined').not.toMatch(/^\s*border:/m);
+    expect(bloc![1]).toMatch(/background:\s*var\(--vert-foret\)/);
     expect(bloc![1]).toMatch(/border-radius:\s*var\(--rayon\)/);
     expect(bloc![1]).toMatch(/padding:\s*var\(--espace-5\)/);
+  });
+
+  it('and a tappable card keeps its edge, because the edge is the target', () => {
+    // The one exception, and the reason it is one. Removing this hairline too
+    // would leave nothing to aim at.
+    const bloc = /\.carte--cliquable \{([^}]*)\}/.exec(base);
+    expect(bloc, '.carte--cliquable rule not found').not.toBeNull();
+    expect(bloc![1]).toMatch(/border:\s*1px solid var\(--trait\)/);
   });
 
   it('separation is by hairline, never by shadow', () => {

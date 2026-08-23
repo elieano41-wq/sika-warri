@@ -234,7 +234,7 @@ export function Confirmation({
 
       <div className="ecran__pied pile">
         <p className="discret centre">
-          Saisissez votre code sur votre propre téléphone. Ne le donnez à
+          Saisissez votre code sur votre propre téléphone. Ne le donnez jamais à
           personne.
         </p>
       </div>

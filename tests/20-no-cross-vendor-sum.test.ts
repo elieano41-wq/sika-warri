@@ -260,9 +260,14 @@ describe('acceptance test 8 — the customer balance screen', () => {
     expect(texte).not.toMatch(/utilisable partout/i);
   });
 
-  it('says each amount stays with its own vendor', () => {
+  it('says each amount stays with whoever is holding it', () => {
+    // Matched on the substance rather than on one sentence. The copy no longer
+    // says "commerçant" — the app is for anyone keeping a book of what is owed,
+    // and naming one trade excluded the rest — but what it has to convey is
+    // unchanged: Sika Warri only records, and the money is somewhere else.
     const texte = ecran.replace(/\s+/g, ' ');
-    expect(texte).toMatch(/reste chez le\s*commer[çc]ant/i);
+    expect(texte).toMatch(/Sika Warri enregistre seulement/i);
+    expect(texte).toMatch(/reste (chez|l[àa] o[ùu])/i);
   });
 
   it('the vendor total comes from the SERVER, not from the page', () => {

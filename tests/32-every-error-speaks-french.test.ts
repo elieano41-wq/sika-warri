@@ -24,6 +24,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { sansCommentaires } from './helpers/source';
 
 const MIGRATIONS = path.join(process.cwd(), 'supabase', 'migrations');
 const RUNTIME = path.join(
@@ -181,7 +182,11 @@ describe('the messages are usable by the person reading them', () => {
 
 describe('the client fallback is a last resort, not a habit', () => {
   it('api.ts has exactly one generic message', () => {
-    const api = lire(path.join(process.cwd(), 'src', 'lib', 'api.ts'));
+    // Comments stripped first. This guard fired on a comment that QUOTED the
+    // message while explaining a bug caused by showing it — counting prose as a
+    // second fallback, and pushing the next person to describe the problem
+    // vaguely rather than name it. The rule is about what the app can display.
+    const api = sansCommentaires(lire(path.join(process.cwd(), 'src', 'lib', 'api.ts')));
     const n = (api.match(/Une erreur est survenue/g) ?? []).length;
     // One, on the HTTP path where the server said nothing usable at all.
     expect(n).toBe(1);

@@ -316,8 +316,8 @@ export function NoterUneDette({
           <>
             <h1>Qui est ce client ?</h1>
             <p className="discret">
-              Un nom que vous reconnaîtrez. Vous seul le voyez — ni le client ni
-              les autres commerçants.
+              Un nom que vous reconnaîtrez. Vous seul le voyez — ni la personne
+              concernée ni les autres carnets.
             </p>
             <input
               className="champ__saisie"

@@ -127,7 +127,7 @@ export function Admin({
             style={{ fontSize: 'var(--texte-base)', minHeight: 'var(--cible-min)' }}
             onClick={() => setOnglet('vendeurs')}
           >
-            Commerçants
+            Carnets
           </button>
         </div>
 
@@ -162,7 +162,7 @@ export function Admin({
                   ) : (
                     <>
                       <div className="carte__etiquette">
-                        {d.role === 'vendor' ? 'Commerçant' : 'Client'} · inscrit le{' '}
+                        {d.role === 'vendor' ? 'Carnet' : 'Client'} · inscrit le{' '}
                         {d.registered_at
                           ? new Date(d.registered_at).toLocaleDateString('fr-FR')
                           : '—'}
@@ -206,17 +206,17 @@ export function Admin({
                         amounts. So the challenge cannot rely on it alone.
                       */}
                       <Message ton="erreur">
-                        <strong style={{ display: 'block', marginBottom: 'var(--espace-2)' }}>
+                        <strong className="message__titre">
                           Avant d'émettre un code
                         </strong>
                         Tout ce qui est écrit ici peut être connu de quelqu'un qui
-                        était près du comptoir — et du commerçant, qui a saisi les
+                        était près du comptoir — et de qui tient le carnet, qui a saisi les
                         montants. Posez une question dont la réponse n'est PAS sur
                         cet écran : ce qu'ils ont acheté, qui les a servis, quand
                         ils sont passés la dernière fois.
                         <br />
                         <br />
-                        Si c'est un commerçant qui appelle pour un client, c'est un
+                        Si c'est le tenancier du carnet qui appelle pour un client, c'est un
                         refus, pas une demande. Le client doit appeler lui-même.
                       </Message>
                     </>
@@ -240,11 +240,11 @@ export function Admin({
 
         {onglet === 'vendeurs' && (
           <>
-            <h1>Commerçants</h1>
+            <h1>Carnets</h1>
             {vendeurs === null ? (
               <p className="discret">Chargement…</p>
             ) : vendeurs.length === 0 ? (
-              <Message ton="info">Aucun commerçant inscrit.</Message>
+              <Message ton="info">Aucun carnet inscrit.</Message>
             ) : (
               vendeurs.map((v) => (
                 <article key={v.vendor_id} className="carte">

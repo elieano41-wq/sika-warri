@@ -167,7 +167,7 @@ export function ConfirmerDette({
 
         {expire ? (
           <Message ton="erreur">
-            La demande a expiré. Demandez au commerçant de recommencer.
+            La demande a expiré. Demandez qu’on recommence.
           </Message>
         ) : (
           <>
@@ -178,7 +178,8 @@ export function ConfirmerDette({
               <PinPoints longueur={4} remplis={code.length} />
             </div>
             <p className="discret centre">
-              Tapez VOTRE code. Ne le montrez à personne, pas même au commerçant.
+              Tapez VOTRE code. Ne le montrez à personne, pas même à qui tient
+              le carnet.
             </p>
           </>
         )}

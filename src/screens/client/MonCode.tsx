@@ -24,7 +24,7 @@ import { formatPhoneLocal } from '../../lib/format';
 export function MonCode({ session }: { session: Session }) {
   return (
     <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Montrez-le au commerçant" />
+      <Entete sousTitre="Montrez-le" />
 
       <div className="ecran__corps">
         <h1>Mon code</h1>
@@ -34,7 +34,7 @@ export function MonCode({ session }: { session: Session }) {
           {formatPhoneLocal(session.msisdn)}
         </p>
         <p className="discret centre">
-          Si le code ne se lit pas, le commerçant peut taper ce numéro.
+          Si le code ne se lit pas, ce numéro peut être tapé à la main.
         </p>
 
         <Message ton="info">

@@ -146,7 +146,9 @@ async function loginViaUI(page, role, phone, pin) {
   await page.goto(APP);
   await page.getByRole('button', { name: /J.ai déjà un compte/ }).click();
   await page.getByRole('heading', { name: 'Connexion' }).waitFor({ timeout: 20000 });
-  await page.getByRole('button', { name: role === 'vendor' ? 'Commerçant' : 'Client' }).click();
+  await page.getByRole('button', {
+    name: role === 'vendor' ? 'Je tiens le carnet' : 'Je suis sur le carnet',
+  }).click();
   await tapDigits(page, phone);
   await page.getByRole('button', { name: 'Continuer' }).click();
   await tapDigits(page, pin);
@@ -175,7 +177,9 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
   await page.getByRole('button', { name: 'Créer un compte' }).click();
   await page.getByRole('heading', { name: 'Vous êtes ?' }).waitFor({ timeout: 20000 });
 
-  await page.getByRole('button', { name: role === 'vendor' ? 'Commerçant' : 'Client' }).click();
+  await page.getByRole('button', {
+    name: role === 'vendor' ? 'Je tiens le carnet' : 'Je suis sur le carnet',
+  }).click();
 
   // phone
   await page.getByRole('heading', { name: 'Votre numéro' }).waitFor();
@@ -184,7 +188,7 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
 
   // name
   await page
-    .getByRole('heading', { name: role === 'vendor' ? 'Nom de la boutique' : 'Votre prénom' })
+    .getByRole('heading', { name: role === 'vendor' ? 'Nom de votre carnet' : 'Votre prénom' })
     .waitFor();
   await page.locator('input.champ__saisie').fill(nom);
   await page.getByRole('button', { name: 'Continuer' }).click();
@@ -230,7 +234,12 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
   await tapDigits(page, pin);
   await page.getByRole('button', { name: 'Créer mon compte' }).click();
 
-  await page.getByRole('heading', { name: "C'est fait" }).waitFor({ timeout: 30000 });
+  await page.getByRole('heading', { name: "C'est fait" }).waitFor({ timeout: 30000 })
+    .catch(async (e) => {
+      console.log('--- registration screen said ---');
+      console.log((await page.textContent('body')).replace(/\s+/g, ' ').slice(0, 400));
+      throw e;
+    });
   check(`${role} registration completes`, true);
 
   await page.getByRole('button', { name: 'Commencer' }).click();
@@ -555,15 +564,19 @@ try {
 
   const accueilVendeur = await pv.textContent('body');
   check('vendor home names what they are holding',
-    /Monnaie gard[ée]e/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
+    /vous gardez/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   // And what they are OWED, as a separate figure. Never one net number: money
   // in the till and money that may never arrive are not the same thing.
+  //
+  // In the VENDOR'S words. This pair used to read "Monnaie gardée / Dette à
+  // payer" on both sides of the app, so the vendor's own screen announced a
+  // debt they had to pay over money owed to them.
   check('vendor home names what they are owed separately',
-    /Dette [àa] payer/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
+    /on vous doit/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   check('vendor home shows the figure without tapping anywhere (1 100 F)',
     vuAccueil, accueilVendeur.slice(0, 250));
-  check('vendor home shows how many customers are concerned',
-    /\d+\s*clients?/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
+  check('vendor home shows how many people are concerned',
+    /\d+\s*personnes?/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   check("vendor home shows today's activity", /Aujourd'hui/i.test(accueilVendeur));
   check("today's activity shows both directions",
     /Gard[ée]e ·/i.test(accueilVendeur) && /Utilis[ée]e ·/i.test(accueilVendeur),
@@ -584,7 +597,7 @@ try {
   check('shows no misleading 0 F once loaded', !/Monnaie en circulation.?0.?F/i.test(livre));
   // 1 500 credited, 400 spent, so the vendor still holds 1 100 for one customer.
   check('circulation figure is 1 100 F', montantPresent(livre, '1 100'), livre.slice(0, 250));
-  check('one customer is listed', livre.includes('1 client concerné'), livre.slice(0, 250));
+  check('one person is listed', livre.includes('1 personne concernée'), livre.slice(0, 250));
   check('the client list shows the NAME, not just a number',
     livre.includes((PREFIXE_TEST + 'Nom')), livre.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/c1-mes-clients.png' });
@@ -646,8 +659,12 @@ try {
   check('customer sees the shop by name', maMonnaie.includes(PREFIXE_TEST + 'Boutique'));
   check('customer sees their figure at that shop (1 100 F)',
     montantPresent(maMonnaie, '1 100'), maMonnaie.slice(0, 300));
-  check('states the money stays with the vendor',
-    /reste chez le commer[çc]ant/i.test(maMonnaie));
+  // Rule 10: the money is somewhere else, and Sika Warri is not that place.
+  // Matched on the substance rather than one phrasing — the copy is deliberately
+  // neutral now about what kind of business is holding it.
+  check('states the money stays with whoever is holding it',
+    /Sika Warri enregistre seulement/i.test(maMonnaie)
+    && /reste (chez|l[àa] o[ùu])/i.test(maMonnaie), maMonnaie.slice(0, 400));
 
   // With ONE shop there must be no total at all — repeating the same number
   // under a "spread across" caption would imply a pool.
@@ -672,7 +689,7 @@ try {
   console.log('\n--- mon code (QR) ---');
   // Leave the shop detail first: it is laid over the list and the bar is
   // underneath it.
-  await pc.getByRole('button', { name: 'Voir toutes mes boutiques' }).click().catch(() => {});
+  await pc.getByRole('button', { name: 'Voir tous mes carnets' }).click().catch(() => {});
   await ongletVers(pc, 'Mon code');
   await pc.getByRole('heading', { name: 'Mon code' }).waitFor({ timeout: 20000 });
 
@@ -838,8 +855,11 @@ try {
   const compteVendeur = await pv.textContent('body');
   check('vendor account names the shop', compteVendeur.includes(VENDOR_NOM));
   check('vendor account states the cap', /Vous pouvez garder jusqu/i.test(compteVendeur));
+  // Per role now. The vendor's version says the money stayed with them; the
+  // customer's says where theirs is. Both must still say Sika Warri holds none.
   check('vendor account repeats that Sika Warri holds nothing',
-    /ne garde pas votre argent/i.test(compteVendeur.replace(/\s+/g, ' ')));
+    /ne garde pas d.argent/i.test(compteVendeur.replace(/\s+/g, ' ')),
+    compteVendeur.replace(/\s+/g, ' ').slice(0, 300));
   check('vendor account offers a way out',
     (await pv.getByRole('button', { name: 'Quitter' }).count()) > 0);
 
@@ -875,10 +895,16 @@ try {
   await ongletVers(pv, 'Accueil');
   // Wait for the aggregate, not for the mount: reading the body immediately
   // after a tab switch catches "Chargement…" every time.
-  await pv.getByText('Dette à payer').first().waitFor({ timeout: 25000 });
+  await pv.getByText(/on vous doit/i).first().waitFor({ timeout: 25000 });
   const accueilAvant = await pv.textContent('body');
+  // FROM THE VENDOR'S SIDE. This check used to wait for "Dette à payer" — the
+  // customer's words — on the vendor's own home screen, and passed. A harness
+  // that asserts the wrong perspective cannot notice the wrong perspective.
   check('the vendor home shows what they hold AND what they are owed',
-    /Monnaie gard[ée]e/i.test(accueilAvant) && /Dette [àa] payer/i.test(accueilAvant),
+    /vous gardez/i.test(accueilAvant) && /on vous doit/i.test(accueilAvant),
+    accueilAvant.slice(0, 400));
+  check('and never labels what they are owed as something they must pay',
+    !/dette [àa] payer/i.test(accueilAvant) && !/que vous devez/i.test(accueilAvant),
     accueilAvant.slice(0, 400));
 
   await pv.getByRole('button', { name: 'Noter une dette' }).click();
@@ -943,14 +969,20 @@ try {
   await pc.reload();
   await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 20000 });
   // Wait for the shop card, not the mount.
-  await pc.getByText('Dette à payer').first().waitFor({ timeout: 25000 });
+  await pc.getByText(/vous devez/i).first().waitFor({ timeout: 25000 });
   const deuxRegistres = await pc.textContent('body');
 
   // TWO REGISTERS, NEVER MERGED. The customer holds 1 100 F here and owes 800 F.
   // Both figures must appear and the difference must not.
+  //
+  // FROM THE CUSTOMER'S SIDE, and checked against the vendor's wording too: the
+  // pair of labels is per role now, and getting them the right way round is the
+  // whole point of tests/38.
   check('the shop card shows change AND debt separately',
-    /Monnaie gard[ée]e/i.test(deuxRegistres) && /Dette [àa] payer/i.test(deuxRegistres),
+    /Gard[ée] pour vous/i.test(deuxRegistres) && /Vous devez/i.test(deuxRegistres),
     deuxRegistres.slice(0, 500));
+  check('and never labels what they owe as money owed to them',
+    !/on vous doit/i.test(deuxRegistres), deuxRegistres.slice(0, 500));
   check('the netted figure 300 is NOT shown as a balance',
     !/\b300\s*F\b/.test(deuxRegistres.replace(/ /g, ' ')), deuxRegistres.slice(0, 500));
   check('nothing negative is displayed',
@@ -961,7 +993,7 @@ try {
     /[àa] v[ée]rifier/i.test(deuxRegistres), deuxRegistres.slice(0, 500));
 
   await pc.getByRole('button', { name: /v[ée]rifier/i }).first().click();
-  await pc.getByRole('heading', { name: /Ce que des commer/i }).waitFor({ timeout: 20000 });
+  await pc.getByRole('heading', { name: /Ce que d.autres ont enregistr/i }).waitFor({ timeout: 20000 });
   const aVerifier = await pc.textContent('body');
   check('the review screen names who is claiming what',
     aVerifier.includes(VENDOR_NOM), aVerifier.slice(0, 400));
@@ -1105,38 +1137,54 @@ try {
 
   await ongletVers(pv, 'Accueil').catch(() => {});
 
-  // ===== the card is a card, not a notebook ===============================
-  console.log('\n--- forme des cartes ---');
+  // ===== cards: a surface, not an outline ================================
+  console.log(`
+--- forme des cartes ---`);
+
+  // THE RULE CHANGED, so this check changed with it. Every card used to carry a
+  // 1px outline; five or six per screen meant outlining a thing was doing the
+  // work that space and fill should do. Now a plain card has NO border, and the
+  // hairline survives only where it is functional — the edge of a tappable
+  // target, the rule between the two registers, the row divider in a list.
+  //
+  // Measured on Compte, which still has plain cards. The home screen no longer
+  // has one, which is the point.
+  await ongletVers(pv, 'Compte').catch(() => {});
+  await pv.getByRole('heading', { name: 'Compte' }).waitFor({ timeout: 20000 });
 
   const styleCarte = await pv.evaluate(() => {
-    const c = document.querySelector('.carte');
+    const c = document.querySelector('.carte:not(.carte--cliquable)');
     if (!c) return null;
     const s = getComputedStyle(c);
     const avant = getComputedStyle(c, '::before');
     const apres = getComputedStyle(c, '::after');
     return {
-      // The LEFT edge. The top edge is 3px gold on a primary card, by design --
-      // measuring it tested the variant rather than the hairline rule, which is
-      // what "separation by hairline" is actually about.
       border: s.borderLeftWidth + ' ' + s.borderLeftStyle,
       borderTop: s.borderTopWidth,
       radius: s.borderTopLeftRadius,
       ombre: s.boxShadow,
+      fond: s.backgroundColor,
       image: s.backgroundImage,
+      padding: s.paddingTop,
       avant: avant.content,
       apres: apres.content,
     };
   });
 
-  check('a card exists to measure', styleCarte !== null);
+  check('a plain card exists to measure', styleCarte !== null);
   if (styleCarte) {
-    check('it has a hairline border, not a shadow',
-      /1px solid/.test(styleCarte.border) && styleCarte.ombre === 'none',
+    check('a plain card has NO outline and no shadow',
+      parseFloat(styleCarte.border) === 0 && styleCarte.ombre === 'none',
       JSON.stringify(styleCarte));
+    // Which means the fill has to carry it on its own.
+    check('it is separated by a fill instead',
+      styleCarte.fond !== 'rgba(0, 0, 0, 0)' && styleCarte.fond !== 'transparent',
+      styleCarte.fond);
+    check('with room inside it', parseInt(styleCarte.padding, 10) >= 20, styleCarte.padding);
     // The gold top edge is the primary variant and the whole visual hierarchy:
-    // 1px means an ordinary card, 3px means the figure that matters.
-    check('the accent edge is 3px when present, 1px otherwise',
-      ['1px', '3px'].includes(styleCarte.borderTop), styleCarte.borderTop);
+    // absent on an ordinary card, 3px on the figure that matters.
+    check('the accent edge is 3px when present, 0 otherwise',
+      ['0px', '3px'].includes(styleCarte.borderTop), styleCarte.borderTop);
     check('no ruled-paper texture', styleCarte.image === 'none', styleCarte.image);
     check('no margin-rule pseudo-element',
       styleCarte.avant === 'none' && styleCarte.apres === 'none',
@@ -1144,6 +1192,22 @@ try {
     check('and a real radius, so it reads as an object',
       parseInt(styleCarte.radius, 10) >= 8, styleCarte.radius);
   }
+
+  // The exception, and the reason it is an exception: on a tappable card the
+  // edge IS the target, so it keeps its hairline.
+  await ongletVers(pv, 'Mes clients').catch(() => {});
+  await pv.locator('.carte--cliquable, .ligne-client').first().waitFor({ timeout: 25000 })
+    .catch(() => {});
+  const bordCliquable = await pv.evaluate(() => {
+    const c = document.querySelector('.carte--cliquable');
+    return c ? getComputedStyle(c).borderLeftWidth : null;
+  });
+  if (bordCliquable !== null) {
+    check('a tappable card keeps its edge, because the edge is the target',
+      parseFloat(bordCliquable) >= 1, bordCliquable);
+  }
+
+  await ongletVers(pv, 'Accueil').catch(() => {});
 
   // At most one gold-topped card per screen: that variant IS the hierarchy, and
   // used twice it means nothing.

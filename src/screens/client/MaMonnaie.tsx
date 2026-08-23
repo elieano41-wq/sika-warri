@@ -125,13 +125,13 @@ export function MaMonnaie({
               <div className="carte__titre">{ouvert.shopName}</div>
               {ouvert.quartier ? <div className="carte__sous">{ouvert.quartier}</div> : null}
             </div>
-            <div className="carte__etiquette">Votre monnaie chez ce commerçant</div>
+            <div className="carte__etiquette">Votre monnaie sur ce carnet</div>
             <Montant value={ouvert.amountCfa} taille="geant" />
           </article>
 
           <p className="discret">
-            Vous pouvez utiliser cette monnaie dans cette boutique, ou demander
-            à ce commerçant de vous rembourser en espèces.
+            Vous pouvez utiliser cette monnaie ici, ou vous faire rembourser en
+            espèces.
           </p>
 
           <h2>Détail</h2>
@@ -148,10 +148,10 @@ export function MaMonnaie({
                     <div className="discret">
                       {dateEtHeure(e.created_at)} · reçu {e.receipt_code}
                       {e.confirmation_method === 'vendor_device'
-                        ? ' · code saisi chez le commerçant'
+                        ? ' · code saisi sur un autre téléphone'
                         : ''}
                       {e.confirmation_method === 'vendor_correction'
-                        ? ' · correction du commerçant'
+                        ? ' · correction'
                         : ''}
                     </div>
                   </div>
@@ -174,7 +174,7 @@ export function MaMonnaie({
         </div>
         <div className="ecran__pied pile">
           <BoutonSecondaire onClick={() => setOuvert(null)}>
-            Voir toutes mes boutiques
+            Voir tous mes carnets
           </BoutonSecondaire>
         </div>
       </div>
@@ -189,7 +189,7 @@ export function MaMonnaie({
 
   return (
     <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Votre monnaie chez les commerçants" />
+      <Entete sousTitre="Votre monnaie, carnet par carnet" />
 
       <div className="ecran__corps">
         <h1>Ma monnaie</h1>
@@ -201,7 +201,7 @@ export function MaMonnaie({
         {aVerifier > 0 ? (
           <button
             type="button"
-            className="banniere banniere--maj"
+            className="banniere banniere--verif"
             onClick={onVerifier}
             style={{ width: '100%', border: 'none', cursor: 'pointer' }}
           >
@@ -217,8 +217,8 @@ export function MaMonnaie({
           <p className="discret">Chargement…</p>
         ) : positions.length === 0 ? (
           <Vide titre="Pas encore de monnaie" icone={IconeCarnetVide}>
-            Quand un commerçant garde votre monnaie au lieu de vous la rendre,
-            la boutique apparaît ici avec le montant qu’elle vous doit.
+            Quand quelqu’un garde votre monnaie au lieu de vous la rendre, son
+            carnet apparaît ici avec le montant qu’il vous doit.
           </Vide>
         ) : (
           <>
@@ -264,7 +264,7 @@ export function MaMonnaie({
                 )}
 
                 {p.debt_cfa > 0 && p.debt_oldest_days > 0 ? (
-                  <div style={{ marginTop: 'var(--espace-2)' }}>
+                  <div>
                     <PuceAge jours={p.debt_oldest_days} />
                   </div>
                 ) : null}
@@ -295,11 +295,11 @@ export function MaMonnaie({
                 className="message message--info"
                 style={{ borderLeftColor: 'var(--sauge)' }}
               >
-                <div className="discret" style={{ marginBottom: 'var(--espace-1)' }}>
+                <div className="discret">
                   Total enregistré, à titre d'information
                 </div>
                 <Montant value={total.amountCfa} taille="ligne" />
-                <div className="discret" style={{ marginTop: 'var(--espace-2)' }}>
+                <div className="discret">
                   {total.caption}
                 </div>
               </div>
@@ -310,8 +310,8 @@ export function MaMonnaie({
 
       <div className="ecran__pied pile">
         <p className="discret centre">
-          Sika Warri enregistre seulement. Chaque montant reste chez le
-          commerçant concerné.
+          Sika Warri enregistre seulement. Chaque montant reste là où il a été
+          gardé.
         </p>
       </div>
     </div>

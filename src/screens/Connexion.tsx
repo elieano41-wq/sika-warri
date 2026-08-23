@@ -75,7 +75,7 @@ export function Connexion({
 
   return (
     <div className="ecran">
-      <Entete sousTitre="Votre monnaie, gardée chez le commerçant" />
+      <Entete sousTitre="Votre monnaie, là où elle est gardée" />
 
       <div className="ecran__corps">
         {etape === 'numero' ? (
@@ -95,7 +95,7 @@ export function Connexion({
                 aria-pressed={role === 'vendor'}
                 style={{ fontSize: 'var(--texte-base)', minHeight: 'var(--cible-min)' }}
               >
-                Commerçant
+                Je tiens le carnet
               </button>
               <button
                 type="button"
@@ -104,7 +104,7 @@ export function Connexion({
                 aria-pressed={role === 'customer'}
                 style={{ fontSize: 'var(--texte-base)', minHeight: 'var(--cible-min)' }}
               >
-                Client
+                Je suis sur le carnet
               </button>
             </div>
 
@@ -126,7 +126,7 @@ export function Connexion({
           <>
             <h1>Votre code</h1>
             <p className="discret">
-              {role === 'vendor' ? 'Commerçant' : 'Client'} · {formatPhoneLocal(numero)}
+              {role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} · {formatPhoneLocal(numero)}
             </p>
 
             <Cadran etiquette={`Code à ${longueurPin} chiffres`}>

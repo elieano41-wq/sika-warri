@@ -26,7 +26,12 @@
   --vert-foret-haut: #1A6349;  /* pressed state on a card */
   --vert-nuit-creux: #071F17;  /* inset wells, numeric display */
   --or-sika-ombre:   #8E7119;  /* pressed state on the primary action */
-  --trait:           #2A6650;  /* hairline that survives glare */
+  --trait:           #2A6650;  /* hairline on the page ground */
+  /* The same hairline drawn ON a card. --trait is tuned against --vert-nuit;
+     on --vert-foret it is four shades away from its own background and simply
+     disappears — which is how the rule between the two registers went missing
+     inside a card while looking fine on the home screen. */
+  --trait-carte:     #3E7C61;
 
   /* ---- Type ----------------------------------------------------------- */
   --police-titre:  'Bricolage Grotesque', system-ui, sans-serif;
@@ -47,6 +52,10 @@
      clamp() keeps it inside a 320px viewport without wrapping. */
   --chiffre-geant: clamp(2.75rem, 14vw, 4.5rem);
   --chiffre-grand: clamp(2rem, 9vw, 3rem);
+  /* Two amounts side by side, at 320px. Smaller than --chiffre-grand because
+     it has half the width to live in, and BOTH registers take it: sizing one
+     above the other starts the pair reading as a figure and its footnote. */
+  --chiffre-paire: clamp(1.625rem, 7.5vw, 2.25rem);
 
   /* ---- Touch ---------------------------------------------------------- */
   /* Spec floor is 48px. 56px is the working minimum here, and the primary
@@ -57,6 +66,10 @@
   --cible-clavier: 68px;   /* numeric keypad key */
 
   /* ---- Spacing -------------------------------------------------------- */
+  /* Below the 4px floor, for the inside of a badge — where 4px is already too
+     much. On the scale rather than typed as a literal, so a sweep for ad-hoc
+     values finds nothing left to find. */
+  --espace-0: 2px;
   --espace-1: 0.25rem;
   --espace-2: 0.5rem;
   --espace-3: 0.75rem;

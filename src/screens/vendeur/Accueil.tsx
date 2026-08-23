@@ -4,7 +4,7 @@ import type { Session, VendorProfile, VendorSummary } from '../../lib/api';
 import { DeuxRegistres } from '../../components/Dette';
 import { formatCfa } from '../../lib/format';
 import {
-  Entete, Message, Montant, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
+  Entete, Message, Montant, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
 
 /**
@@ -113,8 +113,8 @@ export function AccueilVendeur({
             add money in the till to money that may never arrive — and it would
             hide the one thing that matters, which is how much of what they are
             owed has gone stale. */}
-        <article
-          className="carte carte--principale"
+        <section
+          className="bloc-chiffres"
           hidden={
             resume !== null && dettes !== null
             && resume.circulation_cfa === 0 && dettes.debt_cfa === 0
@@ -138,13 +138,13 @@ export function AccueilVendeur({
                 taille="grand"
                 noteMonnaie={
                   resume.customers_owed === 0
-                    ? 'Aucun client'
-                    : `${resume.customers_owed} client${resume.customers_owed === 1 ? '' : 's'}`
+                    ? 'Personne'
+                    : `${resume.customers_owed} personne${resume.customers_owed === 1 ? '' : 's'}`
                 }
                 noteDette={
                   dettes.debtors === 0
                     ? 'Personne'
-                    : `${dettes.debtors} client${dettes.debtors === 1 ? '' : 's'}`
+                    : `${dettes.debtors} personne${dettes.debtors === 1 ? '' : 's'}`
                 }
               />
 
@@ -167,56 +167,60 @@ export function AccueilVendeur({
               ) : null}
             </>
           )}
-        </article>
+        </section>
 
-        {/* Today, so a vendor can reconcile against their till at closing. */}
+        {/* THE THREE ACTIONS, AT EQUAL WEIGHT.
+            "Garder la monnaie" used to carry the gold fill and the other two
+            did not, which said the rest were secondary. They are not: noting a
+            debt is as ordinary a counter act as keeping change, and a vendor
+            who has to hunt for it reaches for the paper carnet instead.
+            Gold now belongs to the amounts alone. Historique sits below as a
+            quiet fourth, because it is somewhere to go, not something to do. */}
+        <div className="actions-accueil">
+          <BoutonSecondaire onClick={onGarder}>Garder la monnaie</BoutonSecondaire>
+          <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
+          <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
+          <BoutonDiscret onClick={onHistorique}>Historique</BoutonDiscret>
+        </div>
+
+        {/* Today, BELOW the actions.
+            It is reference read at closing, not the reason the app was opened,
+            and above the buttons it pushed the third action off a 360x740
+            screen. An action you have to scroll to is not equal in weight to
+            one you do not, whatever it is painted like.
+            Under a hairline rather than inside a panel: a different subject,
+            not a different object. */}
         {resume !== null ? (
-          <div className="cadran" style={{ alignItems: 'stretch' }}>
-            <div className="cadran__etiquette">Aujourd'hui</div>
+          <section className="bloc-jour">
+            <div className="carte__etiquette">Aujourd'hui</div>
             {activiteDuJour ? (
-              <div className="pile" style={{ gap: 'var(--espace-2)' }}>
+              <>
                 <div className="ligne-resume">
-                  <span>
-                    Gardée · {resume.today_credit_count} fois
-                  </span>
+                  <span>Gardée · {resume.today_credit_count} fois</span>
                   <Montant value={resume.today_credit_cfa} taille="ligne" />
                 </div>
                 <div className="ligne-resume">
-                  <span>
-                    Utilisée · {resume.today_debit_count} fois
-                  </span>
+                  <span>Utilisée · {resume.today_debit_count} fois</span>
                   <Montant value={resume.today_debit_cfa} taille="ligne" />
                 </div>
 
-                {/* The correction, offered against the figures a vendor is
-                    actually looking at when they notice the mistake. Discreet
-                    rather than prominent: it should be findable at a glance and
-                    should not read as something a vendor is expected to need. */}
+                {/* Against the figures a vendor is looking at when they notice
+                    the mistake. One line: at two it read as a warning. */}
                 <BoutonDiscret onClick={onCorriger}>
-                  Une erreur ? Corriger une écriture
+                  Corriger une écriture
                 </BoutonDiscret>
-              </div>
+              </>
             ) : (
               <p className="discret">Aucun mouvement aujourd'hui.</p>
             )}
-          </div>
+          </section>
         ) : null}
-
-        <div className="pile" style={{ gap: 'var(--espace-4)' }}>
-          <BoutonPrimaire onClick={onGarder}>Garder la monnaie</BoutonPrimaire>
-          <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
-          {/* Same weight as the other two: writing down a debt is an everyday
-              act at a counter, and a vendor who has to hunt for it will reach
-              for the paper carnet instead. */}
-          <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
-          <BoutonSecondaire onClick={onHistorique}>Historique</BoutonSecondaire>
-        </div>
       </div>
 
       <div className="ecran__pied pile">
         <p className="discret centre">
           Sika Warri enregistre seulement. La monnaie reste chez vous et
-          constitue une dette envers votre client.
+          constitue une dette envers la personne concernée.
         </p>
       </div>
     </div>

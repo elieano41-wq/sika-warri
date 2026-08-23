@@ -43,11 +43,14 @@ h2 { font-size: var(--titre-s); }
      Androids in this market genuinely are this narrow. */
   max-width: 34rem;
   margin-inline: auto;
-  padding: var(--espace-4);
-  gap: var(--espace-4);
+  padding: var(--espace-5) var(--espace-4) var(--espace-4);
+  gap: var(--espace-5);
 }
 
-.ecran__corps { flex: 1; display: flex; flex-direction: column; gap: var(--espace-4); }
+/* --espace-6, not --espace-4. Separation between blocks is now carried by
+   space rather than by a border around each one, and space only separates when
+   there is enough of it — at --espace-4 two borderless blocks read as one. */
+.ecran__corps { flex: 1; display: flex; flex-direction: column; gap: var(--espace-6); }
 .ecran__pied  { padding-bottom: env(safe-area-inset-bottom, 0); }
 
 .entete {
@@ -120,14 +123,22 @@ h2 { font-size: var(--titre-s); }
        and none of them says anything.
    -------------------------------------------------------------------------- */
 
+/*
+   NO BORDER. A 1px line around every card meant five or six competing outlines
+   per screen, and outlining a thing is the weakest way to say it is a thing.
+   The fill and the space around it say it better.
+
+   Borders survive where they are doing work a fill cannot: between two adjacent
+   rows, down the middle of the two registers, around a control whose edge is
+   its target. Not around a block that already has air on all four sides.
+*/
 .carte {
   background: var(--vert-foret);
-  border: 1px solid var(--trait);
   border-radius: var(--rayon);
   padding: var(--espace-5);
   display: flex;
   flex-direction: column;
-  gap: var(--espace-2);
+  gap: var(--espace-3);
 }
 
 /*
@@ -142,17 +153,19 @@ h2 { font-size: var(--titre-s); }
 */
 .carte--principale {
   border-top: 3px solid var(--or-sika);
-  /* Compensate so the content does not shift by 2px against a plain card. */
-  padding-top: calc(var(--espace-5) - 2px);
+  /* Compensate so the content does not shift by 3px against a plain card. */
+  padding-top: calc(var(--espace-5) - 3px);
 }
 
 /* A tappable card. Reset the button chrome the browser adds, keep the card. */
+/* A tappable card keeps an edge, because here the edge is the target. */
 .carte--cliquable {
   font: inherit;
   color: inherit;
   text-align: left;
   width: 100%;
   cursor: pointer;
+  border: 1px solid var(--trait);
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 
@@ -184,6 +197,53 @@ h2 { font-size: var(--titre-s); }
   font-size: var(--texte-petit);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+/* A heading inside a Message. Was written inline, three times, identically. */
+.message__titre { display: block; margin-bottom: var(--espace-2); }
+
+/* --------------------------------------------------------------------------
+   The home screen
+
+   No card around the figures and no panel around today's activity. The two
+   subjects are separated by space and, where space alone would be ambiguous,
+   by a single hairline above the second one.
+   -------------------------------------------------------------------------- */
+
+.bloc-chiffres {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-4);
+}
+
+.bloc-jour {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-3);
+  border-top: 1px solid var(--trait);
+  padding-top: var(--espace-5);
+}
+
+/*
+   Three actions of equal weight, and a fourth that is not an action.
+
+   Gold is spent on the amounts, so no button on this screen carries a fill.
+   The three are identical down to the pixel — the layout must not be able to
+   suggest a ranking that the product does not have.
+*/
+.actions-accueil {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-3);
+  margin-top: var(--espace-2);
+}
+
+/* 64px, between the 56px floor and the 72px a lone primary used to get. Three
+   buttons at 72 pushed the third below the fold on a 360x740 phone, and an
+   action you have to scroll to is not equal to one you do not. */
+.actions-accueil .bouton--secondaire {
+  min-height: 64px;
+  font-size: 1.375rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -318,9 +378,15 @@ h2 { font-size: var(--titre-s); }
    Numeric display well
    -------------------------------------------------------------------------- */
 
+/*
+   An inset well: the amount being typed, or the figure a screen is about.
+
+   No outline either. It is already the darkest surface on the page, which is a
+   stronger boundary than a line — an inset reads as recessed, and a recess does
+   not need to be drawn round.
+*/
 .cadran {
   background: var(--vert-nuit-creux);
-  border: 1px solid var(--trait);
   border-radius: var(--rayon);
   padding: var(--espace-5) var(--espace-4);
   text-align: center;
@@ -513,9 +579,34 @@ h2 { font-size: var(--titre-s); }
   font-weight: 500;
 }
 
+/*
+   The update banner keeps the gold fill: it appears for a few seconds, once,
+   and it is the only thing on screen asking to be pressed.
+*/
 .banniere--maj {
   background: var(--or-sika);
   color: var(--vert-nuit-creux);
+}
+
+/*
+   The "something needs checking" banner does NOT.
+
+   It sat above the customer's own balance as a full-bleed gold block with a
+   black button in it, and it out-shouted the figure the screen exists to show.
+   A gold edge and gold text carry the same urgency at a fraction of the volume,
+   and they leave the accent meaning what it means everywhere else.
+*/
+.banniere--verif {
+  background: var(--vert-foret);
+  color: var(--craie);
+  border-left: 3px solid var(--or-sika);
+  border-radius: var(--rayon);
+}
+
+.banniere--verif .banniere__action {
+  background: transparent;
+  color: var(--or-sika);
+  border: 1px solid var(--or-sika);
 }
 
 .banniere--info {
@@ -577,7 +668,7 @@ h2 { font-size: var(--titre-s); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--espace-0);
   padding: var(--espace-2) var(--espace-1);
   border: none;
   border-radius: var(--rayon-petit);
@@ -718,7 +809,7 @@ h2 { font-size: var(--titre-s); }
   display: inline-flex;
   align-items: center;
   gap: var(--espace-2);
-  padding: 2px var(--espace-2);
+  padding: var(--espace-0) var(--espace-2);
   border-radius: var(--rayon-petit);
   font-size: var(--texte-petit);
   font-weight: 600;
@@ -779,36 +870,78 @@ h2 { font-size: var(--titre-s); }
    arithmetic joining the two.
    -------------------------------------------------------------------------- */
 
+/*
+   No box. The border that used to enclose the pair was separating them from the
+   screen, which is the space's job; the only line left is the one that carries
+   the meaning, and it is now the single most informative pixel column on the
+   screen rather than one of five borders competing for attention.
+*/
 .registres {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon);
-  overflow: hidden;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: var(--espace-4);
+  align-items: start;
 }
 
 .registre {
-  padding: var(--espace-4) var(--espace-3);
   display: flex;
   flex-direction: column;
-  gap: var(--espace-1);
+  gap: var(--espace-2);
   min-width: 0;
 }
 
 /* The rule between them. The point of the whole component. */
-.registre + .registre { border-left: 1px solid var(--trait); }
+/* Full height of the taller column, so it reads as a division rather than as a
+   stray mark beside the first label. */
+.registre__separateur { background: var(--trait); align-self: stretch; }
 
+/* Drawn on a card, the rule needs the lighter hairline or it vanishes. */
+.carte .registre__separateur { background: var(--trait-carte); }
+
+/*
+   Two lines reserved, always.
+
+   "Gardé pour vous" wraps at 320px and "Vous devez" does not, so one amount sat
+   a line lower than the other and the pair stopped reading as a pair. Reserving
+   the space costs one empty line on wide screens and buys a shared baseline on
+   every screen.
+*/
 .registre__etiquette {
   font-size: var(--texte-petit);
   color: var(--sauge);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.25;
+  min-height: calc(2 * 1.25em);
 }
 
-.registre--dette .registre__etiquette { color: var(--alerte); }
+/*
+   NOT red. This label was --alerte, so every vendor with a debt book saw a
+   permanent red heading over a perfectly ordinary figure, and the colour that
+   is supposed to mean "look at this" meant "this screen has two columns".
+   Red is kept for what is actually wrong: money ageing past thirty days, a
+   disputed claim. The register itself is just a register.
+*/
+
+/*
+   Gold marks the money in hand; the debt is set in chalk.
+
+   Same size — the pair must stay visually equal, or it starts reading as one
+   figure and a footnote — but not the same colour, because one of them is
+   money the vendor is holding and the other is money that may never arrive.
+*/
+.registres .registre--dette .montant { color: var(--craie); }
 
 .registre__note { font-size: var(--texte-petit); color: var(--sauge); }
+
+/*
+   Two figures in two columns, at 320px.
+
+   --chiffre-grand is sized for one amount across the full width; side by side
+   it wraps, and a wrapped amount is a misread amount. This is the pair's own
+   size, and both registers get it — never one larger than the other.
+*/
+.registres .montant { font-size: var(--chiffre-paire); }
 
 /* --------------------------------------------------------------------------
    Ageing
@@ -837,7 +970,7 @@ h2 { font-size: var(--titre-s); }
 
 .puce-age {
   display: inline-block;
-  padding: 1px var(--espace-2);
+  padding: var(--espace-0) var(--espace-2);
   border-radius: var(--rayon-petit);
   font-size: var(--texte-petit);
   border: 1px solid var(--trait);

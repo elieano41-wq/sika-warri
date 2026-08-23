@@ -242,7 +242,7 @@ export function MesClients({
             <>
               <Montant value={enCirculation} taille="grand" />
               <div className="discret">
-                {avecSolde} client{avecSolde === 1 ? '' : 's'} concerné
+                {avecSolde} personne{avecSolde === 1 ? '' : 's'} concernée
                 {avecSolde === 1 ? '' : 's'}
               </div>
             </>

@@ -107,19 +107,19 @@ export function Inscription({
         <Entete sousTitre="Créer un compte" />
         <div className="ecran__corps">
           <h1>Vous êtes ?</h1>
-          <div className="pile" style={{ gap: 'var(--espace-4)', marginTop: 'var(--espace-3)' }}>
+          <div className="pile" style={{ gap: 'var(--espace-4)' }}>
             <BoutonPrimaire onClick={() => commencer('vendor')}>
-              Commerçant
+              Je tiens le carnet
             </BoutonPrimaire>
             <p className="discret centre">
-              Vous tenez une boutique et vous gardez la monnaie de vos clients.
+              Vous gardez la monnaie des autres et vous notez ce qu'on vous doit.
             </p>
             <BoutonSecondaire onClick={() => commencer('customer')}>
-              Client
+              Je suis sur le carnet
             </BoutonSecondaire>
             <p className="discret centre">
-              Vous laissez votre monnaie chez des commerçants et vous confirmez
-              sur votre téléphone quand vous l'utilisez.
+              Quelqu'un garde votre monnaie, ou note ce que vous devez. Vous
+              confirmez depuis votre téléphone.
             </p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export function Inscription({
   if (etape === 'numero') {
     return (
       <div className="ecran">
-        <Entete sousTitre={role === 'vendor' ? 'Commerçant' : 'Client'} />
+        <Entete sousTitre={role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} />
         <div className="ecran__corps">
           <h1>Votre numéro</h1>
           <p className="discret">
@@ -168,17 +168,17 @@ export function Inscription({
     const suivant = role === 'vendor' ? 'boutique' : 'code';
     return (
       <div className="ecran">
-        <Entete sousTitre={role === 'vendor' ? 'Commerçant' : 'Client'} />
+        <Entete sousTitre={role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} />
         <div className="ecran__corps">
-          <h1>{role === 'vendor' ? 'Nom de la boutique' : 'Votre prénom'}</h1>
+          <h1>{role === 'vendor' ? 'Nom de votre carnet' : 'Votre prénom'}</h1>
           <p className="discret">
             {role === 'vendor'
               ? "C'est le nom que vos clients verront sur leur téléphone."
-              : 'Juste votre prénom, pour que le commerçant vous reconnaisse.'}
+              : 'Juste votre prénom, pour qu’on vous reconnaisse.'}
           </p>
           <label className="champ">
             <span className="champ__etiquette">
-              {role === 'vendor' ? 'Exemple : Chez Awa' : 'Exemple : Awa'}
+              {role === 'vendor' ? 'Exemple : Chez Awa, Atelier Koffi, Garage Sud' : 'Exemple : Awa'}
             </span>
             <input
               className="champ__saisie"
@@ -209,7 +209,7 @@ export function Inscription({
         <Entete sousTitre={nom} />
         <div className="ecran__corps">
           <h1>Votre quartier</h1>
-          <p className="discret">Où se trouve la boutique.</p>
+          <p className="discret">Où l’on vous trouve.</p>
           <label className="champ">
             <span className="champ__etiquette">Exemple : Yopougon</span>
             <input

@@ -237,7 +237,7 @@ export function MesDettes({
               <div className="carte__sous">
                 {resume.debtors === 0
                   ? 'Personne ne vous doit rien'
-                  : `${resume.debtors} client${resume.debtors === 1 ? '' : 's'}`}
+                  : `${resume.debtors} personne${resume.debtors === 1 ? '' : 's'}`}
               </div>
               {resume.over_30_cfa > 0 ? (
                 <div className="discret" style={{ color: 'var(--alerte)' }}>
@@ -246,7 +246,7 @@ export function MesDettes({
               ) : null}
               {resume.declared_cfa > 0 ? (
                 <div className="discret">
-                  {formatCfa(resume.declared_cfa)} non confirmés par les clients
+                  {formatCfa(resume.declared_cfa)} non confirmés
                 </div>
               ) : null}
               {resume.open_claims > 0 ? (
@@ -304,7 +304,7 @@ export function MesDettes({
                       {formatPhoneLocal(d.phone)}
                       {d.is_registered ? '' : ' · sans compte'}
                     </div>
-                    <div style={{ marginTop: 'var(--espace-1)' }}>
+                    <div>
                       <PuceAge jours={d.oldest_days} />
                     </div>
                     {d.disputed_cfa > 0 ? (

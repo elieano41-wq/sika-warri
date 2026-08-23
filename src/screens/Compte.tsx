@@ -80,8 +80,8 @@ export function Compte({
               {formatPhoneLocal(session.msisdn)}
             </div>
             <p className="discret">
-              C’est votre numéro qui vous identifie. Votre monnaie reste chez chaque
-              commerçant.
+              C’est votre numéro qui vous identifie. Votre monnaie reste sur chaque
+              carnet, là où elle a été gardée.
             </p>
           </section>
         ) : null}

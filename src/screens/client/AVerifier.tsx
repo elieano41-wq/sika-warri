@@ -105,9 +105,9 @@ export function AVerifier({
           </>
         ) : (
           <>
-            <h1>Ce que des commerçants ont enregistré</h1>
+            <h1>Ce que d’autres ont enregistré</h1>
             <Message ton="info">
-              Ces commerçants déclarent ceci à votre sujet. Rien n’est confirmé
+              Ces personnes déclarent ceci à votre sujet. Rien n’est confirmé
               tant que vous ne l’avez pas dit vous-même. Prenez votre temps —
               vous pouvez répondre plus tard.
             </Message>
@@ -128,7 +128,7 @@ export function AVerifier({
                     {motif?.id === l.entry_id ? (
                       <div className="pile">
                         <p className="discret">
-                          Pourquoi contestez-vous ? Le commerçant le verra.
+                          Pourquoi contestez-vous ? Ce sera visible sur le carnet.
                         </p>
                         <input
                           className="champ__saisie"
@@ -178,7 +178,7 @@ export function AVerifier({
               <>
                 <h2>Ils déclarent garder votre monnaie</h2>
                 <p className="discret">
-                  Ceci est en votre faveur : ce sont des commerçants qui disent
+                  Ceci est en votre faveur : ce sont d’autres qui disent
                   vous devoir de la monnaie.
                 </p>
                 {monnaies.map((l) => (
@@ -210,7 +210,7 @@ export function AVerifier({
 
       <div className="ecran__pied pile">
         <p className="discret centre">
-          Contester ne supprime rien. Le commerçant est prévenu et le désaccord
+          Contester ne supprime rien. L’autre partie est prévenue et le désaccord
           est enregistré.
         </p>
         <BoutonPrimaire onClick={onTermine}>

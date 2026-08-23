@@ -53,11 +53,18 @@ export function EtatReglementBadge({
 /**
  * The two registers, side by side.
  *
- * THE LAYOUT IS THE ARGUMENT. Two boxes, two labels, two figures, a rule between
- * them. There is no third box and no arithmetic joining them, because 500 F held
- * and 2 000 F owed are two true facts and −1 500 F is a false one — it would
- * recreate the negative balance rule 2 forbids and describe a single position
- * where none exists.
+ * THE LAYOUT IS THE ARGUMENT. Two labels, two figures at the SAME SIZE, one
+ * hairline between them. There is no third figure and no arithmetic joining
+ * them, because 500 F held and 2 000 F owed are two true facts and −1 500 F is
+ * a false one — it would recreate the negative balance rule 2 forbids and
+ * describe a single position where none exists.
+ *
+ * Equal size is part of that argument. The moment one figure is set larger than
+ * the other, the smaller one starts reading as a footnote to it, which is the
+ * first step towards reading the pair as a single position.
+ *
+ * The box around the pair is gone. It was doing the separating; the space
+ * around it does that now, and only the rule that carries the meaning is left.
  *
  * This component takes two numbers and cannot be given a combined one: there is
  * no prop for it.
@@ -79,10 +86,17 @@ export type Vue = 'vendeur' | 'client';
  */
 const ETIQUETTES: Record<Vue, { monnaie: string; dette: string }> = {
   // The vendor holds the change (a liability) and is owed the debt (an asset).
-  vendeur: { monnaie: 'Monnaie que vous gardez', dette: 'Ce qu’on vous doit' },
+  vendeur: { monnaie: 'Vous gardez', dette: 'On vous doit' },
   // The customer's change is held for them; the debt is theirs to pay.
-  client: { monnaie: 'Votre monnaie gardée', dette: 'Ce que vous devez' },
+  client: { monnaie: 'Gardé pour vous', dette: 'Vous devez' },
 };
+
+/*
+   Short on purpose. These sit above two figures in two columns at 320px, and
+   the longer forms ("Monnaie que vous gardez") wrapped to two lines each,
+   pushing the amounts down and turning a label into a paragraph. Three words is
+   enough to say which way the money points, which is all a label has to do.
+*/
 
 export function DeuxRegistres({
   vue,
@@ -107,6 +121,7 @@ export function DeuxRegistres({
         <Montant value={monnaieCfa} taille={taille} />
         {noteMonnaie ? <span className="registre__note">{noteMonnaie}</span> : null}
       </div>
+      <div className="registre__separateur" />
       <div className="registre registre--dette">
         <span className="registre__etiquette">{e.dette}</span>
         <Montant value={detteCfa} taille={taille} />

@@ -177,7 +177,11 @@ Raise with distinct, named error codes so the client can show a specific message
 
 Never use: *portefeuille*, *solde Sika Warri*, *dépôt*, *recharger*, *votre argent chez nous*.
 
-Use instead: *votre monnaie chez [boutique]*, *monnaie gardée*, *utiliser ma monnaie*, *se faire rembourser*.
+Use instead: *votre monnaie sur ce carnet*, *monnaie gardée*, *utiliser ma monnaie*, *se faire rembourser*.
+
+**Do not assume a shop.** The product is for anyone who keeps a book of what is owed — a trader, a tailor, a mechanic, someone lending to a friend. *Commerçant* and *boutique* name one of those and quietly exclude the rest, so neither appears in the interface. The word for the thing is **carnet**; the two roles are **« Je tiens le carnet »** and **« Je suis sur le carnet »**; counts of people are *personnes*, not *clients*. Where a sentence works without naming the other party at all, it does not name them — that is the first move, before reaching for a replacement word.
+
+The one exception is the verbatim disclosure below, which keeps *commerçant* because it is a legal statement about a commercial debt and must not be paraphrased.
 
 The following must appear in the terms of use and in the vendor onboarding flow, verbatim:
 
@@ -214,13 +218,17 @@ This started as a skeuomorph of the paper *cahier* a vendor already keeps — a 
 
 What holds the design together instead is restraint, and it is enforceable rather than a matter of taste:
 
-- **One accent, reserved.** Gold marks amounts, the primary action, and the single most important card on a screen (`.carte--principale`, a 3px gold top edge). **At most one per screen** — used twice it means nothing. That variant *is* the visual hierarchy: a vendor glancing at their phone should find the figure that matters without reading.
-- **Separation by hairline, never by shadow.** A 1px `--trait` border, the same device the tab bar uses. A shadow is invisible in direct sunlight and costs a paint on a cheap Android.
+- **One accent, reserved.** Gold marks amounts and the single most important card on a screen (`.carte--principale`, a 3px gold top edge). **At most one per screen** — used twice it means nothing.
+- **Separation by space, not by lines.** Blocks are separated by `--espace-6` of air and nothing else. A hairline survives only where it is doing work a fill cannot: the edge of a tappable target, the rule between the two registers, the divider between rows in a list. A plain card has no border at all — outlining a thing is the weakest way to say it is a thing, and six outlines per screen said nothing six times. Two hairline tokens exist because one is not enough: `--trait` is tuned against the page ground, `--trait-carte` against a card, and the wrong one is invisible.
+- **Never a shadow.** Invisible in direct sunlight, and it costs a paint on a cheap Android.
 - **No gradients, no glass, no blur.** All three cost GPU, none says anything.
-- **Generous padding and a real radius**, so a card reads as a deliberate object rather than a div with a background colour.
-- **Labels above figures** are uppercase and letterspaced — the one typographic device running through the whole app, so a label reads as a label everywhere without needing a colour of its own.
+- **Amounts are the hero.** The figure gets the largest type on its screen with room around it, and the label above it is small, uppercase and letterspaced — the one typographic device running through the whole app, so a label reads as a label everywhere without needing a colour of its own.
+- **One spacing scale, no exceptions.** `--espace-0` through `--espace-7`. No literal pixel or rem value appears in a margin, a padding or a gap anywhere in the app, and a sweep for one finds nothing.
+- **Equal things look equal.** Actions of the same standing get identical treatment down to the pixel: on the vendor's home screen *Garder la monnaie*, *Utiliser la monnaie* and *Noter une dette* are the same button, because noting a debt is as ordinary a counter act as keeping change. None of them carries a fill — gold is spent on the amounts. An action below the fold is not equal to one above it either, which is why the day's activity sits *under* the three buttons rather than above them.
 
-The test suite asserts the absence of the paper treatment as well as the presence of the replacement, so neither drifts back.
+**The two registers.** Money held and money owed sit side by side at the *same size*, separated by one hairline and nothing else — no box around the pair. Equal size is part of the argument: set one larger and the other starts reading as its footnote, which is the first step towards reading the pair as a single position. Gold for the money in hand, chalk for the debt. Neither label is red; red is reserved for what is actually wrong — money past thirty days, a disputed claim.
+
+The test suite asserts the absence of the paper treatment as well as the presence of the replacement, so neither drifts back. It also asserts that a plain card has no border while a tappable one does, that the accent edge is 3px or absent, and that at most one card per screen carries it.
 
 Non-negotiable UI quality floor: minimum 48px touch targets, minimum 16px body text, amounts always formatted with a space as the thousands separator and the `F` suffix (`2 500 F`), visible keyboard focus, full function down to a 320px viewport.
 

@@ -148,8 +148,8 @@ export function EspaceClient({
       {client.pinChangeRequired ? (
         <div className="ecran" style={{ minHeight: 'auto', paddingBottom: 0 }}>
           <Message ton="erreur">
-            Votre code a été saisi sur le téléphone d’un commerçant. Changez-le
-            depuis « Compte ».
+            Votre code a été saisi sur le téléphone de quelqu’un d’autre.
+            Changez-le depuis « Compte ».
           </Message>
         </div>
       ) : null}

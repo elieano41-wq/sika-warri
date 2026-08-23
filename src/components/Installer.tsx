@@ -94,7 +94,7 @@ export function Installer({ compact = false }: { compact?: boolean }) {
   return (
     <div className="pile" style={{ gap: 'var(--espace-3)' }}>
       <Message ton="info">
-        <strong style={{ display: 'block', marginBottom: 'var(--espace-2)' }}>
+        <strong className="message__titre">
           Mettez Sika Warri sur votre écran d'accueil
         </strong>
         {/* The three questions people actually have, answered before the ask. */}

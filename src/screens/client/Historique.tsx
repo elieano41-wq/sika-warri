@@ -53,7 +53,7 @@ export function Historique({
 
   return (
     <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Vos mouvements chez chaque commerçant" />
+      <Entete sousTitre="Vos mouvements, carnet par carnet" />
 
       <div className="ecran__corps">
         <h1>Historique</h1>
@@ -63,8 +63,8 @@ export function Historique({
           <p className="discret">Chargement…</p>
         ) : lignes.length === 0 ? (
           <Vide titre="Rien pour le moment" icone={IconeCarnetVide}>
-            Quand un commerçant garde votre monnaie, le mouvement apparaît ici
-            avec le nom de la boutique et un numéro de reçu.
+            Quand quelqu’un garde votre monnaie, le mouvement apparaît ici avec
+            le nom du carnet et un numéro de reçu.
           </Vide>
         ) : (
           <>
@@ -101,7 +101,7 @@ export function Historique({
                           {formatCfa(e.amount_cfa)}
                         </span>
                         {e.confirmation_method === 'vendor_device' ? (
-                          <div className="discret">code saisi chez le commerçant</div>
+                          <div className="discret">code saisi sur un autre téléphone</div>
                         ) : null}
                       </div>
                     </li>

@@ -129,7 +129,7 @@ export function Confirmation({
           </Cadran>
           {fait.restant !== null ? (
             <p className="discret centre">
-              Il vous reste <Montant value={fait.restant} /> chez ce commerçant.
+              Il vous reste <Montant value={fait.restant} /> sur ce carnet.
             </p>
           ) : null}
         </div>
@@ -161,7 +161,7 @@ export function Confirmation({
             <h1>Aucune demande</h1>
             <p className="discret">
               {chargeUnFois
-                ? 'Quand un commerçant vous demandera de confirmer, la demande apparaîtra ici.'
+                ? 'Quand on vous demandera de confirmer, la demande apparaîtra ici.'
                 : 'Chargement…'}
             </p>
             {chargeUnFois ? (
@@ -189,7 +189,7 @@ export function Confirmation({
             distinction has to be on the screen where they decide. */}
         <h1>
           {estRemboursement(demande)
-            ? 'Le commerçant vous rend cette somme en espèces ?'
+            ? 'On vous rend cette somme en espèces ?'
             : 'Confirmer ?'}
         </h1>
 
@@ -210,7 +210,7 @@ export function Confirmation({
           <div className="carte__etiquette">Montant à utiliser</div>
           <Montant value={demande.amountCfa} taille="geant" />
           <p className="discret">
-            Votre monnaie chez ce commerçant : <Montant value={demande.currentBalance} />
+            Votre monnaie sur ce carnet : <Montant value={demande.currentBalance} />
             {' → '}
             <Montant value={demande.resultingBalance} />
           </p>
@@ -234,8 +234,8 @@ export function Confirmation({
 
       <div className="ecran__pied pile">
         <p className="discret centre">
-          Saisissez votre code sur votre propre téléphone. Ne le donnez jamais au
-          commerçant.
+          Saisissez votre code sur votre propre téléphone. Ne le donnez à
+          personne.
         </p>
       </div>
     </div>

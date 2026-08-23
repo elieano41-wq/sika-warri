@@ -254,6 +254,7 @@ export function MaMonnaie({
                     would recreate the negative balance rule 2 forbids. */}
                 {p.debt_cfa > 0 ? (
                   <DeuxRegistres
+                    vue="client"
                     monnaieCfa={p.change_cfa}
                     detteCfa={p.debt_cfa}
                     taille="grand"

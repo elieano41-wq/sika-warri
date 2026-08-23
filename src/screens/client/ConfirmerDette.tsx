@@ -158,6 +158,7 @@ export function ConfirmerDette({
             </p>
             <p className="discret">Après cette opération :</p>
             <DeuxRegistres
+              vue="client"
               monnaieCfa={demande.monnaieApres}
               detteCfa={demande.detteApres}
             />

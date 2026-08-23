@@ -27,6 +27,7 @@ import {
   connect, reset, actAs, actAsAdmin, seedVendor, seedCustomer, sqlstateOf,
   type SeededVendor, type SeededCustomer,
 } from './helpers/db';
+import { sansCommentaires } from './helpers/source';
 
 const SRC = path.join(process.cwd(), 'src');
 
@@ -195,38 +196,56 @@ describe('the app asks on load, not only at login', () => {
   });
 });
 
-describe('the account screen states the answer in plain words', () => {
-  const compte = lire('screens', 'Compte.tsx');
+describe('the diagnostic is for admins, and only admins', () => {
+  // Comments stripped: the prose in this file explains the removal by quoting
+  // the very strings it forbids, and a leak check that counts comments teaches
+  // the next person to describe the rule vaguely instead of naming it.
+  const compte = sansCommentaires(lire('screens', 'Compte.tsx'));
 
-  it('says Compte support, oui or non', () => {
-    // Two taps to distinguish three causes: the grant is gone, the session is
-    // stale, or the build is old. Staring at a home screen distinguishes none.
-    expect(compte).toMatch(/Compte support/);
-    expect(compte).toMatch(/'Oui'/);
-    expect(compte).toMatch(/'Non'/);
+  // REVERSED DELIBERATELY. The first version of this screen showed everybody
+  // "Compte support : Non", on the reasoning that "Non" is the useful half —
+  // it separates "you are not an admin" from "you are, and the button is
+  // broken". True for whoever is debugging, and wrong for everyone else: it
+  // answers a question an ordinary user never asked, and announces that a door
+  // exists. Someone keeping a debt book does not need to be told which parts of
+  // the app are not for them.
+  //
+  // The diagnostic did not go away. It moved inside the admin-only card, where
+  // the person who needs it is the only person who sees it.
+
+  it('the status and the build live inside one admins-only card', () => {
+    const carte = /\{estAdmin \? \([\s\S]*?\) : null\}/.exec(compte);
+    expect(carte, 'admin-only card not found').not.toBeNull();
+    expect(carte![0]).toMatch(/Compte support/);
+    expect(carte![0]).toMatch(/__BUILD_SHA__/);
+    expect(carte![0]).toMatch(/Panneau support/);
   });
 
-  it('shows it to NON-admins too', () => {
-    // "Non" is the useful half: it separates "you are not an admin" from "you
-    // are, and the button is broken". Rendering only for admins would leave the
-    // ambiguity exactly where it was.
-    const bloc = /Compte support[\s\S]{0,600}/.exec(compte)![0];
-    expect(bloc).toMatch(/estAdmin \? 'Oui' : 'Non'/);
-    // Not wrapped in a truthiness gate.
-    expect(compte).not.toMatch(/estAdmin \? \([\s\S]{0,80}Compte support/);
+  it('a non-admin is told nothing about it', () => {
+    // No "Non", no greyed-out entry, no mention of a panel. The three strings
+    // that would leak it, each checked outside the admin-only card.
+    const sansCarte = compte.replace(/\{estAdmin \? \([\s\S]*?\) : null\}/g, '');
+    for (const fuite of [/Compte support/, /Panneau support/, /panneau support/]) {
+      expect(sansCarte, `${fuite} is rendered outside the admin-only card`)
+        .not.toMatch(fuite);
+    }
   });
 
-  it('shows the build alongside it', () => {
-    // If the status looks wrong the next question is always "is this the build
-    // I think it is". Both in one place saves the round trip.
-    //
-    // Matched on the enclosing <section> rather than a character window: the
-    // first version allowed 600 and the string sits at about 611, so it failed
-    // on nothing but the length of a comment. A proximity assertion measured in
-    // characters breaks whenever someone explains themselves.
-    const section = /<section[^>]*>[\s\S]*?Compte support[\s\S]*?<\/section>/.exec(compte);
-    expect(section, 'Compte support section not found').not.toBeNull();
-    expect(section![0]).toMatch(/__BUILD_SHA__/);
+  it('what a non-admin gets instead is a number to call', () => {
+    // The replacement, and the reason removing the card is not a loss: someone
+    // with a problem needs a person, not a status line.
+    const aide = /\{!estAdmin && SUPPORT_TEL \? \([\s\S]*?\) : null\}/.exec(compte);
+    expect(aide, 'support contact block not found').not.toBeNull();
+    expect(aide![0]).toMatch(/Contacter le support/);
+    expect(aide![0]).toMatch(/href=\{`tel:/);
+  });
+
+  it('and no number is invented when none is configured', () => {
+    // A wrong support number sends someone to a stranger at the worst possible
+    // moment. Absent configuration, the block is absent.
+    expect(compte).toMatch(/SUPPORT_TEL\s*=\s*\(import\.meta\.env\.VITE_SUPPORT_TEL/);
+    const litteral = /tel:\+?\d/.exec(compte);
+    expect(litteral, 'a phone number is hard-coded into the screen').toBeNull();
   });
 });
 

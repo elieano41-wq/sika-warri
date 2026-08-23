@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
+  /** Support number shown to ordinary users. Optional: absent, no block. */
+  readonly VITE_SUPPORT_TEL?: string;
 }
 
 interface ImportMeta {

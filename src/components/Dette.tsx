@@ -62,28 +62,53 @@ export function EtatReglementBadge({
  * This component takes two numbers and cannot be given a combined one: there is
  * no prop for it.
  */
+/**
+ * Whose screen this is.
+ *
+ * REQUIRED, with no default. The component used to print one fixed pair of
+ * labels for both sides, so a vendor's own home screen announced "Dette à
+ * payer" over money that was owed TO them. Reading what you are owed as what
+ * you owe is the worst mistake this app can make, and a default value is how
+ * the next call site would inherit it silently.
+ */
+export type Vue = 'vendeur' | 'client';
+
+/**
+ * The two labels, by side. Written out rather than composed, so both readings
+ * of every pair are visible together on one screen.
+ */
+const ETIQUETTES: Record<Vue, { monnaie: string; dette: string }> = {
+  // The vendor holds the change (a liability) and is owed the debt (an asset).
+  vendeur: { monnaie: 'Monnaie que vous gardez', dette: 'Ce qu’on vous doit' },
+  // The customer's change is held for them; the debt is theirs to pay.
+  client: { monnaie: 'Votre monnaie gardée', dette: 'Ce que vous devez' },
+};
+
 export function DeuxRegistres({
+  vue,
   monnaieCfa,
   detteCfa,
   noteMonnaie,
   noteDette,
   taille = 'ligne',
 }: {
+  vue: Vue;
   monnaieCfa: number;
   detteCfa: number;
   noteMonnaie?: ReactNode;
   noteDette?: ReactNode;
   taille?: 'ligne' | 'grand';
 }) {
+  const e = ETIQUETTES[vue];
   return (
     <div className="registres">
       <div className="registre">
-        <span className="registre__etiquette">Monnaie gardée</span>
+        <span className="registre__etiquette">{e.monnaie}</span>
         <Montant value={monnaieCfa} taille={taille} />
         {noteMonnaie ? <span className="registre__note">{noteMonnaie}</span> : null}
       </div>
       <div className="registre registre--dette">
-        <span className="registre__etiquette">Dette à payer</span>
+        <span className="registre__etiquette">{e.dette}</span>
         <Montant value={detteCfa} taille={taille} />
         {noteDette ? <span className="registre__note">{noteDette}</span> : null}
       </div>

@@ -187,6 +187,55 @@ h2 { font-size: var(--titre-s); }
 }
 
 /* --------------------------------------------------------------------------
+   Welcome screen
+
+   The name, one line, two doors. Everything is centred on the vertical axis
+   with the doors pinned to the bottom, so the eye lands on the name and the
+   thumb lands on the buttons without either competing for the middle.
+   -------------------------------------------------------------------------- */
+
+.accueil {
+  justify-content: center;
+  gap: var(--espace-3);
+}
+
+.accueil__marque {
+  font-family: var(--police-titre);
+  font-weight: 600;
+  font-size: var(--titre-l);
+  color: var(--or-sika);
+  letter-spacing: -0.02em;
+}
+
+.accueil__ligne {
+  font-size: var(--texte-grand);
+  color: var(--sauge);
+  max-width: 22ch;
+}
+
+/* --------------------------------------------------------------------------
+   A phone number you can press
+
+   Rendered as the number itself rather than as a button labelled "call": the
+   number is the useful part when the app is the thing that is broken and the
+   phone has to be dialled from somewhere else.
+   -------------------------------------------------------------------------- */
+
+.lien-tel {
+  font-family: var(--police-chiffre);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--texte-grand);
+  font-weight: 600;
+  color: var(--or-sika);
+  text-decoration: none;
+  min-height: var(--cible-min);
+  display: inline-flex;
+  align-items: center;
+}
+
+.lien-tel:active { color: var(--or-clair); }
+
+/* --------------------------------------------------------------------------
    Buttons
    -------------------------------------------------------------------------- */
 

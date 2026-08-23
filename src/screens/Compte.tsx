@@ -8,6 +8,15 @@ import { Installer } from '../components/Installer';
 import { formatCfa, formatPhoneLocal } from '../lib/format';
 
 /**
+ * The support number, from the build environment.
+ *
+ * Configuration rather than copy, because it differs per deployment and must
+ * never be guessed. Unset, the block does not render at all — an invented
+ * number would send someone to a stranger at the worst possible moment.
+ */
+const SUPPORT_TEL = (import.meta.env.VITE_SUPPORT_TEL ?? '').trim();
+
+/**
  * Compte — who you are, and the two things you can change about it.
  *
  * WHY THIS EXISTS. Signing out lived on whichever screen happened to have room
@@ -77,42 +86,51 @@ export function Compte({
           </section>
         ) : null}
 
-        <section className="carte">
-          <span className="carte__etiquette">Compte support</span>
-          <p style={{ fontSize: 'var(--texte-grand)', fontWeight: 600 }}>
-            {estAdmin ? 'Oui' : 'Non'}
-          </p>
-          <p className="discret">
-            {estAdmin
-              ? 'Vous pouvez ouvrir le panneau support depuis cet écran.'
-              : 'Ce compte n’a pas accès au panneau support.'}
-          </p>
-          {/* The build, beside the answer. If the status looks wrong, the next
-              question is always "is this the build I think it is", and having
-              both in one place saves asking. */}
-          <p className="discret" style={{ fontFamily: 'var(--police-chiffre)' }}>
-            Version {__BUILD_SHA__} · {__BUILD_DATE__}
-          </p>
-        </section>
-
         <BoutonSecondaire onClick={onChangerCode}>
           Changer mon code
         </BoutonSecondaire>
 
-        {/* Shown from a status the app re-asks the server on every load, not
-            from a flag captured at login — that flag went stale on reload and
-            hid this button from an account that held the grant all along. Every
-            action behind it is gated again in SQL, so a forged flag shows a
-            button that then fails. */}
-        {estAdmin && onAdmin ? (
-          <BoutonSecondaire onClick={onAdmin}>Panneau support</BoutonSecondaire>
+        {/* WHAT AN ORDINARY USER GETS: a number, and nothing about admin.
+            A greyed-out entry or a "Compte support : Non" line answers a
+            question nobody asked and tells everyone there is a door. */}
+        {!estAdmin && SUPPORT_TEL ? (
+          <section className="carte">
+            <span className="carte__etiquette">Besoin d’aide</span>
+            <a className="lien-tel" href={`tel:${SUPPORT_TEL.replace(/\s+/g, '')}`}>
+              {SUPPORT_TEL}
+            </a>
+            <p className="discret">Contacter le support</p>
+          </section>
+        ) : null}
+
+        {/* ADMINS ONLY, and everything diagnostic lives inside it: the status in
+            plain words, the build, and the way in. The status is re-asked of
+            the server on every load, not carried from login — that flag went
+            stale on reload and hid this from an account that held the grant all
+            along. Every action behind the panel is gated again in SQL, so a
+            forged flag shows a button that then fails. */}
+        {estAdmin ? (
+          <section className="carte">
+            <span className="carte__etiquette">Compte support</span>
+            <p style={{ fontSize: 'var(--texte-grand)', fontWeight: 600 }}>Oui</p>
+            <p className="discret" style={{ fontFamily: 'var(--police-chiffre)' }}>
+              Version {__BUILD_SHA__} · {__BUILD_DATE__}
+            </p>
+            {onAdmin ? (
+              <BoutonSecondaire onClick={onAdmin}>Panneau support</BoutonSecondaire>
+            ) : null}
+          </section>
         ) : null}
 
         <Installer />
 
+        {/* Each side reads its own sentence. Rule 10 either way: Sika Warri
+            holds nothing. The vendor's version says the money stayed with
+            them, the customer's says where theirs is. */}
         <Message ton="info">
-          Sika Warri ne garde pas votre argent. Elle note seulement ce que chaque
-          commerçant vous doit.
+          {vendeur
+            ? 'Sika Warri ne garde pas d’argent. Ce que vous gardez reste chez vous ; l’application note seulement qui a quoi.'
+            : 'Sika Warri ne garde pas votre argent. Elle note seulement ce que chacun vous doit.'}
         </Message>
       </div>
 

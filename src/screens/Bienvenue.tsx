@@ -1,15 +1,23 @@
-import { Entete, BoutonPrimaire, BoutonSecondaire, Version } from '../components/ui';
-import { Installer } from '../components/Installer';
+import { BoutonPrimaire, BoutonSecondaire, Version } from '../components/ui';
 
 /**
  * Bienvenue — what a first-time visitor sees.
  *
- * Previously the app opened straight onto a login form, which asks someone to
- * prove who they are before telling them what the thing is. Anyone arriving from
- * a link had no obvious way to sign up.
+ * The name, one line saying what it is, two doors. Nothing else.
  *
- * Two lines explaining the product, then two equally weighted doors. Not shown
- * to anyone with a session — a returning vendor goes straight to their work.
+ * WHAT WAS CUT AND WHY. A headline ("Votre monnaie ne se perd plus"), a
+ * paragraph explaining the mechanism, and a mocked-up card showing 1 500 F at a
+ * shop called Chez Awa. All of it was written to persuade, and none of it
+ * survived the question "what does someone standing here actually need?". They
+ * need to know what the thing is and which button is theirs. A product that
+ * explains itself at length before asking for a name reads as a product that
+ * expects to be doubted.
+ *
+ * The demo card went for a second reason: it was a fabricated balance at a
+ * fabricated shop, presented in the same visual language as a real one. The
+ * first thing a first-time visitor saw was a number that was not true.
+ *
+ * Not shown to anyone with a session — a returning user goes straight to work.
  */
 export function Bienvenue({
   onConnexion,
@@ -19,41 +27,21 @@ export function Bienvenue({
   onInscription: () => void;
 }) {
   return (
-    <div className="ecran">
-      <Entete />
-
-      <div className="ecran__corps" style={{ justifyContent: 'center' }}>
-        {/* Two lines, plain French, no jargon and no claim that Sika Warri
-            holds anything. */}
-        <h1 style={{ fontSize: 'var(--titre-l)' }}>
-          Votre monnaie ne se perd plus
-        </h1>
-        <p style={{ fontSize: 'var(--texte-grand)', color: 'var(--craie)' }}>
-          Quand un commerçant n'a pas de monnaie, il l'enregistre. Elle reste
-          chez lui et vous l'utilisez plus tard, ou il vous rembourse en
-          espèces.
+    <div className="ecran ecran--accueil">
+      <div className="ecran__corps accueil">
+        <h1 className="accueil__marque">Sika Warri</h1>
+        {/* One line. It has to be true for both sides of every pair, so it
+            names the two registers and claims nothing about who owes whom. */}
+        <p className="accueil__ligne">
+          Un carnet pour la monnaie gardée et les dettes.
         </p>
-
-        {/* The signature card, used here to show what the product looks like
-            before asking for anything. */}
-        <article className="carte" style={{ marginTop: 'var(--espace-3)' }}>
-          <div>
-            <div className="carte__titre">Chez Awa</div>
-            <div className="carte__sous">Yopougon</div>
-          </div>
-          <div className="carte__etiquette">Votre monnaie chez ce commerçant</div>
-          <span className="montant montant--grand">
-            1 500<span className="montant--suffixe"> F</span>
-          </span>
-        </article>
       </div>
 
       <div className="ecran__pied pile">
-        {/* Equal weight, on purpose. A shopkeeper hearing about this from a
+        {/* Equal weight, on purpose. Someone hearing about this from a
             neighbour needs the second door to be as findable as the first. */}
         <BoutonPrimaire onClick={onInscription}>Créer un compte</BoutonPrimaire>
-        <BoutonSecondaire onClick={onConnexion}>J'ai déjà un compte</BoutonSecondaire>
-        <Installer compact />
+        <BoutonSecondaire onClick={onConnexion}>J’ai déjà un compte</BoutonSecondaire>
         <Version />
       </div>
     </div>

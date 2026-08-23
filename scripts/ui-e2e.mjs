@@ -144,7 +144,7 @@ async function tapDigits(page, digits) {
  */
 async function loginViaUI(page, role, phone, pin) {
   await page.goto(APP);
-  await page.getByRole('button', { name: "J'ai déjà un compte" }).click();
+  await page.getByRole('button', { name: /J.ai déjà un compte/ }).click();
   await page.getByRole('heading', { name: 'Connexion' }).waitFor({ timeout: 20000 });
   await page.getByRole('button', { name: role === 'vendor' ? 'Commerçant' : 'Client' }).click();
   await tapDigits(page, phone);
@@ -158,11 +158,17 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
   // The landing screen. Checked once, on the vendor's device.
   if (role === 'vendor') {
     const accueil = (await page.textContent('body')).replace(/\s+/g, ' ');
-    check('landing screen explains the product before asking anything',
-      /Votre monnaie ne se perd plus/i.test(accueil)
-      && /reste chez lui/i.test(accueil), accueil.slice(0, 160));
+    // The name, one line, two doors. The marketing copy and the mocked-up
+    // 1 500 F card were cut, so this now checks for their ABSENCE too: the
+    // demo card showed a fabricated balance in the same visual language as a
+    // real one, which is the last thing a first-time visitor should see.
+    check('landing screen says what it is, in one line',
+      /Sika Warri/.test(accueil) && /carnet pour la monnaie gardée et les dettes/i.test(accueil),
+      accueil.slice(0, 160));
+    check('landing screen carries no marketing copy and no fake balance',
+      !/ne se perd plus/i.test(accueil) && !/Chez Awa/i.test(accueil), accueil.slice(0, 200));
     check('landing screen offers BOTH doors',
-      accueil.includes('Créer un compte') && accueil.includes("J'ai déjà un compte"));
+      accueil.includes('Créer un compte') && /J.ai déjà un compte/.test(accueil));
     await page.screenshot({ path: 'artifacts/a1-bienvenue.png' });
   }
 
@@ -1152,7 +1158,7 @@ try {
   });
   const pe = await etroit.newPage();
   await pe.goto(APP);
-  await pe.getByRole('heading', { name: /Votre monnaie ne se perd plus/ }).waitFor({ timeout: 20000 });
+  await pe.getByRole('heading', { name: /Sika Warri/ }).waitFor({ timeout: 20000 });
   const deborde320 = await pe.evaluate(() =>
     document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
   );

@@ -132,6 +132,7 @@ export function AccueilVendeur({
           ) : (
             <>
               <DeuxRegistres
+                vue="vendeur"
                 monnaieCfa={resume.circulation_cfa}
                 detteCfa={dettes.debt_cfa}
                 taille="grand"

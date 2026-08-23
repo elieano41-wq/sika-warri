@@ -223,8 +223,9 @@ export function MesDettes({
         {/* The headline figures, from the server aggregate. Total AND the share
             over 30 days, side by side — one number cannot tell a vendor whether
             their book is healthy. */}
-        <article className="carnet">
-          <div className="carnet__etiquette">On vous doit</div>
+        {/* The one figure this screen exists to answer: what is owed. */}
+        <article className="carte carte--principale">
+          <div className="carte__etiquette">On vous doit</div>
           {resume === null ? (
             <>
               <span className="montant montant--geant" style={{ color: 'var(--sauge)' }}>—</span>
@@ -233,7 +234,7 @@ export function MesDettes({
           ) : (
             <>
               <Montant value={resume.debt_cfa} taille="geant" />
-              <div className="carnet__quartier">
+              <div className="carte__sous">
                 {resume.debtors === 0
                   ? 'Personne ne vous doit rien'
                   : `${resume.debtors} client${resume.debtors === 1 ? '' : 's'}`}

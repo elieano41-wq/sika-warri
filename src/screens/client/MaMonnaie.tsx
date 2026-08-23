@@ -15,7 +15,7 @@ import {
 } from '../../lib/mouvements';
 
 /**
- * Ma monnaie — one carnet card per shop holding this customer's change.
+ * Ma monnaie — one carte card per shop holding this customer's change.
  *
  * ACCEPTANCE TEST 8 IS THIS SCREEN. Standing rule 1: a balance exists for a
  * (customer, vendor) pair. There is no global balance and none may be presented
@@ -120,12 +120,12 @@ export function MaMonnaie({
           action={<BoutonDiscret onClick={() => setOuvert(null)}>Retour</BoutonDiscret>}
         />
         <div className="ecran__corps">
-          <article className="carnet">
+          <article className="carte">
             <div>
-              <div className="carnet__boutique">{ouvert.shopName}</div>
-              {ouvert.quartier ? <div className="carnet__quartier">{ouvert.quartier}</div> : null}
+              <div className="carte__titre">{ouvert.shopName}</div>
+              {ouvert.quartier ? <div className="carte__sous">{ouvert.quartier}</div> : null}
             </div>
-            <div className="carnet__etiquette">Votre monnaie chez ce commerçant</div>
+            <div className="carte__etiquette">Votre monnaie chez ce commerçant</div>
             <Montant value={ouvert.amountCfa} taille="geant" />
           </article>
 
@@ -235,14 +235,14 @@ export function MaMonnaie({
                     lastActivityAt: p.last_activity_at,
                   })
                 }
-                className="carnet carnet--cliquable"
+                className="carte carte--cliquable"
                 style={{ textAlign: 'left', width: '100%', cursor: 'pointer' }}
               >
                 <div>
-                  <div className="carnet__boutique">{p.business_name}</div>
-                  {p.quartier ? <div className="carnet__quartier">{p.quartier}</div> : null}
+                  <div className="carte__titre">{p.business_name}</div>
+                  {p.quartier ? <div className="carte__sous">{p.quartier}</div> : null}
                 </div>
-                <div className="carnet__etiquette">
+                <div className="carte__etiquette">
                   {p.last_activity_at
                     ? `Dernier mouvement ${dateCourte(p.last_activity_at)}`
                     : ' '}

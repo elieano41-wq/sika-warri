@@ -36,12 +36,12 @@ export function Bienvenue({
 
         {/* The signature card, used here to show what the product looks like
             before asking for anything. */}
-        <article className="carnet" style={{ marginTop: 'var(--espace-3)' }}>
+        <article className="carte" style={{ marginTop: 'var(--espace-3)' }}>
           <div>
-            <div className="carnet__boutique">Chez Awa</div>
-            <div className="carnet__quartier">Yopougon</div>
+            <div className="carte__titre">Chez Awa</div>
+            <div className="carte__sous">Yopougon</div>
           </div>
-          <div className="carnet__etiquette">Votre monnaie chez ce commerçant</div>
+          <div className="carte__etiquette">Votre monnaie chez ce commerçant</div>
           <span className="montant montant--grand">
             1 500<span className="montant--suffixe"> F</span>
           </span>

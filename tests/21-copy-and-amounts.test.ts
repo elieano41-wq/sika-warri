@@ -276,11 +276,64 @@ describe('sunlight legibility — the floors the spec sets', () => {
     expect(base).toMatch(/:focus-visible/);
   });
 
-  it('le carnet has its gold rule down the left edge', () => {
-    // The signature element (section 7). If this selector disappears, the card
-    // has become a generic panel.
-    expect(base).toMatch(/\.carnet::before/);
-    expect(base).toMatch(/--or-sika/);
+  it('the card is a plain surface, not imitation paper', () => {
+    // The notebook treatment is gone deliberately: a gold margin rule and a
+    // ruled-paper texture made a ledger trusted with money look like a school
+    // exercise book, and skeuomorphism ages badly beside the real thing.
+    //
+    // Asserted as ABSENT so nobody reintroduces it by copying an old snippet.
+    expect(base).not.toMatch(/\.carte::before/);
+    expect(base).not.toMatch(/\.carte::after/);
+    expect(base).not.toMatch(/repeating-linear-gradient/);
+  });
+
+  it('but it is still a deliberate object, not a bare div', () => {
+    // The other half. "Not skeuomorphic" must not become "not designed": the
+    // card carries a hairline, a real radius and generous padding.
+    const bloc = /\.carte \{([^}]*)\}/.exec(base);
+    expect(bloc, '.carte rule not found').not.toBeNull();
+    expect(bloc![1]).toMatch(/border:\s*1px solid var\(--trait\)/);
+    expect(bloc![1]).toMatch(/border-radius:\s*var\(--rayon\)/);
+    expect(bloc![1]).toMatch(/padding:\s*var\(--espace-5\)/);
+  });
+
+  it('separation is by hairline, never by shadow', () => {
+    // A shadow is invisible in direct sunlight and costs a paint on a cheap
+    // Android. Sunlight legibility is the whole reason for the palette.
+    const bloc = /\.carte \{([^}]*)\}/.exec(base)![1];
+    expect(bloc).not.toMatch(/box-shadow/);
+    expect(bloc).not.toMatch(/backdrop-filter/);
+    expect(bloc).not.toMatch(/gradient/);
+  });
+
+  it('gold marks exactly one card per screen, and nothing else', () => {
+    // ONE accent doing the work. The primary variant is the entire visual
+    // hierarchy: a vendor glancing at their phone should find the figure that
+    // matters without reading. Used on every card it would mean nothing.
+    expect(base).toMatch(/\.carte--principale/);
+    const principale = /\.carte--principale \{([^}]*)\}/.exec(base);
+    expect(principale, '.carte--principale rule not found').not.toBeNull();
+    expect(principale![1]).toMatch(/border-top:\s*3px solid var\(--or-sika\)/);
+  });
+
+  it('at most one primary card exists per screen', () => {
+    // Enforced by counting, because the rule is about restraint and restraint is
+    // exactly what erodes.
+    const SCREENS = path.join(SRC, 'screens');
+    function walk(d: string): string[] {
+      return readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]
+      );
+    }
+    const fichiers = walk(SCREENS).filter((f) => f.endsWith('.tsx'));
+    expect(fichiers.length).toBeGreaterThan(8);
+
+    for (const f of fichiers) {
+      const src = readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+      const n = (src.match(/carte--principale/g) ?? []).length;
+      expect(n, `${path.relative(process.cwd(), f)} marks ${n} primary cards`)
+        .toBeLessThanOrEqual(1);
+    }
   });
 });
 

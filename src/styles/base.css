@@ -99,62 +99,92 @@ h2 { font-size: var(--titre-s); }
 .montant--suffixe { font-size: 0.5em; color: var(--sauge); word-spacing: normal; }
 
 /* --------------------------------------------------------------------------
-   Le carnet — the signature element (spec section 7)
+   Cards
+
+   Plain surfaces, not paper. The notebook treatment — a gold margin rule and a
+   ruled-paper texture — was dropped: it made a ledger that has to be trusted
+   with money look like a school exercise book, and skeuomorphism ages badly
+   next to the thing it imitates.
+
+   What replaces it has to stay recognisably Sika Warri rather than drifting to
+   a generic dark template, so the discipline is:
+
+     * ONE accent colour, and it is reserved. Gold marks amounts, the primary
+       action, and the single most important card on a screen. Nothing else.
+     * SEPARATION BY HAIRLINE, not by shadow. A shadow is invisible in direct
+       sunlight and costs a paint; a 1px --trait line survives glare, which is
+       the same reason the tab bar uses one.
+     * GENEROUS PADDING and a large radius, so the card reads as a deliberate
+       object rather than a div with a background.
+     * NO GRADIENTS, no glass, no blur. All three cost GPU on a cheap Android
+       and none of them says anything.
    -------------------------------------------------------------------------- */
 
-/* Styled after the paper cahier a vendor already keeps: a thin gold rule down
-   the left edge, the shop name in the display face, the amount large in mono.
-   This is the one place to spend visual boldness; everything else stays quiet. */
-.carnet {
-  position: relative;
+.carte {
   background: var(--vert-foret);
+  border: 1px solid var(--trait);
   border-radius: var(--rayon);
-  padding: var(--espace-5) var(--espace-5) var(--espace-5) var(--espace-6);
+  padding: var(--espace-5);
   display: flex;
   flex-direction: column;
   gap: var(--espace-2);
-  overflow: hidden;
 }
 
-/* The rule itself. Inset from the edge, like the margin line on a school
-   exercise book. */
-.carnet::before {
-  content: '';
-  position: absolute;
-  inset-block: 0;
-  left: var(--espace-4);
-  width: 2px;
-  background: var(--or-sika);
-  opacity: 0.85;
+/*
+   The one card that answers the screen's question.
+
+   A 3px gold top edge, and at most ONE per screen. This is the whole visual
+   hierarchy: a vendor glancing at their phone should find the figure that
+   matters without reading. Using it twice would mean using it never.
+
+   border-top rather than a pseudo-element, so it cannot be painted over by
+   content and there is nothing to stack.
+*/
+.carte--principale {
+  border-top: 3px solid var(--or-sika);
+  /* Compensate so the content does not shift by 2px against a plain card. */
+  padding-top: calc(var(--espace-5) - 2px);
 }
 
-/* Faint ruled lines, the paper it imitates. Kept very low contrast so it
-   reads as texture and never competes with the amount. */
-.carnet::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 2.15rem,
-    rgba(244, 241, 232, 0.055) 2.15rem,
-    rgba(244, 241, 232, 0.055) calc(2.15rem + 1px)
-  );
+/* A tappable card. Reset the button chrome the browser adds, keep the card. */
+.carte--cliquable {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.carnet > * { position: relative; z-index: 1; }
+.carte--cliquable:active {
+  background: var(--vert-foret-haut);
+  border-color: var(--or-sika-ombre);
+}
 
-.carnet__boutique {
+.carte--cliquable:focus-visible { outline: var(--anneau); outline-offset: 2px; }
+
+.carte__titre {
   font-family: var(--police-titre);
   font-weight: 600;
   font-size: var(--titre-s);
   color: var(--craie);
 }
 
-.carnet__quartier { color: var(--sauge); font-size: var(--texte-petit); }
-.carnet__etiquette { color: var(--sauge); font-size: var(--texte-petit); }
+.carte__sous { color: var(--sauge); font-size: var(--texte-petit); }
+
+/*
+   The label above a figure.
+
+   Uppercase and letterspaced, matching the tab bar and the register headings —
+   the one typographic device that runs through the whole app, so a label reads
+   as a label everywhere without needing a colour of its own.
+*/
+.carte__etiquette {
+  color: var(--sauge);
+  font-size: var(--texte-petit);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
 /* --------------------------------------------------------------------------
    Buttons
@@ -308,15 +338,6 @@ h2 { font-size: var(--titre-s); }
 /* --------------------------------------------------------------------------
    List rows — history and clients
    -------------------------------------------------------------------------- */
-
-/* A tappable carnet. Reset the button chrome the browser adds, keep the card. */
-.carnet--cliquable {
-  border: none;
-  font: inherit;
-  color: inherit;
-  appearance: none;
-}
-.carnet--cliquable:active { background: var(--vert-foret-haut); }
 
 .ligne-histoire,
 .ligne-client {

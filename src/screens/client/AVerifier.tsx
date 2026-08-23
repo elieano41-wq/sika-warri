@@ -116,10 +116,10 @@ export function AVerifier({
               <>
                 <h2>Ils déclarent que vous leur devez</h2>
                 {dettes.map((l) => (
-                  <article key={l.entry_id} className="carnet">
-                    <div className="carnet__boutique">{l.business_name}</div>
+                  <article key={l.entry_id} className="carte">
+                    <div className="carte__titre">{l.business_name}</div>
                     {l.quartier ? (
-                      <div className="carnet__quartier">{l.quartier}</div>
+                      <div className="carte__sous">{l.quartier}</div>
                     ) : null}
                     <Montant value={l.amount_cfa} taille="grand" />
                     <div className="discret">{dateEtHeure(l.created_at)}</div>
@@ -182,8 +182,8 @@ export function AVerifier({
                   vous devoir de la monnaie.
                 </p>
                 {monnaies.map((l) => (
-                  <article key={l.entry_id} className="carnet">
-                    <div className="carnet__boutique">{l.business_name}</div>
+                  <article key={l.entry_id} className="carte">
+                    <div className="carte__titre">{l.business_name}</div>
                     <Montant value={l.amount_cfa} taille="grand" />
                     <div className="discret">{dateEtHeure(l.created_at)}</div>
                     <div className="pile">

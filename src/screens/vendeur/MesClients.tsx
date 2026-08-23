@@ -98,14 +98,14 @@ export function MesClients({
           action={<BoutonDiscret onClick={() => setOuvert(null)}>Retour</BoutonDiscret>}
         />
         <div className="ecran__corps">
-          <article className="carnet">
+          <article className="carte">
             <div>
-              <div className="carnet__boutique">
+              <div className="carte__titre">
                 {ouvert.your_label ?? formatPhoneLocal(ouvert.phone)}
               </div>
-              <div className="carnet__quartier">{formatPhoneLocal(ouvert.phone)}</div>
+              <div className="carte__sous">{formatPhoneLocal(ouvert.phone)}</div>
             </div>
-            <div className="carnet__etiquette">Monnaie de ce client chez vous</div>
+            <div className="carte__etiquette">Monnaie de ce client chez vous</div>
             <Montant value={ouvert.balance_cfa} taille="geant" />
           </article>
 

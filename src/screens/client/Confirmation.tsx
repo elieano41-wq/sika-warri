@@ -168,15 +168,15 @@ export function Confirmation({
           </Message>
         ) : null}
 
-        {/* Le carnet: the shop asking, named, with the amount large. */}
-        <article className="carnet">
+        {/* Le carte: the shop asking, named, with the amount large. */}
+        <article className="carte">
           <div>
-            <div className="carnet__boutique">{demande.businessName}</div>
-            <div className="carnet__quartier">
+            <div className="carte__titre">{demande.businessName}</div>
+            <div className="carte__sous">
               vous demande de confirmer
             </div>
           </div>
-          <div className="carnet__etiquette">Montant à utiliser</div>
+          <div className="carte__etiquette">Montant à utiliser</div>
           <Montant value={demande.amountCfa} taille="geant" />
           <p className="discret">
             Votre monnaie chez ce commerçant : <Montant value={demande.currentBalance} />

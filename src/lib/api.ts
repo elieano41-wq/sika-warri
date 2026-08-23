@@ -806,7 +806,7 @@ export interface DebtorRow {
   disputed_cfa: number;
   /**
    * Ageing buckets, FIFO — a payment clears the oldest debt first, which is what
-   * a shopkeeper means and what crossing entries off a carnet does. The four
+   * a shopkeeper means and what crossing entries off a carte does. The four
    * always sum to debt_cfa; if they ever do not, one of the two figures on the
    * screen is wrong and there is no way to tell which.
    */
@@ -1589,4 +1589,67 @@ export async function vendorRecentCustomers(
     token
   )) as RecentCustomerRow[];
   return rows ?? [];
+}
+
+export interface RecentEntryRow {
+  id: string;
+  customer_id: string;
+  customer_phone: string;
+  customer_label: string | null;
+  direction: 'credit' | 'debit';
+  kind: string;
+  amount_cfa: number;
+  created_at: string;
+  receipt_code: string;
+  /** Correctable unilaterally RIGHT NOW — window open, unreversed, balance covers it. */
+  correctable: boolean;
+  seconds_left: number;
+  /**
+   * Why not, when not: 'ok' | 'expired' | 'reversed' | 'spent'.
+   *
+   * Carried so the screen can explain instead of greying a button out. A vendor
+   * who is told "the customer already used it, they must confirm on their phone"
+   * knows what to do next; one shown a dead button taps it again.
+   */
+  blocked_reason: string;
+  total_count: number;
+}
+
+/** This vendor's own recent entries, with whether each can still be corrected. */
+export async function vendorRecentEntries(
+  token: string,
+  vendorId: string,
+  actorUserId: string,
+  limit = 20
+): Promise<RecentEntryRow[]> {
+  const rows = (await rpc(
+    'vendor_recent_entries',
+    { p_vendor_id: vendorId, p_actor_user_id: actorUserId, p_limit: limit },
+    token
+  )) as RecentEntryRow[];
+  return rows ?? [];
+}
+
+/**
+ * Reverse one of this vendor's own entries, inside the 15-minute window.
+ *
+ * WRITES A REVERSAL. Nothing is deleted or edited — rule 3 — so the original and
+ * the correction both stay visible to both parties. The exact-amount rule is
+ * what makes it safe without the customer: if they have spent any of a credit,
+ * the balance no longer covers the reversal and the server refuses it.
+ */
+export async function correctOwnEntry(
+  token: string,
+  input: { entryId: string; actorUserId: string; idempotencyKey: string; note?: string | null }
+) {
+  return rpc(
+    'correct_own_entry',
+    {
+      p_entry_id: input.entryId,
+      p_actor_user_id: input.actorUserId,
+      p_idempotency_key: input.idempotencyKey,
+      p_note: input.note ?? null,
+    },
+    token
+  );
 }

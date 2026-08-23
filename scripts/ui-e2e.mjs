@@ -429,7 +429,7 @@ try {
   const corpsRecu = await pv.textContent('body');
   check('receipt shows the new figure 1 500 F',
     corpsRecu.replace(/ /g, ' ').includes('1 500'));
-  check('le carnet is rendered', (await pv.locator('.carnet').count()) > 0);
+  check('le carte is rendered', (await pv.locator('.carte').count()) > 0);
   await pv.screenshot({ path: 'artifacts/03-garder-recu.png' });
 
   // ===== the customer's device sits on their balances ====================
@@ -639,7 +639,7 @@ try {
   await pc.screenshot({ path: 'artifacts/b1-ma-monnaie.png' });
 
   // Drill into the shop's history.
-  await pc.locator('.carnet--cliquable').first().click();
+  await pc.locator('.carte--cliquable').first().click();
   await pc.getByRole('heading', { name: 'Détail' }).waitFor({ timeout: 20000 });
   await pc.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
   const histoireClient = await pc.textContent('body');

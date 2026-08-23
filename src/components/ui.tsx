@@ -98,34 +98,49 @@ export function Clavier({
 }
 
 // ---------------------------------------------------------------------------
-// Le carnet
+// Cards
 // ---------------------------------------------------------------------------
 
 /**
- * The signature element (spec section 7): a card styled after the paper cahier
- * a vendor already keeps. Gold rule down the left edge like a margin line,
- * shop name in the display face, amount large in mono.
+ * A card: a shop, a figure, and whatever belongs under them.
+ *
+ * PLAIN, NOT PAPER. This was styled after the cahier a vendor already keeps — a
+ * gold margin rule and a ruled-paper texture. That went: a ledger which has to
+ * be trusted with money should not look like a school exercise book, and
+ * skeuomorphism ages badly next to the real thing it imitates.
+ *
+ * What holds it together instead is restraint. One accent colour, reserved for
+ * amounts, the primary action, and the single most important card on a screen
+ * (`principale`). Separation by hairline rather than shadow, because a shadow is
+ * invisible in direct sunlight. No gradients and no blur, because both cost GPU
+ * on a cheap Android and neither says anything.
  */
-export function Carnet({
+export function Carte({
   boutique,
   quartier,
   montant,
   etiquette,
   children,
+  principale = false,
 }: {
   boutique: string;
   quartier?: string | null;
   montant: number;
   etiquette?: string;
   children?: ReactNode;
+  /**
+   * The one card that answers the screen's question. At most ONE per screen —
+   * used twice it means nothing, which is why it is opt-in rather than default.
+   */
+  principale?: boolean;
 }) {
   return (
-    <article className="carnet">
+    <article className={`carte${principale ? ' carte--principale' : ''}`}>
       <div>
-        <div className="carnet__boutique">{boutique}</div>
-        {quartier ? <div className="carnet__quartier">{quartier}</div> : null}
+        <div className="carte__titre">{boutique}</div>
+        {quartier ? <div className="carte__sous">{quartier}</div> : null}
       </div>
-      {etiquette ? <div className="carnet__etiquette">{etiquette}</div> : null}
+      {etiquette ? <div className="carte__etiquette">{etiquette}</div> : null}
       <Montant value={montant} taille="grand" />
       {children}
     </article>

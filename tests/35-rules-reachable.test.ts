@@ -180,31 +180,46 @@ describe('rule 3: no screen offers to delete or edit an entry', () => {
     }
   });
 
-  it('RECORDS A KNOWN GAP: the correction window has no screen', () => {
-    // Migration 0013 gives a vendor 15 minutes to reverse their own typo
-    // unilaterally — the exact-amount guard makes it safe, and
-    // v_correctable_entries exists to drive a screen that was never built.
-    //
-    // So a vendor who types 5000 instead of 500 in front of a customer has no
-    // way to fix it in the app. The customer holds 5000 F, and the only routes
-    // back are the two-device handshake for a reversal, which the customer must
-    // agree to, or the support desk.
-    //
-    // Third instance of the same shape as rules 7 and 9: enforced in the data
-    // layer, unreachable at a counter. Asserted as ABSENT so this test starts
-    // failing the moment someone builds it, at which point the gap note comes
-    // out and a real check goes in.
-    // Matches a screen that CREATES a correction, not one that merely labels an
-    // existing entry as having been one. MaMonnaie and the history views read
-    // confirmation_method to display a badge; that is not a correction UI.
-    const cree = ecrans.filter((f) => {
-      const src = lire(f);
-      return /correctable_entries|reverseEntry|Corriger cette/i.test(src);
-    });
+  it('a vendor can correct their own typo, inside the window', () => {
+    // WAS A KNOWN GAP. Migration 0013 built the 15-minute unilateral window and
+    // v_correctable_entries to drive a screen that was never written, so a
+    // vendor who typed 5000 instead of 500 in front of a customer had no way out
+    // of the app — only the two-device handshake, which needs the customer still
+    // there and willing, or the support desk. Mistyping an amount at a counter
+    // is the likeliest thing to go wrong on day one.
+    const corriger = lire(SRC, 'screens', 'vendeur', 'Corriger.tsx');
 
-    expect(
-      cree,
-      'a correction UI now exists — replace this gap note with a real assertion'
-    ).toEqual([]);
+    expect(corriger).toMatch(/vendorRecentEntries/);
+    expect(corriger).toMatch(/correctOwnEntry/);
+    expect(corriger).toMatch(/Corriger/);
+  });
+
+  it('the correction screen says it REVERSES rather than deletes', () => {
+    // Rule 3, in the words the vendor reads, BEFORE they commit. A vendor who
+    // believes they deleted something is surprised by their own history later,
+    // and a customer who sees an entry vanish has reason to distrust the ledger.
+    const corriger = lire(SRC, 'screens', 'vendeur', 'Corriger.tsx');
+    expect(corriger).toMatch(/ne sera pas supprim[ée]e/i);
+    expect(corriger).toMatch(/les deux resteront visibles/i);
+  });
+
+  it('it explains WHY an entry cannot be corrected, per reason', () => {
+    // A greyed-out button teaches nothing and gets tapped again. Each refusal
+    // names the route that still works.
+    const corriger = lire(SRC, 'screens', 'vendeur', 'Corriger.tsx');
+    expect(corriger).toMatch(/blocked_reason === 'expired'/);
+    expect(corriger).toMatch(/blocked_reason === 'spent'/);
+    expect(corriger).toMatch(/blocked_reason === 'reversed'/);
+    // And both blocked paths point at the handshake instead.
+    expect(corriger).toMatch(/confirmer.*correction|correction.*confirmer/i);
+  });
+
+  it('it is reachable from where the mistake happens', () => {
+    // One tap from Accueil. A vendor who has just mistyped is still on that
+    // screen, and a fix buried three levels down is a fix nobody finds in front
+    // of a waiting customer.
+    const accueil = lire(SRC, 'screens', 'vendeur', 'Accueil.tsx');
+    expect(accueil).toMatch(/onCorriger/);
+    expect(accueil).toMatch(/Corriger une erreur/);
   });
 });

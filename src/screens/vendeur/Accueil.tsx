@@ -27,6 +27,7 @@ export function AccueilVendeur({
   onUtiliser,
   onNoterDette,
   onHistorique,
+  onCorriger,
 }: {
   session: Session;
   vendeur: VendorProfile;
@@ -37,6 +38,7 @@ export function AccueilVendeur({
   onUtiliser: () => void;
   onNoterDette: () => void;
   onHistorique: () => void;
+  onCorriger: () => void;
 }) {
   const [resume, setResume] = useState<VendorSummary | null>(null);
   // What the vendor is OWED, from its own aggregate. Kept in separate state from
@@ -87,10 +89,10 @@ export function AccueilVendeur({
         {resume !== null && dettes !== null
           && resume.circulation_cfa === 0 && dettes.debt_cfa === 0
           && resume.today_credit_count === 0 && resume.today_debit_count === 0 ? (
-          <article className="carnet">
-            <div className="carnet__etiquette">Bienvenue</div>
+          <article className="carte">
+            <div className="carte__etiquette">Bienvenue</div>
             <p style={{ fontSize: 'var(--texte-grand)' }}>
-              Votre carnet est vide. Commencez quand un client n’a pas sa monnaie.
+              Votre carte est vide. Commencez quand un client n’a pas sa monnaie.
             </p>
             <p className="discret">
               Quand vous ne pouvez pas rendre la monnaie, touchez « Garder la
@@ -112,7 +114,7 @@ export function AccueilVendeur({
             hide the one thing that matters, which is how much of what they are
             owed has gone stale. */}
         <article
-          className="carnet"
+          className="carte carte--principale"
           hidden={
             resume !== null && dettes !== null
             && resume.circulation_cfa === 0 && dettes.debt_cfa === 0
@@ -121,7 +123,7 @@ export function AccueilVendeur({
         >
           {resume === null || dettes === null ? (
             <>
-              <div className="carnet__etiquette">Monnaie que vous gardez</div>
+              <div className="carte__etiquette">Monnaie que vous gardez</div>
               <span className="montant montant--geant" style={{ color: 'var(--sauge)' }}>
                 —
               </span>
@@ -199,6 +201,10 @@ export function AccueilVendeur({
               for the paper carnet instead. */}
           <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
           <BoutonSecondaire onClick={onHistorique}>Historique</BoutonSecondaire>
+          {/* Where the mistake is visible. A vendor who has just mistyped an
+              amount is still on this screen, and the fix has to be one tap from
+              here rather than buried. */}
+          <BoutonSecondaire onClick={onCorriger}>Corriger une erreur</BoutonSecondaire>
         </div>
       </div>
 

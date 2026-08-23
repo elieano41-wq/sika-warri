@@ -5,7 +5,7 @@
 // pointing at icons that do not exist means the app cannot be installed to a
 // home screen, which is the entire point of a PWA for a vendor.
 //
-// The mark is the carnet: deep green ground, the gold margin rule down the
+// The mark is the carte: deep green ground, the gold margin rule down the
 // left, and a gold block for the amount that always sits beside it.
 
 import { deflateSync } from 'node:zlib';

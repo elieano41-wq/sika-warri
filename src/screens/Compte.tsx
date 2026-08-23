@@ -55,9 +55,9 @@ export function Compte({
       <div className="ecran__corps">
         <h1>Compte</h1>
         {vendeur ? (
-          <section className="carnet">
-            <div className="carnet__boutique">{vendeur.businessName}</div>
-            <div className="carnet__quartier">{vendeur.quartier}</div>
+          <section className="carte">
+            <div className="carte__titre">{vendeur.businessName}</div>
+            <div className="carte__sous">{vendeur.quartier}</div>
             <p className="discret">
               Vous pouvez garder jusqu’à {formatCfa(vendeur.maxBalancePerCustomer)} par
               client.
@@ -66,8 +66,8 @@ export function Compte({
         ) : null}
 
         {client ? (
-          <section className="carnet">
-            <div className="carnet__boutique">
+          <section className="carte">
+            <div className="carte__titre">
               {formatPhoneLocal(session.msisdn)}
             </div>
             <p className="discret">

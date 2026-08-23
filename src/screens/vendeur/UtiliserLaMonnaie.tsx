@@ -262,12 +262,12 @@ export function UtiliserLaMonnaie({
         {etape === 'fait' && (
           <>
             <h1>Confirmé</h1>
-            <article className="carnet">
+            <article className="carte">
               <div>
-                <div className="carnet__boutique">{vendeur.businessName}</div>
-                <div className="carnet__quartier">{formatPhoneLocal(numero)}</div>
+                <div className="carte__titre">{vendeur.businessName}</div>
+                <div className="carte__sous">{formatPhoneLocal(numero)}</div>
               </div>
-              <div className="carnet__etiquette">Utilisé</div>
+              <div className="carte__etiquette">Utilisé</div>
               <Montant value={montant} taille="geant" />
             </article>
             {restant !== null ? (

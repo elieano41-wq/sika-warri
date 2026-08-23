@@ -249,13 +249,13 @@ export function GarderLaMonnaie({
           <>
             <h1>Monnaie gardée</h1>
 
-            {/* Le carnet: the record as it would appear in the paper cahier. */}
-            <article className="carnet">
+            {/* The record, as it would appear in the paper carnet a vendor already keeps. */}
+            <article className="carte">
               <div>
-                <div className="carnet__boutique">{vendeur.businessName}</div>
-                <div className="carnet__quartier">{formatPhoneLocal(numero)}</div>
+                <div className="carte__titre">{vendeur.businessName}</div>
+                <div className="carte__sous">{formatPhoneLocal(numero)}</div>
               </div>
-              <div className="carnet__etiquette">Monnaie du client chez vous</div>
+              <div className="carte__etiquette">Monnaie du client chez vous</div>
               <Montant value={recu.nouveau} taille="geant" />
             </article>
 

@@ -44,7 +44,7 @@ const commun = {
   'aria-hidden': true,
 };
 
-/** An open, empty carnet. */
+/** An open, empty notebook. */
 export const IconeCarnetVide = (
   <svg {...commun}>
     <path d="M4 4.5h7v15H4zM13 4.5h7v15h-7z" />

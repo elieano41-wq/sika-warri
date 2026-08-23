@@ -142,12 +142,12 @@ export function Admin({
               <Message ton="info">Aucune demande en attente.</Message>
             ) : (
               demandes.map((d) => (
-                <article key={d.request_id} className="carnet">
+                <article key={d.request_id} className="carte">
                   <div>
-                    <div className="carnet__boutique">
+                    <div className="carte__titre">
                       {d.nom ?? 'Compte inconnu'}
                     </div>
-                    <div className="carnet__quartier">
+                    <div className="carte__sous">
                       {formatPhoneLocal(d.phone)}
                       {d.quartier ? ` · ${d.quartier}` : ''}
                     </div>
@@ -161,7 +161,7 @@ export function Admin({
                     </Message>
                   ) : (
                     <>
-                      <div className="carnet__etiquette">
+                      <div className="carte__etiquette">
                         {d.role === 'vendor' ? 'Commerçant' : 'Client'} · inscrit le{' '}
                         {d.registered_at
                           ? new Date(d.registered_at).toLocaleDateString('fr-FR')
@@ -247,15 +247,15 @@ export function Admin({
               <Message ton="info">Aucun commerçant inscrit.</Message>
             ) : (
               vendeurs.map((v) => (
-                <article key={v.vendor_id} className="carnet">
+                <article key={v.vendor_id} className="carte">
                   <div>
-                    <div className="carnet__boutique">{v.business_name}</div>
-                    <div className="carnet__quartier">
+                    <div className="carte__titre">{v.business_name}</div>
+                    <div className="carte__sous">
                       {v.quartier} · {formatPhoneLocal(v.phone)}
                     </div>
                   </div>
 
-                  <div className="carnet__etiquette">
+                  <div className="carte__etiquette">
                     {v.phone_verified_at
                       ? `Vérifié (${v.verification_method === 'in_person' ? 'en personne' : 'SMS'})`
                       : 'NON VÉRIFIÉ'}

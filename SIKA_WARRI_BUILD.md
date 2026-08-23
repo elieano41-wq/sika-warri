@@ -204,7 +204,19 @@ Type:
 
 All from Google Fonts, subset to `latin` + `latin-ext`.
 
-**Signature element — le carnet.** Each shop balance renders as a card styled after the paper cahier a vendor already keeps: a thin gold rule down the left edge, the shop name set in the display face, and the amount large in mono. This is the one place to spend visual boldness. Everything else stays quiet and disciplined.
+**Cards — plain, not paper.** Each shop balance renders as a card: the shop name in the display face, the amount large in mono, on `--vert-foret` over the night background.
+
+This started as a skeuomorph of the paper *cahier* a vendor already keeps — a gold margin rule down the left edge and a faint ruled-paper texture — and that was dropped. A ledger which has to be trusted with money should not look like a school exercise book, and an imitation ages badly beside the real thing it imitates. Vendors are moving *off* paper; the app should not be nostalgic about it.
+
+What holds the design together instead is restraint, and it is enforceable rather than a matter of taste:
+
+- **One accent, reserved.** Gold marks amounts, the primary action, and the single most important card on a screen (`.carte--principale`, a 3px gold top edge). **At most one per screen** — used twice it means nothing. That variant *is* the visual hierarchy: a vendor glancing at their phone should find the figure that matters without reading.
+- **Separation by hairline, never by shadow.** A 1px `--trait` border, the same device the tab bar uses. A shadow is invisible in direct sunlight and costs a paint on a cheap Android.
+- **No gradients, no glass, no blur.** All three cost GPU, none says anything.
+- **Generous padding and a real radius**, so a card reads as a deliberate object rather than a div with a background colour.
+- **Labels above figures** are uppercase and letterspaced — the one typographic device running through the whole app, so a label reads as a label everywhere without needing a colour of its own.
+
+The test suite asserts the absence of the paper treatment as well as the presence of the replacement, so neither drifts back.
 
 Non-negotiable UI quality floor: minimum 48px touch targets, minimum 16px body text, amounts always formatted with a space as the thousands separator and the `F` suffix (`2 500 F`), visible keyboard focus, full function down to a 320px viewport.
 

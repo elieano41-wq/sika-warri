@@ -13,6 +13,7 @@ import { MesClients } from './screens/vendeur/MesClients';
 import { AccueilVendeur } from './screens/vendeur/Accueil';
 import { Historique as HistoriqueVendeur } from './screens/vendeur/Historique';
 import { MesDettes } from './screens/vendeur/MesDettes';
+import { Corriger } from './screens/vendeur/Corriger';
 import { NoterUneDette } from './screens/vendeur/NoterUneDette';
 import { Compte, ChangerCode } from './screens/Compte';
 import {
@@ -62,7 +63,7 @@ type OngletVendeur = 'accueil' | 'clients' | 'dettes' | 'compte';
  * halfway, so the bar disappears for it. This is just a screen further in, and
  * the bar stays.
  */
-type SousVue = null | 'historique';
+type SousVue = null | 'historique' | 'corriger';
 type Tache = null | 'garder' | 'utiliser' | 'code' | 'dette';
 
 const ONGLETS_VENDEUR: Array<Onglet<OngletVendeur>> = [
@@ -303,7 +304,13 @@ export default function App() {
           Without the key React reuses the node and the screen swaps with no
           transition at all. */}
       <div key={sousVue ?? onglet}>
-        {sousVue === 'historique' ? (
+        {sousVue === 'corriger' ? (
+          <Corriger
+            session={session}
+            vendeur={vendeur}
+            onRetour={() => setSousVue(null)}
+          />
+        ) : sousVue === 'historique' ? (
           <HistoriqueVendeur
             session={session}
             vendeur={vendeur}
@@ -317,6 +324,7 @@ export default function App() {
             onUtiliser={() => setTache('utiliser')}
             onNoterDette={() => setTache('dette')}
             onHistorique={() => setSousVue('historique')}
+            onCorriger={() => setSousVue('corriger')}
           />
         ) : onglet === 'clients' ? (
           <MesClients session={session} vendeur={vendeur} />

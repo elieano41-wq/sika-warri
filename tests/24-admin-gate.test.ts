@@ -115,7 +115,9 @@ describe('a non-admin cannot reach any admin action', () => {
   const ACTIONS = [
     ['admin_reset_queue', 'select * from public.admin_reset_queue($1::uuid)'],
     ['admin_vendor_list', 'select * from public.admin_vendor_list($1::uuid)'],
-    ['admin_is_caller', 'select public.admin_is_caller($1::uuid)'],
+    // admin_is_caller is NOT here: it is deliberately callable by a client
+    // session so the app can check its own status on load. See the exemption
+    // below, which asserts why that is safe.
     ['admin_reject_pin_reset',
       'select public.admin_reject_pin_reset($2::uuid, $1::uuid, null)'],
   ] as const;
@@ -164,7 +166,20 @@ describe('a non-admin cannot reach any admin action', () => {
     expect(code_).toBeNull();
   });
 
-  it('every admin_ function is withheld from authenticated', async () => {
+  /**
+   * The ONE admin_ function a client session may call.
+   *
+   * It answers "am I an admin?" and nothing else, so the app can check on load
+   * instead of trusting a flag captured at login — which went stale on every
+   * page reload and hid the support panel from an account that held the grant
+   * all along.
+   *
+   * Named here rather than pattern-matched, so adding a second exemption is a
+   * decision someone has to write down.
+   */
+  const EXEMPTE = ['admin_is_caller'];
+
+  it('every admin_ function is withheld from authenticated, bar one named', async () => {
     // Catches a future action added without the revoke. Discovered from the
     // catalog rather than from a list someone has to remember to update.
     await actAsAdmin(db);
@@ -176,8 +191,39 @@ describe('a non-admin cannot reach any admin action', () => {
     );
 
     expect(rows.length).toBeGreaterThan(3);
-    const ouverts = rows.filter((r) => r.autorise).map((r) => r.proname);
-    expect(ouverts).toEqual([]);
+    const ouverts = rows
+      .filter((r) => r.autorise)
+      .map((r) => r.proname)
+      .filter((n) => !EXEMPTE.includes(n));
+    expect(ouverts, `granted to authenticated without an exemption: ${ouverts}`)
+      .toEqual([]);
+  });
+
+  it('the exemption is still granted, so the app can actually check', async () => {
+    // The other direction. If this revoke came back, the support panel would
+    // silently vanish on every reload again — the original bug.
+    await actAsAdmin(db);
+    const { rows } = await db.query(
+      `select has_function_privilege('authenticated', p.oid, 'execute') as ok
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname = 'admin_is_caller'`
+    );
+    expect(rows[0].ok).toBe(true);
+  });
+
+  it('and the exemption cannot be used to learn about anyone else', async () => {
+    // What makes granting it safe. It is not is_admin() with a different name.
+    const autre = await seedVendor(db);
+    await actAsAdmin(db);
+    await db.query('insert into public.app_admins (auth_user_id, note) values ($1, $2)', [
+      autre.authUserId, 'operator',
+    ]);
+
+    await actAs(db, vendor.authUserId);
+    const code_ = await sqlstateOf(() =>
+      db.query('select public.admin_is_caller($1::uuid)', [autre.authUserId])
+    );
+    expect(code_).toBe('SW002');
   });
 
   it('the panel is reachable only with a server-issued flag', async () => {

@@ -12,6 +12,7 @@ import {
   Navigation, IconeMonnaie, IconeHistorique, IconeCode, IconeCompte,
   type Onglet,
 } from '../../components/Navigation';
+import { Message } from '../../components/ui';
 
 /**
  * The customer's app: four destinations, unless something needs confirming.
@@ -140,6 +141,19 @@ export function EspaceClient({
 
   return (
     <>
+      {/* PERSISTENT, not a one-time notice. Set the moment a code is typed on a
+          vendor's phone, which happens while the customer is using the app — so
+          a banner shown only at login waits for a sign-out that may never come.
+          It stays until the code is actually changed. */}
+      {client.pinChangeRequired ? (
+        <div className="ecran" style={{ minHeight: 'auto', paddingBottom: 0 }}>
+          <Message ton="erreur">
+            Votre code a été saisi sur le téléphone d’un commerçant. Changez-le
+            depuis « Compte ».
+          </Message>
+        </div>
+      ) : null}
+
       {/* key on the tab so the entry animation replays per destination. Without
           it React reuses the node and the screen changes with no transition. */}
       <div key={onglet}>

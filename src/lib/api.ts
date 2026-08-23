@@ -311,12 +311,27 @@ export async function cancelPending(token: string, pendingId: string, actorUserI
 export interface CustomerProfile {
   id: string;
   authUserId: string;
+  /**
+   * Their code was typed on a VENDOR'S phone, so somebody else has seen it.
+   *
+   * Read from the profile on load, not from the login response. It is set at the
+   * counter — while the customer is using the app — so a warning delivered only
+   * at login waits for a sign-out that may never come. The one message that says
+   * "change your code" must not depend on that.
+   */
+  pinChangeRequired: boolean;
 }
 
 export async function myCustomer(token: string): Promise<CustomerProfile> {
-  const rows = (await get('customers?select=id,auth_user_id', token)) as any[];
+  const rows = (await get(
+    'customers?select=id,auth_user_id,pin_change_required', token
+  )) as any[];
   if (!rows?.length) throw new ApiError('NOT_A_CUSTOMER', 'Compte client introuvable', 403);
-  return { id: rows[0].id, authUserId: rows[0].auth_user_id };
+  return {
+    id: rows[0].id,
+    authUserId: rows[0].auth_user_id,
+    pinChangeRequired: Boolean(rows[0].pin_change_required),
+  };
 }
 
 export interface PendingRequest {

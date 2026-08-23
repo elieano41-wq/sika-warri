@@ -153,10 +153,13 @@ describe('it still cannot be used to enumerate admins', () => {
   it('app_admins itself stays unreadable', async () => {
     await accorder(vendor.authUserId);
     await actAs(db, vendor.authUserId);
-    const { rows } = await db.query('select * from public.app_admins');
-    // Even an admin cannot list the table through a client session; the boolean
-    // about yourself is the entire disclosure.
-    expect(rows).toEqual([]);
+
+    // REFUSED, not merely empty. I expected an empty result set through RLS and
+    // the table is stricter than that: `authenticated` has no select grant at
+    // all, so the query is rejected outright. Asserting the refusal records the
+    // stronger guarantee rather than the weaker one I assumed.
+    const code_ = await sqlstateOf(() => db.query('select * from public.app_admins'));
+    expect(code_).toBe('42501');
   });
 });
 
@@ -216,8 +219,14 @@ describe('the account screen states the answer in plain words', () => {
   it('shows the build alongside it', () => {
     // If the status looks wrong the next question is always "is this the build
     // I think it is". Both in one place saves the round trip.
-    const bloc = /Compte support[\s\S]{0,600}/.exec(compte)![0];
-    expect(bloc).toMatch(/__BUILD_SHA__/);
+    //
+    // Matched on the enclosing <section> rather than a character window: the
+    // first version allowed 600 and the string sits at about 611, so it failed
+    // on nothing but the length of a comment. A proximity assertion measured in
+    // characters breaks whenever someone explains themselves.
+    const section = /<section[^>]*>[\s\S]*?Compte support[\s\S]*?<\/section>/.exec(compte);
+    expect(section, 'Compte support section not found').not.toBeNull();
+    expect(section![0]).toMatch(/__BUILD_SHA__/);
   });
 });
 

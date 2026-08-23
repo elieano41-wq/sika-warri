@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as api from '../lib/api';
 import type { Session, VendorProfile, CustomerProfile } from '../lib/api';
 import {
-  Entete, Message, Clavier, PinPoints, BoutonPrimaire, BoutonSecondaire, Version,
+  Entete, Message, Clavier, PinPoints, BoutonPrimaire, BoutonSecondaire,
 } from '../components/ui';
 import { Installer } from '../components/Installer';
 import { formatCfa, formatPhoneLocal } from '../lib/format';
@@ -90,8 +90,8 @@ export function Compte({
           {/* The build, beside the answer. If the status looks wrong, the next
               question is always "is this the build I think it is", and having
               both in one place saves asking. */}
-          <p className="discret">
-            Version {__BUILD_SHA__}
+          <p className="discret" style={{ fontFamily: 'var(--police-chiffre)' }}>
+            Version {__BUILD_SHA__} · {__BUILD_DATE__}
           </p>
         </section>
 
@@ -99,9 +99,11 @@ export function Compte({
           Changer mon code
         </BoutonSecondaire>
 
-        {/* Reachable only with a flag the server issued at login. Every action
-            behind it is gated again in SQL, so a forged flag shows a button that
-            then fails. */}
+        {/* Shown from a status the app re-asks the server on every load, not
+            from a flag captured at login — that flag went stale on reload and
+            hid this button from an account that held the grant all along. Every
+            action behind it is gated again in SQL, so a forged flag shows a
+            button that then fails. */}
         {estAdmin && onAdmin ? (
           <BoutonSecondaire onClick={onAdmin}>Panneau support</BoutonSecondaire>
         ) : null}
@@ -116,7 +118,6 @@ export function Compte({
 
       <div className="ecran__pied pile">
         <BoutonSecondaire onClick={onDeconnexion}>Quitter</BoutonSecondaire>
-        <Version />
       </div>
     </div>
   );

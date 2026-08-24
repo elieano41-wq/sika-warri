@@ -400,6 +400,13 @@ const BORNE_AUTREMENT: Record<string, string> = {
   ensure_customer_for_debt: 'one row, keyed on the unique phone',
   // where p.id = p_pending_id on the primary key.
   vendor_pending_detail: 'one row, keyed on the primary key',
+  // The mirror of vendor_debt_summary, from the debtor's side. Same reason: what
+  // this account OWES must not be summed from a bounded creditor list.
+  customer_debt_summary: 'aggregate, one row by construction',
+  // All four registers, one row. It computes nothing itself — it calls the four
+  // aggregates above and returns their figures side by side — so it is bounded
+  // by each of them being bounded.
+  account_summary: 'aggregate of aggregates, one row by construction',
 };
 
 describe('every set-returning function is bounded, one way or the other', () => {

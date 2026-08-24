@@ -215,14 +215,27 @@ describe('rule 3: no screen offers to delete or edit an entry', () => {
   });
 
   it('it is reachable from where the mistake happens', () => {
-    // One tap from Accueil. A vendor who has just mistyped is still on that
+    // One tap from Accueil. Somebody who has just mistyped is still on that
     // screen, and a fix buried three levels down is a fix nobody finds in front
     // of a waiting customer.
-    const accueil = lire(SRC, 'screens', 'vendeur', 'Accueil.tsx');
+    //
+    // screens/Accueil.tsx, not screens/vendeur/Accueil.tsx: there is one home
+    // screen now and it is not inside a role folder, because correcting your own
+    // mistake was never a role's privilege.
+    const accueil = lire(SRC, 'screens', 'Accueil.tsx');
     expect(accueil).toMatch(/onCorriger/);
-    // On the activity block, where the vendor is looking when they notice the
-    // mistake — not a utility button below the fold on a 390x844 phone, which is
-    // where it was until a screenshot showed it needed a scroll to reach.
     expect(accueil).toMatch(/Corriger une [ée]criture/);
+  });
+
+  it('and it sits in the action group, not adrift below it', () => {
+    // It used to hang under the day's activity block as its own element, which
+    // cost a full --espace-6 gap and pushed the three real actions further down
+    // — and an action below the fold is not equal in weight to one above it.
+    // Inside the group it is still visibly quieter, being a BoutonDiscret.
+    const accueil = lire(SRC, 'screens', 'Accueil.tsx');
+    const groupe = /<div className="actions-accueil">[\s\S]*?<\/div>/.exec(accueil);
+    expect(groupe, 'actions-accueil group not found').not.toBeNull();
+    expect(groupe![0]).toMatch(/Corriger une [ée]criture/);
+    expect(groupe![0]).toMatch(/BoutonDiscret[\s\S]*Corriger/);
   });
 });

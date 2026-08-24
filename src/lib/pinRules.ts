@@ -73,6 +73,17 @@ export function pinProbleme(pin: string): string | null {
   return checkPin(pin)?.message ?? null;
 }
 
+/**
+ * The shortest code any screen must still ACCEPT.
+ *
+ * Four, for as long as accounts registered before the lengths were unified
+ * still exist. Every screen that takes a code — login, the change-code screen,
+ * and both confirmation keypads — has to honour this or it locks somebody out
+ * of their own money. It lives here because it was hardcoded as a literal 4 in
+ * four separate files, and two of them were missed the first time.
+ */
+export const PIN_MIN_ACCEPTE = 4;
+
 /** One length, for everyone. Re-exported so screens have one import. */
 export function pinLengthFor(): number {
   return PIN_LENGTH;

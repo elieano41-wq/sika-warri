@@ -117,6 +117,7 @@ function Apercu() {
           onOnMeDoit={rien}
           onMesCarnets={rien}
           onHistorique={rien}
+          onMonCode={rien}
           onCorriger={rien}
           onVerifier={rien}
         />

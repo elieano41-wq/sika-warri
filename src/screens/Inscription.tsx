@@ -2,7 +2,8 @@ import { useState } from 'react';
 import * as api from '../lib/api';
 import type { Session } from '../lib/api';
 import {
-  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
+  Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonSecondaire,
+  BoutonDiscret, CaseAcceptation,
 } from '../components/ui';
 import { Installer } from '../components/Installer';
 import { formatPhoneLocal } from '../lib/format';
@@ -230,38 +231,12 @@ export function Inscription({
           </p>
 
           {/* A real tap, never pre-ticked. The acknowledgement is stored with a
-              timestamp, so it has to be a decision this person actually made. */}
-          <button
-            type="button"
-            onClick={() => setAccepte(!accepte)}
-            aria-pressed={accepte}
-            className="bouton bouton--secondaire"
-            style={{
-              minHeight: 'var(--cible-primaire)',
-              justifyContent: 'flex-start',
-              gap: 'var(--espace-4)',
-              textAlign: 'left',
-              borderColor: accepte ? 'var(--or-sika)' : 'var(--trait)',
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{
-                width: '1.75rem', height: '1.75rem', flexShrink: 0,
-                borderRadius: '6px',
-                border: `2px solid ${accepte ? 'var(--or-sika)' : 'var(--sauge)'}`,
-                background: accepte ? 'var(--or-sika)' : 'transparent',
-                color: 'var(--vert-nuit-creux)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700,
-              }}
-            >
-              {accepte ? '✓' : ''}
-            </span>
-            <span style={{ fontSize: 'var(--texte-base)', fontWeight: 500 }}>
-              J'ai lu et j'accepte
-            </span>
-          </button>
+              timestamp, so it has to be a decision this person actually made.
+              Shared with the Conditions screen, which asks the same thing of an
+              account that reached its keeper half through the 0043 backfill. */}
+          <CaseAcceptation coche={accepte} onBascule={() => setAccepte(!accepte)}>
+            J'ai lu et j'accepte
+          </CaseAcceptation>
         </div>
 
         <div className="ecran__pied pile">

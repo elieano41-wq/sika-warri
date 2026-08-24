@@ -274,6 +274,40 @@ export function BoutonDiscret({ onClick, children }: { onClick: () => void; chil
  * holding?" has to be answerable by reading the screen, not by navigating it.
  * Small and in the sauge grey so it never competes with an amount.
  */
+/**
+ * The acknowledgement control. One tap, never pre-ticked.
+ *
+ * Extracted because there are two places that ask now — registration, and the
+ * Conditions screen an account reaches when 0043 gave it a keeper half it never
+ * agreed to. Written twice it would be two behaviours to keep in step, and the
+ * one that mattered would be whichever one nobody had looked at.
+ *
+ * A button rather than a checkbox: the whole row is the target, at
+ * --cible-primaire, because this gets tapped by a thumb at a counter.
+ */
+export function CaseAcceptation({
+  coche,
+  onBascule,
+  children,
+}: {
+  coche: boolean;
+  onBascule: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onBascule}
+      aria-pressed={coche}
+      className="bouton bouton--secondaire case-accept"
+      data-coche={coche ? 'oui' : 'non'}
+    >
+      <span aria-hidden="true" className="case-accept__boite">{coche ? '✓' : ''}</span>
+      <span className="case-accept__texte">{children}</span>
+    </button>
+  );
+}
+
 export function Version() {
   return (
     <p className="discret centre" style={{ fontFamily: 'var(--police-chiffre)', opacity: 0.75 }}>

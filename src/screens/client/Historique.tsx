@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../lib/api';
 import type { Session, CustomerProfile, CustomerMovementRow } from '../../lib/api';
-import { Entete, Message } from '../../components/ui';
+import { Entete, Message, BoutonDiscret } from '../../components/ui';
 import { Vide, IconeCarnetVide } from '../../components/Vide';
 import { formatCfa } from '../../lib/format';
 import { libelleMouvement, signeMouvement, parJour, dateEtHeure } from '../../lib/mouvements';
@@ -27,9 +27,12 @@ import { libelleMouvement, signeMouvement, parJour, dateEtHeure } from '../../li
 export function Historique({
   session,
   client,
+  onRetour,
 }: {
   session: Session;
   client: CustomerProfile;
+  /** Was a tab; reached from Mes carnets now, so it needs a way back. */
+  onRetour: () => void;
 }) {
   const [lignes, setLignes] = useState<CustomerMovementRow[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -52,8 +55,11 @@ export function Historique({
   const tronque = lignes !== null && total > lignes.length;
 
   return (
-    <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Vos mouvements, carnet par carnet" />
+    <div className="ecran vue vue--tache">
+      <Entete
+        sousTitre="Vos mouvements, carnet par carnet"
+        action={<BoutonDiscret onClick={onRetour}>Retour</BoutonDiscret>}
+      />
 
       <div className="ecran__corps">
         <h1>Historique</h1>

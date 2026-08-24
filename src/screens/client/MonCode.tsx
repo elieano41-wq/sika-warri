@@ -1,5 +1,5 @@
 import type { Session } from '../../lib/api';
-import { Entete, Message } from '../../components/ui';
+import { Entete, Message, BoutonDiscret } from '../../components/ui';
 import { QrCode } from '../../components/QrCode';
 import { formatPhoneLocal } from '../../lib/format';
 
@@ -21,10 +21,24 @@ import { formatPhoneLocal } from '../../lib/format';
  * The number appears in plain text beside it. Cheap cameras in bad light fail,
  * and the fallback has to be readable aloud.
  */
-export function MonCode({ session }: { session: Session }) {
+export function MonCode({
+  session,
+  onRetour,
+}: {
+  session: Session;
+  /**
+   * Was a tab under the customer shell. It is a task now: shown at a counter
+   * with somebody waiting, so it takes the whole screen and gives a way back
+   * rather than relying on a bar that is not there.
+   */
+  onRetour: () => void;
+}) {
   return (
-    <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Montrez-le" />
+    <div className="ecran vue vue--tache">
+      <Entete
+        sousTitre="Montrez-le"
+        action={<BoutonDiscret onClick={onRetour}>Retour</BoutonDiscret>}
+      />
 
       <div className="ecran__corps">
         <h1>Mon code</h1>
@@ -39,7 +53,7 @@ export function MonCode({ session }: { session: Session }) {
 
         <Message ton="info">
           Ce code ne permet pas de prendre votre monnaie. Rien ne peut être
-          utilisé sans votre code à 4 chiffres, saisi sur votre téléphone.
+          utilisé sans votre code, saisi sur votre téléphone.
         </Message>
       </div>
     </div>

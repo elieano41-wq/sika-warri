@@ -6,8 +6,9 @@ import type { Session, CustomerProfile, PendingRequest } from '../../lib/api';
 import { estRemboursement } from '../../lib/dette';
 import {
   Clavier, PinPoints, Entete, Message, Cadran, Montant, Compteur,
-  BoutonSecondaire, BoutonDiscret,
+  BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../../components/ui';
+import { PIN_LENGTH, PIN_MIN_ACCEPTE } from '../../lib/pinRules';
 
 /**
  * The customer's confirmation screen. Amendment H, step 3.
@@ -94,27 +95,35 @@ export function Confirmation({
   }, [chargeUnFois, demande, fait, onTermine]);
 
 
+  async function envoyer(code: string) {
+    if (!demande || occupe || code.length < PIN_MIN_ACCEPTE) return;
+    setOccupe(true);
+    try {
+      const r = await api.confirmDebit(session.accessToken, demande.id, code);
+      setFait({ montant: r.amountCfa, restant: r.remainingCfa, kind: demande.kind });
+      setPin('');
+    } catch (e) {
+      setPin('');
+      setErreur((e as api.ApiError).message);
+    } finally {
+      setOccupe(false);
+    }
+  }
+
   async function chiffre(d: string) {
     if (!demande || occupe) return;
     setErreur(null);
-    if (pin.length >= 4) return;
+    if (pin.length >= PIN_LENGTH) return;
 
     const suivant = pin + d;
     setPin(suivant);
 
-    if (suivant.length === 4) {
-      setOccupe(true);
-      try {
-        const r = await api.confirmDebit(session.accessToken, demande.id, suivant);
-        setFait({ montant: r.amountCfa, restant: r.remainingCfa, kind: demande.kind });
-        setPin('');
-      } catch (e) {
-        setPin('');
-        setErreur((e as api.ApiError).message);
-      } finally {
-        setOccupe(false);
-      }
-    }
+    // Auto-submit on the SIXTH digit. A code shorter than six belongs to an
+    // account that predates the single length; it is submitted with the button
+    // below, because auto-submitting at four would fire mid-typing for everyone
+    // whose code is six — and refusing four outright would lock somebody out of
+    // confirming a debit against their own balance.
+    if (suivant.length === PIN_LENGTH) await envoyer(suivant);
   }
 
   // ---- after confirming ---------------------------------------------------
@@ -219,8 +228,8 @@ export function Confirmation({
           </p>
         </article>
 
-        <Cadran etiquette="Votre code à 4 chiffres">
-          <PinPoints longueur={4} remplis={pin.length} />
+        <Cadran etiquette={`Votre code à ${PIN_LENGTH} chiffres`}>
+          <PinPoints longueur={PIN_LENGTH} remplis={pin.length} />
         </Cadran>
 
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
@@ -230,6 +239,15 @@ export function Confirmation({
           onEffacer={() => setPin(pin.slice(0, -1))}
           onToutEffacer={() => setPin('')}
         />
+
+        {/* For a code shorter than six, from an account created before the
+            lengths were unified. Invisible to everyone else: a six-digit code
+            auto-submits and never reaches this. */}
+        {pin.length >= PIN_MIN_ACCEPTE && pin.length < PIN_LENGTH ? (
+          <BoutonPrimaire onClick={() => envoyer(pin)} disabled={occupe}>
+            {occupe ? 'Vérification…' : 'Je confirme'}
+          </BoutonPrimaire>
+        ) : null}
       </div>
 
       <div className="ecran__pied pile">

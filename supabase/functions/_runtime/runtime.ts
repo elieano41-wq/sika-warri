@@ -196,6 +196,12 @@ const SQLSTATE_MESSAGES: Record<string, string> = {
   SW031: "Cette réclamation a déjà été traitée",
 
   SW032: "Vous ne pouvez pas répondre à cette réclamation",
+
+  // Names the next action, like every other message a user meets at a counter.
+  // "Refused" on its own teaches nothing and gets tried again.
+  SW033:
+    "Vous devez d'abord accepter les conditions pour garder l'argent de " +
+    "quelqu'un. Ouvrez « Compte » puis « Conditions ».",
 };
 
 /**

@@ -9,6 +9,7 @@ import {
 
 import { Accueil } from './Accueil';
 import { Compte, ChangerCode } from './Compte';
+import { Conditions } from './Conditions';
 import { GarderLaMonnaie } from './vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './vendeur/UtiliserLaMonnaie';
 import { NoterUneDette } from './vendeur/NoterUneDette';
@@ -17,6 +18,8 @@ import { MesClients } from './vendeur/MesClients';
 import { MesDettes } from './vendeur/MesDettes';
 import { Historique as HistoriqueVendeur } from './vendeur/Historique';
 import { MaMonnaie } from './client/MaMonnaie';
+import { MonCode } from './client/MonCode';
+import { Historique as HistoriqueClient } from './client/Historique';
 import { Confirmation } from './client/Confirmation';
 import { AVerifier } from './client/AVerifier';
 import { DemandesDette } from './client/ConfirmerDette';
@@ -62,7 +65,25 @@ const ONGLETS: Array<Onglet<OngletCle>> = [
 type Tache =
   | 'garder' | 'utiliser' | 'dette' | 'code'
   | 'corriger' | 'historique' | 'carnets' | 'verifier'
+  // Two screens that were tabs under the customer shell and had nowhere to go
+  // when the two bars became one. Found by the UI harness, which navigated to
+  // them by tab label and could not: dropping a tab is not the same as deciding
+  // where its screen lives.
+  | 'moncode' | 'histoclient'
   | null;
+
+/**
+ * The three things you cannot do without having acknowledged the disclosure.
+ *
+ * Not a UI preference: SQL refuses a credit and a debt claim from an
+ * unacknowledged account (SW033). This list is the app asking BEFORE the
+ * refusal, so nobody is stopped mid-transaction with a customer waiting and
+ * then handed six lines of legal text.
+ *
+ * "utiliser" is NOT here. Spending change RELEASES custody, and a refund is
+ * standing rule 9 — neither is ever gated, in SQL or here.
+ */
+const EXIGENT_CONDITIONS: Tache[] = ['garder', 'dette'];
 
 export function Espace({
   session,
@@ -82,6 +103,24 @@ export function Espace({
 }) {
   const [onglet, setOnglet] = useState<OngletCle>('accueil');
   const [tache, setTache] = useState<Tache>(null);
+  /** The task waiting behind the disclosure, resumed once it is accepted. */
+  const [apresConditions, setApresConditions] = useState<Tache>(null);
+
+  /**
+   * Start a task, asking for the acknowledgement first if it needs one.
+   *
+   * The task is remembered and resumed, so accepting lands where the tap was
+   * going rather than back on the home screen — being sent back to start over
+   * after reading a disclosure is how a shopkeeper decides the app is not worth
+   * it in front of a customer.
+   */
+  const demarrer = (t: Tache) => {
+    if (t && EXIGENT_CONDITIONS.includes(t) && vendeur && !vendeur.termsAcceptedAt) {
+      setApresConditions(t);
+      return;
+    }
+    setTache(t);
+  };
 
   // ---- somebody is waiting on this phone ---------------------------------
   // Polling, moved here from EspaceClient unchanged. It runs for every account
@@ -146,6 +185,25 @@ export function Espace({
     );
   }
 
+  // ---- the disclosure, before the task that needs it ---------------------
+  if (vendeur && apresConditions) {
+    return (
+      <Conditions
+        session={session}
+        vendeur={vendeur}
+        onAccepte={() => {
+          const suite = apresConditions;
+          setApresConditions(null);
+          // The profile still says null until App refetches, so the task is
+          // started directly rather than routed back through demarrer(), which
+          // would ask again and loop.
+          setTache(suite);
+        }}
+        onAnnuler={() => setApresConditions(null)}
+      />
+    );
+  }
+
   // ---- tasks -------------------------------------------------------------
   if (tache === 'code') {
     return (
@@ -193,8 +251,23 @@ export function Espace({
         session={session}
         client={client}
         onVerifier={() => setTache('verifier')}
+        onHistorique={() => setTache('histoclient')}
         onRetour={() => setTache(null)}
       />
+    );
+  }
+
+  // The QR a keeper scans. Reached from the home screen because it is shown at a
+  // counter with somebody waiting, which is the wrong moment to go looking.
+  if (tache === 'moncode') {
+    return <MonCode session={session} onRetour={() => setTache(null)} />;
+  }
+
+  // My movements as the party BEING kept for, across every carnet. Reached from
+  // Mes carnets, so each history sits beside the side of the book it describes.
+  if (client && tache === 'histoclient') {
+    return (
+      <HistoriqueClient session={session} client={client} onRetour={() => setTache(null)} />
     );
   }
 
@@ -237,13 +310,14 @@ export function Espace({
             actorUserId={vendeur?.authUserId ?? client?.authUserId ?? ''}
             nom={nom}
             quartier={vendeur?.quartier ?? null}
-            onGarder={() => setTache('garder')}
-            onUtiliser={() => setTache('utiliser')}
-            onNoterDette={() => setTache('dette')}
+            onGarder={() => demarrer('garder')}
+            onUtiliser={() => demarrer('utiliser')}
+            onNoterDette={() => demarrer('dette')}
             onJeGarde={() => setOnglet('jegarde')}
             onOnMeDoit={() => setOnglet('onmedoit')}
             onMesCarnets={() => setTache('carnets')}
             onHistorique={() => setTache('historique')}
+            onMonCode={() => setTache('moncode')}
             onCorriger={() => setTache('corriger')}
             onVerifier={() => setTache('verifier')}
           />

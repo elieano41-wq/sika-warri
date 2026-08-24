@@ -36,12 +36,15 @@ export function MaMonnaie({
   session,
   client,
   onVerifier,
+  onHistorique,
   onRetour,
 }: {
   session: Session;
   client: CustomerProfile;
   /** Opens the review queue. Owned by the shell, because it is a task. */
   onVerifier: () => void;
+  /** All my movements, across every carnet, in one chronological list. */
+  onHistorique: () => void;
   /**
    * Given when this screen is reached as a TASK rather than from a tab.
    *
@@ -321,6 +324,10 @@ export function MaMonnaie({
       </div>
 
       <div className="ecran__pied pile">
+        {/* All my movements, in one chronological list rather than per carnet.
+            It was a tab under the customer shell; it lives beside the carnets it
+            describes now. */}
+        <BoutonDiscret onClick={onHistorique}>Tous mes mouvements</BoutonDiscret>
         <p className="discret centre">
           Sika Warri enregistre seulement. Chaque montant reste là où il a été
           gardé.

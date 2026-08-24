@@ -314,6 +314,37 @@ h2 { font-size: var(--titre-s); }
   color: var(--sauge);
 }
 
+/* The acknowledgement row. Was twenty lines of inline style, in one screen. */
+.case-accept {
+  min-height: var(--cible-primaire);
+  justify-content: flex-start;
+  gap: var(--espace-4);
+  text-align: left;
+  border-color: var(--trait);
+}
+
+.case-accept[data-coche='oui'] { border-color: var(--or-sika); }
+
+.case-accept__boite {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 2px solid var(--sauge);
+  color: var(--vert-nuit-creux);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.case-accept[data-coche='oui'] .case-accept__boite {
+  border-color: var(--or-sika);
+  background: var(--or-sika);
+}
+
+.case-accept__texte { font-size: var(--texte-base); font-weight: 500; }
+
 /* The banner is a button on the home screen, so it needs the button reset. */
 button.banniere {
   font: inherit;

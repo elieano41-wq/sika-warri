@@ -50,11 +50,19 @@ const TELEPHONE = { width: 360, height: 740, deviceScaleFactor: 2, isMobile: tru
 // Identifying test rows by phone-number pattern was tried and silently missed
 // four accounts from an older scheme; a prefix the harness always applies cannot
 // drift like that.
-const stamp = Date.now().toString().slice(-4);
+// FOUR DIGITS OF ENTROPY, AND THEY MUST NOT BE THE CLOCK.
+//
+// This was Date.now().slice(-4), which is the millisecond counter and therefore
+// cycles every ten seconds. Two runs minutes apart collide perfectly well, and
+// when they do the second one fails at "C'est fait" with "ce numéro est déjà
+// inscrit" — a message about the fixture, indistinguishable at a glance from a
+// bug in registration. Random is not collision-proof either, but it does not
+// have a period.
+const stamp = String(Math.floor(Math.random() * 9000) + 500).padStart(4, '0');
 const VENDOR_PHONE = telephoneTest(stamp);
 const CUSTOMER_PHONE = telephoneTest(String((Number(stamp) + 1) % 10000).padStart(4, '0'));
 const VENDOR_PIN = '481627';
-const CUSTOMER_PIN = '2846';
+const CUSTOMER_PIN = '284605';
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -70,9 +78,35 @@ const failures = [];
  */
 const VENDOR_NOM = PREFIXE_TEST + 'Boutique';
 
+/**
+ * Go to a destination, finding the way out of a task first if need be.
+ *
+ * WHY THIS BACKS OUT RATHER THAN FAILING. Under one shell there are more tasks
+ * than there were, and several of them are reached from a figure on the home
+ * screen rather than from a tab — Mes carnets, Mon code, the review queue. A
+ * task deliberately has no tab bar, so a harness that assumed the bar was always
+ * one click away spent this whole pass failing one step further along each time.
+ *
+ * A real person taps "Retour" and then the tab. So does this. The number of
+ * levels is bounded at three, because a flow that needs four backs out of itself
+ * is a navigation bug and should surface as one.
+ */
 async function ongletVers(page, etiquette) {
   const onglet = page.locator('.nav__item', { hasText: etiquette });
-  await onglet.first().waitFor({ timeout: 20000 });
+
+  for (let i = 0; i < 3; i += 1) {
+    if (await onglet.first().isVisible().catch(() => false)) break;
+    const sortie = page.getByRole('button', { name: /^(Retour|Terminé)$/ }).first();
+    if (!(await sortie.isVisible().catch(() => false))) break;
+    await sortie.click().catch(() => {});
+    await page.waitForTimeout(250);
+  }
+
+  await onglet.first().waitFor({ timeout: 20000 }).catch(async (e) => {
+    console.log(`--- no "${etiquette}" tab; screen says ---`);
+    console.log((await page.textContent('body')).replace(/\s+/g, ' ').slice(0, 300));
+    throw e;
+  });
   await onglet.first().click();
 }
 
@@ -81,11 +115,11 @@ function check(label, ok, detail = '') {
   else { fail += 1; failures.push(label); console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`); }
 }
 
-async function apiRegister(role, phone, pin, extra = {}) {
+async function apiRegister(phone, pin, extra = {}) {
   const res = await fetch(`${BASE_API}/functions/v1/register`, {
     method: 'POST',
     headers: { apikey: APIKEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, phone, pin, ...extra }),
+    body: JSON.stringify({ phone, pin, ...extra }),
   });
   return { status: res.status, body: await res.json().catch(() => null) };
 }
@@ -142,28 +176,30 @@ async function tapDigits(page, digits) {
  * A first-time visitor now lands on Bienvenue rather than a login form, so
  * reaching the PIN entry means going through the "J'ai déjà un compte" door.
  */
-async function loginViaUI(page, role, phone, pin) {
+async function loginViaUI(page, phone, pin) {
   await page.goto(APP);
   await page.getByRole('button', { name: /J.ai déjà un compte/ }).click();
   await page.getByRole('heading', { name: 'Connexion' }).waitFor({ timeout: 20000 });
-  await page.getByRole('button', {
-    name: role === 'vendor' ? 'Je tiens le carnet' : 'Je suis sur le carnet',
-  }).click();
+  // NO ROLE PICKER. There is one kind of account, so there is nothing to pick
+  // before typing a number — and a screen that asked was the reason an ordinary
+  // person could not record a debt owed to them.
   await tapDigits(page, phone);
   await page.getByRole('button', { name: 'Continuer' }).click();
   await tapDigits(page, pin);
 }
 
-async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
+/**
+ * Register through the UI. One path, for everybody.
+ *
+ * `premier` marks the first account of the run: the landing screen and the
+ * disclosure are checked once rather than on every device, because they are
+ * properties of the flow and not of the account.
+ */
+async function registerViaUI(page, { phone, pin, nom, quartier, premier = false }) {
   await page.goto(APP);
 
-  // The landing screen. Checked once, on the vendor's device.
-  if (role === 'vendor') {
+  if (premier) {
     const accueil = (await page.textContent('body')).replace(/\s+/g, ' ');
-    // The name, one line, two doors. The marketing copy and the mocked-up
-    // 1 500 F card were cut, so this now checks for their ABSENCE too: the
-    // demo card showed a fabricated balance in the same visual language as a
-    // real one, which is the last thing a first-time visitor should see.
     check('landing screen says what it is, in one line',
       /Sika Warri/.test(accueil) && /carnet pour la monnaie gardée et les dettes/i.test(accueil),
       accueil.slice(0, 160));
@@ -175,60 +211,67 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
   }
 
   await page.getByRole('button', { name: 'Créer un compte' }).click();
-  await page.getByRole('heading', { name: 'Vous êtes ?' }).waitFor({ timeout: 20000 });
 
-  await page.getByRole('button', {
-    name: role === 'vendor' ? 'Je tiens le carnet' : 'Je suis sur le carnet',
-  }).click();
-
-  // phone
-  await page.getByRole('heading', { name: 'Votre numéro' }).waitFor();
+  // Straight to the phone number. There was a "Vous êtes ?" screen here.
+  await page.getByRole('heading', { name: 'Votre numéro' }).waitFor({ timeout: 20000 });
+  if (premier) {
+    const corps = (await page.textContent('body')).replace(/\s+/g, ' ');
+    check('signup never asks which kind of account you are',
+      !/Vous êtes \?/.test(corps) && !/Je tiens le carnet/.test(corps)
+      && !/Je suis sur le carnet/.test(corps), corps.slice(0, 200));
+  }
   await tapDigits(page, phone);
   await page.getByRole('button', { name: 'Continuer' }).click();
 
-  // name
-  await page
-    .getByRole('heading', { name: role === 'vendor' ? 'Nom de votre carnet' : 'Votre prénom' })
-    .waitFor();
+  // One name field, for everybody.
+  await page.getByRole('heading', { name: 'Votre nom' }).waitFor();
   await page.locator('input.champ__saisie').fill(nom);
   await page.getByRole('button', { name: 'Continuer' }).click();
 
-  if (role === 'vendor') {
-    // quartier
-    await page.getByRole('heading', { name: 'Votre quartier' }).waitFor();
-    await page.locator('input.champ__saisie').fill(quartier);
-    await page.getByRole('button', { name: 'Continuer' }).click();
-
-    // the disclosure — a real tap, never pre-ticked
-    await page.getByRole('heading', { name: 'À lire avant de continuer' }).waitFor();
-    const texte = (await page.textContent('body')).replace(/\s+/g, ' ');
-    const attendu =
-      "Sika Warri est un service d'enregistrement. Sika Warri ne détient, ne reçoit et ne transfère aucun fonds.";
-    check('the verbatim disclosure is shown in full before signing up',
-      texte.includes(attendu), texte.slice(0, 200));
-
-    const avant = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
-    check('cannot continue without acknowledging the disclosure', avant === true);
-
-    await page.getByRole('button', { name: /J'ai lu et j'accepte/ }).click();
-    const apres = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
-    check('acknowledging enables continue', apres === false);
-    await page.getByRole('button', { name: 'Continuer' }).click();
+  // The quartier, now OPTIONAL. Checked by walking straight past it on the
+  // second account: a required field with no answer is where a signup ends.
+  await page.getByRole('heading', { name: 'Votre quartier' }).waitFor();
+  if (premier) {
+    const q = (await page.textContent('body')).replace(/\s+/g, ' ');
+    check('the quartier says it can be skipped', /Facultatif/i.test(q), q.slice(0, 200));
+    const passable = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
+    check('and Continuer is enabled with it empty', passable === false);
   }
+  if (quartier) await page.locator('input.champ__saisie').fill(quartier);
+  await page.getByRole('button', { name: 'Continuer' }).click();
+
+  // THE DISCLOSURE, NOW FOR EVERYBODY. It used to be shown to vendors only,
+  // which is precisely why 0043 had to refuse keeper writes from accounts that
+  // never saw it. Every account can keep somebody's money now, so every account
+  // reads it.
+  await page.getByRole('heading', { name: 'À lire avant de continuer' }).waitFor();
+  const texte = (await page.textContent('body')).replace(/\s+/g, ' ');
+  const attendu =
+    "Sika Warri est un service d'enregistrement. Sika Warri ne détient, ne reçoit et ne transfère aucun fonds.";
+  check('the verbatim disclosure is shown in full before signing up',
+    texte.includes(attendu), texte.slice(0, 200));
+
+  const avant = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
+  check('cannot continue without acknowledging the disclosure', avant === true);
+
+  await page.getByRole('button', { name: /J.ai lu et j.accepte/ }).click();
+  const apres = await page.getByRole('button', { name: 'Continuer' }).isDisabled();
+  check('acknowledging enables continue', apres === false);
+  await page.getByRole('button', { name: 'Continuer' }).click();
 
   // PIN, with the rules shown before typing
   await page.getByRole('heading', { name: 'Choisissez votre code' }).waitFor();
   const regles = (await page.textContent('body')).replace(/\s+/g, ' ');
-  check(`PIN rules explained BEFORE typing (${role})`,
+  check('PIN rules explained BEFORE typing',
     /pas 0000/i.test(regles) && /pas 1234/i.test(regles), regles.slice(0, 200));
-  check(`told never to share the code (${role})`,
-    /Ne donnez ce code à personne/i.test(regles));
+  check('told never to share the code', /Ne donnez ce code à personne/i.test(regles));
+  check('and the rules ask for six digits, whoever is reading',
+    /6 chiffres/.test(regles), regles.slice(0, 200));
 
   // A deliberately weak PIN must be refused before submission, not after.
-  const faible = role === 'vendor' ? '123456' : '1234';
-  await tapDigits(page, faible);
+  await tapDigits(page, '123456');
   const bloque = await page.getByRole('button', { name: 'Créer mon compte' }).isDisabled();
-  check(`a sequential PIN is refused before submitting (${role})`, bloque === true);
+  check('a sequential PIN is refused before submitting', bloque === true);
   await page.getByRole('button', { name: 'Tout effacer' }).click();
 
   await tapDigits(page, pin);
@@ -240,7 +283,7 @@ async function registerViaUI(page, role, { phone, pin, nom, quartier }) {
       console.log((await page.textContent('body')).replace(/\s+/g, ' ').slice(0, 400));
       throw e;
     });
-  check(`${role} registration completes`, true);
+  check('registration completes', true);
 
   await page.getByRole('button', { name: 'Commencer' }).click();
 }
@@ -334,8 +377,9 @@ try {
 
   // ===== vendor registers themselves, unaided ============================
   console.log('\n--- vendor registers, unaided ---');
-  await registerViaUI(pv, 'vendor', {
+  await registerViaUI(pv, {
     phone: VENDOR_PHONE, pin: VENDOR_PIN, nom: VENDOR_NOM, quartier: 'Yopougon',
+    premier: true,
   });
 
   await pv.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
@@ -349,8 +393,10 @@ try {
   // Amendment H means a customer who cannot register cannot complete a single
   // debit, and the vendor is not permitted to register them on their behalf.
   console.log('\n--- customer registers on a second device ---');
-  await registerViaUI(pc, 'customer', {
-    phone: CUSTOMER_PHONE, pin: CUSTOMER_PIN, nom: PREFIXE_TEST + 'Client', quartier: '',
+  // No quartier at all, so the optional field is genuinely walked past rather
+  // than filled with an empty string that looks like an answer.
+  await registerViaUI(pc, {
+    phone: CUSTOMER_PHONE, pin: CUSTOMER_PIN, nom: PREFIXE_TEST + 'Client',
   });
   await pc.screenshot({ path: 'artifacts/00-inscription-client.png' });
 
@@ -453,7 +499,11 @@ try {
   // confirmation view takes over only when a request arrives — ordering by
   // urgency rather than putting the urgent thing behind a tab.
   console.log('\n--- customer device, on their balances ---');
-  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 25000 });
+  await pc.reload();
+  await pc.locator('.matrice__cell, .liste-registres button').first()
+    .waitFor({ timeout: 25000 });
+  await pc.locator('.matrice__cell, .liste-registres button').first().click();
+  await pc.getByRole('heading', { name: 'Mes carnets' }).waitFor({ timeout: 25000 });
   check('customer home is their balance screen when nothing is pending', true);
 
   // The credit was recorded on the vendor's device moments ago. This screen
@@ -571,21 +621,29 @@ try {
   // In the VENDOR'S words. This pair used to read "Monnaie gardée / Dette à
   // payer" on both sides of the app, so the vendor's own screen announced a
   // debt they had to pay over money owed to them.
-  check('vendor home names what they are owed separately',
-    /on vous doit/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
+  // At this point in the run nothing is owed yet, so that register renders no
+  // cell at all — which is the intended behaviour and is asserted directly.
+  // The owed side is checked in the debt section, after there is a debt.
+  check('an empty register shows nothing rather than a zero',
+    !/on vous doit/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
   check('vendor home shows the figure without tapping anywhere (1 100 F)',
     vuAccueil, accueilVendeur.slice(0, 250));
   check('vendor home shows how many people are concerned',
     /\d+\s*personnes?/i.test(accueilVendeur), accueilVendeur.slice(0, 250));
-  check("vendor home shows today's activity", /Aujourd'hui/i.test(accueilVendeur));
-  check("today's activity shows both directions",
-    /Gard[ée]e ·/i.test(accueilVendeur) && /Utilis[ée]e ·/i.test(accueilVendeur),
-    accueilVendeur.slice(0, 300));
+  // TODAY'S ACTIVITY MOVED OFF THIS SCREEN. With up to four registers above it
+  // there was no room for a fifth block before the three actions, and an action
+  // below the fold is not equal in weight to one above it. It lives on the
+  // history screen now, and is checked there rather than dropped.
+  check("today's activity is NOT on the home screen any more",
+    !/Gard[ée]e ·/i.test(accueilVendeur), accueilVendeur.slice(0, 300));
+  check('the three actions are all reachable without scrolling past a figure',
+    /Garder la monnaie/.test(accueilVendeur) && /Utiliser la monnaie/.test(accueilVendeur)
+    && /Noter une dette/.test(accueilVendeur), accueilVendeur.slice(0, 400));
   await pv.screenshot({ path: 'artifacts/v1-accueil.png' });
 
   // ===== Mes clients — the vendor's own book =============================
   console.log('\n--- mes clients ---');
-  await ongletVers(pv, 'Mes clients');
+  await ongletVers(pv, 'Je garde');
   await pv.getByRole('heading', { name: 'Mes clients' }).waitFor({ timeout: 20000 });
 
   // Wait for the list itself, not just the heading. Asserting on figures while
@@ -640,9 +698,13 @@ try {
     `${boutonsReset} found`);
   await pv.screenshot({ path: 'artifacts/c2-client-detail.png' });
 
-  // ===== Ma monnaie — the point of the product ===========================
+  // ===== Mes carnets — the point of the product ===========================
   console.log('\n--- ma monnaie (acceptance test 8) ---');
-  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 25000 });
+  await pc.reload();
+  await pc.locator('.matrice__cell, .liste-registres button').first()
+    .waitFor({ timeout: 25000 });
+  await pc.locator('.matrice__cell, .liste-registres button').first().click();
+  await pc.getByRole('heading', { name: 'Mes carnets' }).waitFor({ timeout: 25000 });
 
   // The debit landed moments ago and this screen polls every 8 seconds. Wait
   // for the post-debit figure rather than reading mid-refresh — otherwise the
@@ -687,10 +749,16 @@ try {
 
   // ===== QR: the customer's code =========================================
   console.log('\n--- mon code (QR) ---');
-  // Leave the shop detail first: it is laid over the list and the bar is
-  // underneath it.
+  // Mes carnets is itself a TASK now, reached from a figure on the home screen,
+  // so there is no tab bar underneath it to click — leaving the detail is two
+  // steps back, not one. Getting this wrong is how the harness found the screen
+  // stranded in the first place.
   await pc.getByRole('button', { name: 'Voir tous mes carnets' }).click().catch(() => {});
-  await ongletVers(pc, 'Mon code');
+  await pc.getByRole('button', { name: 'Retour' }).first().click().catch(() => {});
+  // A task now, from the home screen: it is shown at a counter with somebody
+  // waiting, and two taps into a settings screen is the wrong place for that.
+  await ongletVers(pc, 'Accueil');
+  await pc.getByRole('button', { name: 'Mon code' }).click();
   await pc.getByRole('heading', { name: 'Mon code' }).waitFor({ timeout: 20000 });
 
   // The canvas must actually contain a rendered code, not just exist.
@@ -719,7 +787,7 @@ try {
   console.log('\n--- scanner ou taper ---');
   const neuf = await navigateur.newContext({ viewport: TELEPHONE, locale: 'fr-FR' });
   const pn = await neuf.newPage();
-  await loginViaUI(pn, 'vendor', VENDOR_PHONE, VENDOR_PIN);
+  await loginViaUI(pn, VENDOR_PHONE, VENDOR_PIN);
   await pn.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
   await pn.getByRole('button', { name: 'Garder la monnaie' }).click();
 
@@ -768,7 +836,7 @@ try {
 
   // Back to a destination on both sides, so the bar is on screen.
   await ongletVers(pv, 'Accueil');
-  await ongletVers(pc, 'Ma monnaie');
+  await ongletVers(pc, 'Accueil');
 
   const ongletsVendeur = await pv.locator('.nav__item').allTextContents();
   const ongletsClient = await pc.locator('.nav__item').allTextContents();
@@ -833,7 +901,15 @@ try {
 
   await pv.getByRole('button', { name: 'Retour' }).click().catch(() => {});
 
-  await ongletVers(pc, 'Historique');
+  // Reached from Mes carnets, so each history sits beside the side of the book
+  // it describes.
+  await ongletVers(pc, 'Accueil');
+  await pc.reload();
+  await pc.locator('.matrice__cell, .liste-registres button').first()
+    .waitFor({ timeout: 25000 });
+  await pc.locator('.matrice__cell, .liste-registres button').first().click();
+  await pc.getByRole('heading', { name: 'Mes carnets' }).waitFor({ timeout: 20000 });
+  await pc.getByRole('button', { name: 'Tous mes mouvements' }).click();
   await pc.getByRole('heading', { name: 'Historique' }).waitFor({ timeout: 20000 });
   await pc.locator('.ligne-histoire').first().waitFor({ timeout: 25000 });
   const histClient = await pc.textContent('body');
@@ -879,9 +955,11 @@ try {
   await pc.getByRole('button', { name: 'Changer mon code' }).click();
   await pc.locator('.pin__point').first().waitFor({ timeout: 20000 });
   const pointsClient = await pc.locator('.pin__point').count();
-  // Four, not six: a customer code protects their own change, a vendor code
-  // protects everyone's.
-  check('the customer code field is 4 digits long', pointsClient === 4, `${pointsClient} points`);
+  // SIX, like everybody. It was four, on the reasoning that a customer code
+  // protects only their own change — which stopped being true the moment one
+  // account could keep somebody else's money. That length split was also the
+  // only thing preventing one phone number from holding both halves.
+  check('the customer code field is 6 digits long', pointsClient === 6, `${pointsClient} points`);
   await pc.getByRole('button', { name: 'Annuler' }).click();
 
   // ===== the debt register ================================================
@@ -893,19 +971,18 @@ try {
   console.log('\n--- noter une dette ---');
 
   await ongletVers(pv, 'Accueil');
-  // Wait for the aggregate, not for the mount: reading the body immediately
-  // after a tab switch catches "Chargement…" every time.
-  await pv.getByText(/on vous doit/i).first().waitFor({ timeout: 25000 });
+  // Wait for the figure that DOES exist. An empty register renders no cell at
+  // all now — a grid announcing two columns and filling one was the shape shown
+  // to the very account this app was rebuilt for — so waiting for "on vous
+  // doit" before there is a debt waits forever. Checked again after noting one.
+  await pv.getByText(/vous gardez/i).first().waitFor({ timeout: 25000 });
   const accueilAvant = await pv.textContent('body');
-  // FROM THE VENDOR'S SIDE. This check used to wait for "Dette à payer" — the
-  // customer's words — on the vendor's own home screen, and passed. A harness
-  // that asserts the wrong perspective cannot notice the wrong perspective.
-  check('the vendor home shows what they hold AND what they are owed',
-    /vous gardez/i.test(accueilAvant) && /on vous doit/i.test(accueilAvant),
-    accueilAvant.slice(0, 400));
-  check('and never labels what they are owed as something they must pay',
-    !/dette [àa] payer/i.test(accueilAvant) && !/que vous devez/i.test(accueilAvant),
-    accueilAvant.slice(0, 400));
+  check('the vendor home shows what they are holding, in their own words',
+    /vous gardez/i.test(accueilAvant), accueilAvant.slice(0, 400));
+  check('and never labels it as something they must pay',
+    !/dette [àa] payer/i.test(accueilAvant), accueilAvant.slice(0, 400));
+  check('an empty register renders nothing rather than a zero under a heading',
+    !/on vous doit/i.test(accueilAvant), accueilAvant.slice(0, 400));
 
   await pv.getByRole('button', { name: 'Noter une dette' }).click();
   await pv.getByRole('heading', { name: /Noter une dette|Le num[ée]ro du client/ })
@@ -950,7 +1027,7 @@ try {
   // ===== the debtor list ==================================================
   console.log('\n--- mes dettes ---');
 
-  await ongletVers(pv, 'Dettes');
+  await ongletVers(pv, 'On me doit');
   await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
   await pv.locator('.ligne-client').first().waitFor({ timeout: 25000 });
   const listeDettes = await pv.textContent('body');
@@ -965,9 +1042,13 @@ try {
   // ===== the customer sees a claim, and can answer it =====================
   console.log('\n--- le client r[ée]pond ---');
 
-  await ongletVers(pc, 'Ma monnaie');
+  await ongletVers(pc, 'Accueil');
   await pc.reload();
-  await pc.getByRole('heading', { name: 'Ma monnaie' }).waitFor({ timeout: 20000 });
+  await pc.reload();
+  await pc.locator('.matrice__cell, .liste-registres button').first()
+    .waitFor({ timeout: 25000 });
+  await pc.locator('.matrice__cell, .liste-registres button').first().click();
+  await pc.getByRole('heading', { name: 'Mes carnets' }).waitFor({ timeout: 20000 });
   // Wait for the shop card, not the mount.
   await pc.getByText(/vous devez/i).first().waitFor({ timeout: 25000 });
   const deuxRegistres = await pc.textContent('body');
@@ -1011,7 +1092,7 @@ try {
   await pc.waitForTimeout(1500);
 
   await pv.reload();
-  await ongletVers(pv, 'Dettes');
+  await ongletVers(pv, 'On me doit');
   await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
   await pv.getByText(/contest/i).first().waitFor({ timeout: 25000 });
   const apresContestation = await pv.textContent('body');
@@ -1195,7 +1276,7 @@ try {
 
   // The exception, and the reason it is an exception: on a tappable card the
   // edge IS the target, so it keeps its hairline.
-  await ongletVers(pv, 'Mes clients').catch(() => {});
+  await ongletVers(pv, 'Je garde').catch(() => {});
   await pv.locator('.carte--cliquable, .ligne-client').first().waitFor({ timeout: 25000 })
     .catch(() => {});
   const bordCliquable = await pv.evaluate(() => {
@@ -1234,7 +1315,7 @@ try {
   console.log('\n--- offline behaviour ---');
   const horsLigne = await navigateur.newContext({ viewport: TELEPHONE, locale: 'fr-FR' });
   const ph = await horsLigne.newPage();
-  await loginViaUI(ph, 'vendor', VENDOR_PHONE, VENDOR_PIN);
+  await loginViaUI(ph, VENDOR_PHONE, VENDOR_PIN);
   await ph.getByRole('button', { name: 'Garder la monnaie' }).waitFor({ timeout: 20000 });
   await horsLigne.setOffline(true);
   await ph.evaluate(() => window.dispatchEvent(new Event('offline')));

@@ -244,6 +244,25 @@ export async function changePin(token: string, currentPin: string, newPin: strin
   return (await fn('change-pin', { currentPin, newPin }, token)) as { ok: true };
 }
 
+/** The disclosure version currently in force. Mirrors register/index.ts. */
+export const TERMS_VERSION = 'v1';
+
+/**
+ * Record the section 6 acknowledgement for this account.
+ *
+ * Idempotent by design in SQL: an existing acknowledgement is never
+ * overwritten, so a double tap returns the original moment rather than moving
+ * the date on a consent record.
+ */
+export async function acceptTerms(token: string, actorUserId: string): Promise<string> {
+  const r = await rpc(
+    'accept_terms',
+    { p_actor_user_id: actorUserId, p_version: TERMS_VERSION },
+    token
+  );
+  return String(r);
+}
+
 // ---------------------------------------------------------------------------
 // The account — all four registers, one row
 // ---------------------------------------------------------------------------
@@ -321,11 +340,20 @@ export interface VendorProfile {
   maxBalancePerCustomer: number;
   /** The debt ceiling for one customer. Configurable, default 10 000 F. */
   maxDebtPerCustomer: number;
+  /**
+   * When this account acknowledged the section 6 disclosure, or null.
+   *
+   * Null for an account whose keeper half was created by the 0043 backfill: it
+   * existed before the disclosure was shown to anybody but vendors. SQL refuses
+   * a credit or a debt claim from such an account (SW033), so the app reads this
+   * to ask BEFORE the refusal rather than after it.
+   */
+  termsAcceptedAt: string | null;
 }
 
 export async function myVendor(token: string): Promise<VendorProfile> {
   const rows = (await get(
-    'vendors?select=id,auth_user_id,business_name,quartier,max_balance_per_customer,max_debt_per_customer',
+    'vendors?select=id,auth_user_id,business_name,quartier,max_balance_per_customer,max_debt_per_customer,terms_accepted_at',
     token
   )) as any[];
   if (!rows?.length) throw new ApiError('NOT_A_VENDOR', 'Compte commerçant introuvable', 403);
@@ -337,6 +365,7 @@ export async function myVendor(token: string): Promise<VendorProfile> {
     quartier: v.quartier,
     maxBalancePerCustomer: v.max_balance_per_customer,
     maxDebtPerCustomer: v.max_debt_per_customer,
+    termsAcceptedAt: v.terms_accepted_at ?? null,
   };
 }
 

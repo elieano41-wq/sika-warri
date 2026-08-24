@@ -54,6 +54,7 @@ export function Accueil({
   onOnMeDoit,
   onMesCarnets,
   onHistorique,
+  onMonCode,
   onCorriger,
   onVerifier,
 }: {
@@ -71,6 +72,7 @@ export function Accueil({
   onMesCarnets: () => void;
   /* elsewhere */
   onHistorique: () => void;
+  onMonCode: () => void;
   onCorriger: () => void;
   onVerifier: () => void;
 }) {
@@ -86,13 +88,35 @@ export function Accueil({
     }
   }, [session.accessToken, actorUserId]);
 
-  // Refreshed on return to the screen and on returning to the foreground, so
-  // somebody coming back from recording an entry sees the new figure.
+  /**
+   * Refreshed on mount, on returning to the foreground, and on a slow tick.
+   *
+   * THE TICK IS NOT DECORATION. These figures are half somebody else's: the
+   * other party writes and this screen has to show it. Mount and foreground
+   * alone cover somebody coming back from their own task, and miss the case
+   * where they are simply looking at the screen while the other side records
+   * something — which on a shared ledger is the normal case, and which the UI
+   * harness caught by crediting a customer who was already on their home screen
+   * and finding nothing there.
+   *
+   * Twenty seconds, and only while this tab is visible: the pending-confirmation
+   * poll runs at 2.5s because somebody is standing there waiting, and this is
+   * not that. Three requests a minute on a metered connection is a cost worth
+   * naming, and it buys a ledger that behaves like it is shared.
+   */
   useEffect(() => {
     charger();
     const auRetour = () => { if (document.visibilityState === 'visible') charger(); };
     document.addEventListener('visibilitychange', auRetour);
-    return () => document.removeEventListener('visibilitychange', auRetour);
+
+    const tic = window.setInterval(() => {
+      if (document.visibilityState === 'visible') charger();
+    }, 20_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', auRetour);
+      window.clearInterval(tic);
+    };
   }, [charger]);
 
   const vide =
@@ -191,6 +215,10 @@ export function Accueil({
               screen: with up to four registers above them there is no room for a
               fifth block first, and an action below the fold is not equal in
               weight to one above it whatever it is painted like. */}
+          {/* Mon code sits with the actions, not under Compte: it is shown at a
+              counter with somebody waiting, and two taps into a settings screen
+              is the wrong place for something that urgent. */}
+          <BoutonDiscret onClick={onMonCode}>Mon code</BoutonDiscret>
           <BoutonDiscret onClick={onHistorique}>Historique</BoutonDiscret>
           <BoutonDiscret onClick={onCorriger}>Corriger une écriture</BoutonDiscret>
         </div>

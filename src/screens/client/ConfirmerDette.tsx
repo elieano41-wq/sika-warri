@@ -6,6 +6,7 @@ import {
   BoutonPrimaire, BoutonSecondaire,
 } from '../../components/ui';
 import { DeuxRegistres } from '../../components/Dette';
+import { PIN_LENGTH, PIN_MIN_ACCEPTE } from '../../lib/pinRules';
 import { formatCfa } from '../../lib/format';
 
 /**
@@ -175,7 +176,7 @@ export function ConfirmerDette({
               <Compteur secondes={secondes} />
             </p>
             <div className="centre">
-              <PinPoints longueur={4} remplis={code.length} />
+              <PinPoints longueur={PIN_LENGTH} remplis={code.length} />
             </div>
             <p className="discret centre">
               Tapez VOTRE code. Ne le montrez à personne, pas même à qui tient
@@ -188,13 +189,20 @@ export function ConfirmerDette({
       <div className="ecran__pied pile">
         {!expire ? (
           <Clavier
-            onDigit={(d) => setCode((c) => (c.length >= 4 ? c : c + d))}
+            onDigit={(d) => setCode((c) => (c.length >= PIN_LENGTH ? c : c + d))}
             onEffacer={() => setCode((c) => c.slice(0, -1))}
             onToutEffacer={() => setCode('')}
           />
         ) : null}
+        {/* Enabled from four, not exactly at six: an account created before the
+            lengths were unified still has a four-digit code, and refusing it
+            here would leave them unable to answer a claim made about them —
+            which is the one thing they must always be able to do. */}
         {!expire ? (
-          <BoutonPrimaire onClick={confirmer} disabled={code.length !== 4 || occupe}>
+          <BoutonPrimaire
+            onClick={confirmer}
+            disabled={code.length < PIN_MIN_ACCEPTE || occupe}
+          >
             {demande.type === 'dette' ? 'Je confirme cette dette' : 'Je confirme'}
           </BoutonPrimaire>
         ) : null}

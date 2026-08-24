@@ -64,7 +64,6 @@ const DESTINATIONS = [
   path.join('screens', 'Accueil.tsx'),
   path.join('screens', 'vendeur', 'MesClients.tsx'),
   path.join('screens', 'vendeur', 'MesDettes.tsx'),
-  path.join('screens', 'client', 'MonCode.tsx'),
   path.join('screens', 'Compte.tsx'),
 ];
 
@@ -85,6 +84,13 @@ const TACHES = [
   path.join('screens', 'vendeur', 'GarderLaMonnaie.tsx'),
   path.join('screens', 'vendeur', 'UtiliserLaMonnaie.tsx'),
   path.join('screens', 'client', 'Confirmation.tsx'),
+  path.join('screens', 'Conditions.tsx'),
+  // Both were TABS under the customer shell and became tasks when the two bars
+  // became one. The harness found them unreachable before it found them
+  // mislabelled: dropping a tab is not the same as deciding where its screen
+  // goes, and the client history had no way back at all.
+  path.join('screens', 'client', 'MonCode.tsx'),
+  path.join('screens', 'client', 'Historique.tsx'),
 ];
 
 describe('only a shell renders the tab bar', () => {
@@ -172,6 +178,21 @@ describe('a task is owned by a shell, never rendered inside a destination', () =
 });
 
 describe('every destination leaves room for the bar', () => {
+  it.each(TACHES)('%s gives a way back, since there is no bar', (rel) => {
+    // A full-screen flow with no tab bar and no way out is a dead end. Two of
+    // these were exactly that: the prop was added and the control never
+    // rendered, which typechecks perfectly and strands a real person.
+    //
+    // Checked on the CALLBACK rather than on a class name. The older tasks use
+    // a plain `ecran` and the newer ones `vue--tache`; both are correct, since
+    // what makes something a task is the absence of the bar and not a modifier.
+    // Asserting the class would have failed three screens that were right.
+    const src = code(lire(rel));
+    expect(src, `${rel} leaves room for a bar it does not have`)
+      .not.toMatch(/ecran--avec-nav/);
+    expect(src, `${rel} has no way out`).toMatch(/onRetour|onAnnuler|onTermine/);
+  });
+
   it.each(DESTINATIONS)('%s uses ecran--avec-nav', (rel) => {
     // Without it the last card sits under a fixed 56px bar and cannot be read
     // or tapped — the mirror image of the bug above.

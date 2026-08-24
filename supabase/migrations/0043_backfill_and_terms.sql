@@ -53,9 +53,28 @@ select v.auth_user_id, v.phone, v.business_name, v.pepper_version
    -- anyway.
    and not exists (
      select 1 from public.customers c where c.phone = v.phone
+   )
+   -- ADMINS ARE SKIPPED, and this is not an oversight to tidy up later.
+   --
+   -- 0023 forbids an auth user from being both an admin and a customer, by
+   -- trigger, in both directions. The reason is the support desk: an operator
+   -- issues reset codes, and the people whose accounts get reset are on the
+   -- other side of that desk. An account holding both can issue itself a code.
+   --
+   -- This backfill hit that trigger on the first production run — SW018, on the
+   -- one account that is both an operator and a shop — and the trigger was
+   -- right. Giving every account both halves is a good rule; it does not
+   -- outrank separation of duties, so the narrower rule wins and an operator
+   -- keeps only the half that keeps money for other people.
+   --
+   -- The cost is real and worth naming: a support operator cannot have change
+   -- kept for them or owe a debt. That is what 0023 always said; 0042 just made
+   -- it visible.
+   and not exists (
+     select 1 from public.app_admins a where a.auth_user_id = v.auth_user_id
    );
 
--- The stub case, linked rather than inserted.
+-- The stub case, linked rather than inserted. Skips admins for the same reason.
 update public.customers c
    set auth_user_id  = v.auth_user_id,
        pepper_version = coalesce(c.pepper_version, v.pepper_version),
@@ -63,7 +82,10 @@ update public.customers c
   from public.vendors v
  where c.phone = v.phone
    and c.auth_user_id is null
-   and v.auth_user_id is not null;
+   and v.auth_user_id is not null
+   and not exists (
+     select 1 from public.app_admins a where a.auth_user_id = v.auth_user_id
+   );
 
 -- Vendors half, for accounts that only had a customers row.
 --

@@ -93,6 +93,78 @@ describe('one identity can hold both halves', () => {
   });
 });
 
+describe('the backfill respects separation of duties', () => {
+  it('an admin does NOT get a customer half', async () => {
+    // 0023 forbids one auth user being both an admin and a customer, because a
+    // support operator who is also a customer can issue themselves a reset code.
+    // The 0043 backfill hit that trigger on its first production run, on the one
+    // account that is both an operator and a shop, and the trigger was right:
+    // giving every account both halves does not outrank separation of duties.
+    //
+    // Asserted rather than left to the trigger, because "the insert would have
+    // failed anyway" stops being true the moment somebody adds an ON CONFLICT.
+    await actAsAdmin(db);
+    const v = await seedVendor(db);
+    await db.query(
+      'insert into public.app_admins (auth_user_id, note) values ($1, $2)',
+      [v.authUserId, 'operator']
+    );
+
+    const code = await sqlstateOf(() =>
+      db.query(
+        'insert into public.customers (auth_user_id, phone, display_name) values ($1, $2, $3)',
+        [v.authUserId, v.phone, v.businessName]
+      )
+    );
+    expect(code).toBe('SW018');
+  });
+
+  it('and the migration itself skips them rather than failing', async () => {
+    // The backfill is written to leave admins alone. Re-running its own query
+    // over a database that contains one must insert nothing and raise nothing.
+    await actAsAdmin(db);
+    const v = await seedVendor(db);
+    await db.query(
+      'insert into public.app_admins (auth_user_id, note) values ($1, $2)',
+      [v.authUserId, 'operator']
+    );
+
+    await expect(db.query(
+      `insert into public.customers (auth_user_id, phone, display_name, pepper_version)
+       select v.auth_user_id, v.phone, v.business_name, v.pepper_version
+         from public.vendors v
+        where v.auth_user_id is not null
+          and not exists (select 1 from public.customers c where c.auth_user_id = v.auth_user_id)
+          and not exists (select 1 from public.customers c where c.phone = v.phone)
+          and not exists (select 1 from public.app_admins a where a.auth_user_id = v.auth_user_id)`
+    )).resolves.toBeTruthy();
+
+    const { rows } = await db.query(
+      'select count(*)::int as n from public.customers where auth_user_id = $1',
+      [v.authUserId]
+    );
+    expect(rows[0].n).toBe(0);
+  });
+
+  it('an operator can still keep money, which is the half they need', async () => {
+    // The cost is real and bounded: an operator cannot have change kept for them
+    // or owe a debt. They can still run their shop, which is the whole point of
+    // 0023 allowing the vendor half in the first place.
+    await actAsAdmin(db);
+    const op = await seedVendor(db);
+    await db.query(
+      'insert into public.app_admins (auth_user_id, note) values ($1, $2)',
+      [op.authUserId, 'operator']
+    );
+    const client = await seedCustomer(db);
+
+    await expect(db.query(
+      `select public.post_ledger_entry($1,$2,'credit','change',500,$3,$4,false,null,null,null)`,
+      [op.id, client.id, 'op1', op.authUserId]
+    )).resolves.toBeTruthy();
+  });
+});
+
 describe('taking custody requires the acknowledgement, in SQL', () => {
   it('a credit is REFUSED without it', async () => {
     await actAsAdmin(db);

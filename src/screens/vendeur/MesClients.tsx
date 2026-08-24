@@ -289,7 +289,13 @@ export function MesClients({
                 200 of 1 234 is the failure mode this whole audit was about. */}
             {tronque ? (
               <Message ton="info">
-                Les {clients?.length} clients qui vous doivent le plus, sur {total}.
+                {/* DIRECTION. This said "les clients qui vous doivent le plus"
+                    on the list of people whose money YOU are holding — the
+                    opposite way round, on the one screen where getting it wrong
+                    matters. Missed by the rename because it only appears when a
+                    book is bigger than one page, so nothing had ever rendered
+                    it. It is the last "client" in the interface. */}
+                Les {clients?.length} sikatigi dont vous gardez le plus, sur {total}.
                 Utilisez la recherche pour trouver les autres.
               </Message>
             ) : null}

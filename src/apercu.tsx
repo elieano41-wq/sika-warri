@@ -15,12 +15,20 @@ import { useState } from 'react';
 import './styles/tokens.css';
 import './styles/base.css';
 import { Accueil } from './screens/Accueil';
+import { MesClients } from './screens/vendeur/MesClients';
+import { MesDettes } from './screens/vendeur/MesDettes';
+import type { VendorProfile } from './lib/api';
 import { Navigation, IconeBoutique, IconeClients, IconeMonnaie, IconeCompte } from './components/Navigation';
 import type { Session } from './lib/api';
 
-type Cas = 'tout' | 'seulement-dettes' | 'seulement-monnaie' | 'vide';
+type Cas =
+  | 'tout' | 'seulement-dettes' | 'seulement-monnaie' | 'vide'
+  // The two list screens, for the poster. Rendered here rather than screenshot
+  // from the test project, whose accounts are all called TEST-Boutique — real
+  // names are the difference between a product shot and a bug report.
+  | 'sikatigi' | 'juru';
 
-const CAS: Record<Cas, Record<string, number>> = {
+const CAS: Partial<Record<Cas, Record<string, number>>> = {
   // A shop that also owes: all four registers live.
   tout: {
     garde_cfa: 12400, garde_personnes: 9,
@@ -54,20 +62,88 @@ const CAS: Record<Cas, Record<string, number>> = {
   },
 };
 
+/** Rows for the two lists. Ordinary Abidjan names, ordinary amounts. */
+const SIKATIGI = [
+  { customer_id: '1', phone: '2250701020304', your_label: 'Konan K.', balance_cfa: 4200,
+    last_activity_at: new Date().toISOString(), entry_count: 6, is_registered: true, total_count: 5 },
+  { customer_id: '2', phone: '2250506070809', your_label: 'Aya T.', balance_cfa: 3500,
+    last_activity_at: new Date(Date.now() - 864e5).toISOString(), entry_count: 4, is_registered: true, total_count: 5 },
+  { customer_id: '3', phone: '2250712131415', your_label: 'Le monsieur du taxi', balance_cfa: 2200,
+    last_activity_at: new Date(Date.now() - 3 * 864e5).toISOString(), entry_count: 2, is_registered: false, total_count: 5 },
+  { customer_id: '4', phone: '2250598765432', your_label: 'Mariam', balance_cfa: 1500,
+    last_activity_at: new Date(Date.now() - 5 * 864e5).toISOString(), entry_count: 3, is_registered: true, total_count: 5 },
+  { customer_id: '5', phone: '2250101223344', your_label: 'Ibrahim', balance_cfa: 1000,
+    last_activity_at: new Date(Date.now() - 8 * 864e5).toISOString(), entry_count: 1, is_registered: true, total_count: 5 },
+];
+
+const bucket = (n: number, j: number) => ({
+  bucket_0_7: j <= 7 ? n : 0,
+  bucket_8_30: j > 7 && j <= 30 ? n : 0,
+  bucket_31_90: j > 30 && j <= 90 ? n : 0,
+  bucket_90: j > 90 ? n : 0,
+  oldest_days: j,
+  over_30_cfa: j > 30 ? n : 0,
+});
+
+const JURU = [
+  { customer_id: '1', phone: '2250701020304', your_label: 'Konan K.', is_registered: true,
+    debt_cfa: 18000, confirmed_cfa: 18000, declared_cfa: 0, disputed_cfa: 0, ...bucket(18000, 44),
+    last_settled_at: null, open_claim: false, last_activity_at: new Date(Date.now() - 44 * 864e5).toISOString(),
+    entry_count: 3, total_count: 6 },
+  { customer_id: '2', phone: '2250506070809', your_label: 'Aya T.', is_registered: true,
+    debt_cfa: 12500, confirmed_cfa: 6500, declared_cfa: 6000, disputed_cfa: 0, ...bucket(12500, 12),
+    last_settled_at: null, open_claim: false, last_activity_at: new Date(Date.now() - 12 * 864e5).toISOString(),
+    entry_count: 4, total_count: 6 },
+  { customer_id: '3', phone: '2250712131415', your_label: 'Garage Sud', is_registered: true,
+    debt_cfa: 9000, confirmed_cfa: 9000, declared_cfa: 0, disputed_cfa: 0, ...bucket(9000, 3),
+    last_settled_at: null, open_claim: false, last_activity_at: new Date().toISOString(),
+    entry_count: 2, total_count: 6 },
+  { customer_id: '4', phone: '2250598765432', your_label: 'Mariam', is_registered: true,
+    debt_cfa: 8000, confirmed_cfa: 0, declared_cfa: 8000, disputed_cfa: 0, ...bucket(8000, 20),
+    last_settled_at: null, open_claim: true, last_activity_at: new Date(Date.now() - 20 * 864e5).toISOString(),
+    entry_count: 1, total_count: 6 },
+];
+
+const RESUME_DETTE = {
+  debt_cfa: 47500, debtors: 6, confirmed_cfa: 33500, declared_cfa: 14000,
+  disputed_cfa: 0, disputed_count: 0, over_30_cfa: 18000, oldest_days: 44,
+  settled_count: 4, ageing_count: 2, open_claims: 1,
+};
+
+const RESUME_MONNAIE = {
+  circulation_cfa: 12400, customers_owed: 9,
+  today_credit_cfa: 2300, today_credit_count: 4,
+  today_debit_cfa: 1100, today_debit_count: 2,
+  last_activity_at: new Date().toISOString(),
+};
+
 let actuel: Cas = (new URLSearchParams(location.search).get('cas') as Cas) ?? 'tout';
 
 // Stub only the one call this screen makes. Anything else still fails loudly,
 // so a screen that quietly started fetching something new would be visible.
 const vrai = window.fetch;
 window.fetch = (async (url: any, init: any) => {
-  if (String(url).includes('account_summary')) {
-    return new Response(JSON.stringify([CAS[actuel]]), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const j = (data: unknown) =>
+    new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const u = String(url);
+  if (u.includes('account_summary')) return j([CAS[actuel] ?? CAS.tout]);
+  if (u.includes('vendor_customers')) return j(SIKATIGI);
+  if (u.includes('vendor_debtors')) return j(JURU);
+  if (u.includes('vendor_debt_summary')) return j([RESUME_DETTE]);
+  if (u.includes('vendor_home_summary')) return j([RESUME_MONNAIE]);
   return vrai(url, init);
 }) as typeof window.fetch;
+
+const VENDEUR: VendorProfile = {
+  id: 'v1',
+  authUserId: '00000000-0000-0000-0000-000000000000',
+  businessName: 'Chez Awa',
+  quartier: 'Yopougon',
+  maxBalancePerCustomer: 3000,
+  maxDebtPerCustomer: 10000,
+  termsAcceptedAt: new Date().toISOString(),
+};
 
 const SESSION: Session = {
   accessToken: 'apercu',
@@ -105,6 +181,11 @@ function Apercu() {
       </div>
 
       <div key={cas} style={{ paddingTop: 26 }}>
+        {cas === 'sikatigi' ? (
+          <MesClients session={SESSION} vendeur={VENDEUR} />
+        ) : cas === 'juru' ? (
+          <MesDettes session={SESSION} vendeur={VENDEUR} />
+        ) : (
         <Accueil
           session={SESSION}
           actorUserId="00000000-0000-0000-0000-000000000000"
@@ -121,6 +202,7 @@ function Apercu() {
           onCorriger={rien}
           onVerifier={rien}
         />
+        )}
       </div>
 
       <Navigation onglets={ONGLETS} actif="accueil" onChoisir={rien} />

@@ -32,9 +32,18 @@ export type Role = 'vendor' | 'customer';
 export interface Session {
   accessToken: string;
   refreshToken: string;
-  role: Role;
   msisdn: string;
 }
+
+/**
+ * Why a code has to be changed, so the banner can say the true thing.
+ *
+ * 'vendor_device' is a security warning — somebody has seen the code.
+ * 'legacy_length' is housekeeping — four digits from before every code was six.
+ * Showing the first to somebody who needs the second cries wolf; showing the
+ * second to somebody who needs the first loses their only warning.
+ */
+export type PinChangeReason = 'vendor_device' | 'legacy_length' | null;
 
 export class ApiError extends Error {
   constructor(
@@ -195,42 +204,109 @@ const get = (query: string, token: string) =>
 // Auth
 // ---------------------------------------------------------------------------
 
-export async function login(role: Role, phone: string, pin: string) {
-  const r = (await fn('login', { role, phone, pin })) as any;
+/**
+ * Sign in. No role, because there is one kind of account.
+ *
+ * The parameter is gone rather than accepted-and-ignored: every call site had to
+ * decide what to pass, and the only honest answer was "it does not matter",
+ * which is not something a required argument can express.
+ */
+export async function login(phone: string, pin: string) {
+  const r = (await fn('login', { phone, pin })) as any;
   return {
     session: {
       accessToken: r.session.access_token,
       refreshToken: r.session.refresh_token,
-      role,
       msisdn: r.msisdn,
     } as Session,
     isAdmin: Boolean(r.isAdmin),
     pinChangeRequired: Boolean(r.pinChangeRequired),
+    pinChangeReason: (r.pinChangeReason ?? null) as PinChangeReason,
     vendorDeviceEntries: Number(r.vendorDeviceEntries ?? 0),
     notice: (r.notice ?? null) as string | null,
   };
 }
 
 export async function register(input: {
-  role: Role;
   phone: string;
   pin: string;
-  displayName?: string;
-  businessName?: string;
+  /** The name other people see. One field, where there were two. */
+  name: string;
+  /** Optional since 0042 — a shop has an address, a person may not. */
   quartier?: string;
   commune?: string;
-  termsAccepted?: boolean;
+  termsAccepted: boolean;
 }) {
   return (await fn('register', input)) as { ok: true; msisdn: string };
 }
 
-export async function changePin(
+export async function changePin(token: string, currentPin: string, newPin: string) {
+  return (await fn('change-pin', { currentPin, newPin }, token)) as { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// The account — all four registers, one row
+// ---------------------------------------------------------------------------
+
+/**
+ * What the home screen shows. Four figures that are never added together.
+ *
+ * ONE call, not four. Assembling a 2x2 from four requests means four chances to
+ * land in a different state, and two figures from two moments in time sitting
+ * beside each other is how a reader concludes the app cannot count.
+ */
+export interface AccountSummary {
+  /** Change I am holding for other people. My own till; I owe it back. */
+  gardeCfa: number;
+  gardePersonnes: number;
+  /** Debts I owe. One legitimate figure: money I have to find. */
+  jeDoisCfa: number;
+  jeDoisCreanciers: number;
+  /**
+   * Change other people hold for me.
+   *
+   * NOT SPENDABLE AS A TOTAL. Rule 1: change is only usable with whoever kept
+   * it, so 500 F at Awa's and 500 F at Koffi's is not 1 000 F. Carried so a
+   * screen can say "in four carnets" and send the reader to the list; never
+   * presented as an amount to spend.
+   */
+  gardePourMoiCfa: number;
+  gardePourMoiCarnets: number;
+  /** Debts owed to me. */
+  onMeDoitCfa: number;
+  onMeDoitDebiteurs: number;
+  /** Of which, past thirty days. Beside the total, never inside it. */
+  onMeDoitVieuxCfa: number;
+  /** People saying they paid something that was never recorded. */
+  reclamationsOuvertes: number;
+  /** Claims made in my name that I have not answered. */
+  aVerifier: number;
+}
+
+export async function accountSummary(
   token: string,
-  role: Role,
-  currentPin: string,
-  newPin: string
-) {
-  return (await fn('change-pin', { role, currentPin, newPin }, token)) as { ok: true };
+  actorUserId: string
+): Promise<AccountSummary> {
+  // Explicit actor, per amendment C. The function refuses to answer about
+  // anybody else (SW002), so passing it costs nothing and makes the caller's
+  // claim about who it is auditable.
+  const r = (await rpc('account_summary', { p_actor_user_id: actorUserId }, token)) as any;
+  // The RPC returns a one-row table, which PostgREST gives back as an array.
+  const row = Array.isArray(r) ? r[0] : r;
+  if (!row) throw new ApiError('NO_ACCOUNT', 'Compte introuvable', 404);
+  return {
+    gardeCfa: Number(row.garde_cfa ?? 0),
+    gardePersonnes: Number(row.garde_personnes ?? 0),
+    jeDoisCfa: Number(row.je_dois_cfa ?? 0),
+    jeDoisCreanciers: Number(row.je_dois_creanciers ?? 0),
+    gardePourMoiCfa: Number(row.garde_pour_moi_cfa ?? 0),
+    gardePourMoiCarnets: Number(row.garde_pour_moi_carnets ?? 0),
+    onMeDoitCfa: Number(row.on_me_doit_cfa ?? 0),
+    onMeDoitDebiteurs: Number(row.on_me_doit_debiteurs ?? 0),
+    onMeDoitVieuxCfa: Number(row.on_me_doit_vieux_cfa ?? 0),
+    reclamationsOuvertes: Number(row.reclamations_ouvertes ?? 0),
+    aVerifier: Number(row.a_verifier ?? 0),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -414,17 +490,26 @@ export interface CustomerProfile {
    * "change your code" must not depend on that.
    */
   pinChangeRequired: boolean;
+  /**
+   * WHY it has to change, so the banner can say the true thing.
+   *
+   * One flag with two causes needs a second field or it has to guess: "somebody
+   * has seen your code" is a security warning, "your code is four digits" is
+   * housekeeping, and showing either in place of the other is a mistake.
+   */
+  pinChangeReason: PinChangeReason;
 }
 
 export async function myCustomer(token: string): Promise<CustomerProfile> {
   const rows = (await get(
-    'customers?select=id,auth_user_id,pin_change_required', token
+    'customers?select=id,auth_user_id,pin_change_required,pin_change_reason', token
   )) as any[];
   if (!rows?.length) throw new ApiError('NOT_A_CUSTOMER', 'Compte client introuvable', 403);
   return {
     id: rows[0].id,
     authUserId: rows[0].auth_user_id,
     pinChangeRequired: Boolean(rows[0].pin_change_required),
+    pinChangeReason: (rows[0].pin_change_reason ?? null) as PinChangeReason,
   };
 }
 

@@ -36,11 +36,20 @@ export function MaMonnaie({
   session,
   client,
   onVerifier,
+  onRetour,
 }: {
   session: Session;
   client: CustomerProfile;
   /** Opens the review queue. Owned by the shell, because it is a task. */
   onVerifier: () => void;
+  /**
+   * Given when this screen is reached as a TASK rather than from a tab.
+   *
+   * Since one account replaced two, this is where both right-hand cells of the
+   * home matrix land, and a full-screen view with no tab bar and no back button
+   * is a dead end. Optional so the screen still works as a destination.
+   */
+  onRetour?: () => void;
 }) {
   // The total and the shop count, straight from the server. Never derived from
   // `shops` above, which is a bounded page.
@@ -188,11 +197,14 @@ export function MaMonnaie({
     : null;
 
   return (
-    <div className="ecran ecran--avec-nav vue">
-      <Entete sousTitre="Votre monnaie, carnet par carnet" />
+    <div className={`ecran vue ${onRetour ? 'vue--tache' : 'ecran--avec-nav'}`}>
+      <Entete
+        sousTitre="Votre monnaie, carnet par carnet"
+        action={onRetour ? <BoutonDiscret onClick={onRetour}>Retour</BoutonDiscret> : undefined}
+      />
 
       <div className="ecran__corps">
-        <h1>Ma monnaie</h1>
+        <h1>Mes carnets</h1>
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
 
         {/* The pre-loaded-claims defence, surfaced wherever the customer is. A

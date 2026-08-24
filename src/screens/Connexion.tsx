@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import * as api from '../lib/api';
-import type { Role, Session } from '../lib/api';
+import type { Session } from '../lib/api';
 import {
   Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonSecondaire,
   BoutonDiscret, Version,
 } from '../components/ui';
 import { Installer } from '../components/Installer';
 import { formatPhoneLocal } from '../lib/format';
+import { PIN_LENGTH } from '../lib/pinRules';
 
 /**
  * Connexion — phone number then PIN, in two steps.
@@ -24,7 +25,6 @@ export function Connexion({
   onInscription: () => void;
   onCodeOublie: () => void;
 }) {
-  const [role, setRole] = useState<Role>('vendor');
   const [etape, setEtape] = useState<'numero' | 'code'>('numero');
   const [numero, setNumero] = useState('');
   const [pin, setPin] = useState('');
@@ -32,18 +32,41 @@ export function Connexion({
   const [avertissement, setAvertissement] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
-  const longueurPin = role === 'vendor' ? 6 : 4;
-
-  function changerRole(r: Role) {
-    setRole(r);
-    setPin('');
-    setErreur(null);
-    setAvertissement(null);
-  }
+  /**
+   * Six is the length, and four is still accepted.
+   *
+   * An account that registered before there was one PIN length has a 4-digit
+   * code, and its credential is derived from those four digits. Refusing them
+   * here would not ask anyone to upgrade — it would lock them out of an account
+   * holding real money, with "code incorrect" as the only clue. The server takes
+   * either and flags the short ones for a change; this screen has to let them
+   * be typed and, crucially, SUBMITTED.
+   */
+  const longueurPin = PIN_LENGTH;
+  const MIN_ACCEPTE = 4;
+  const soumettable = pin.length >= MIN_ACCEPTE && !occupe;
 
   function chiffreNumero(d: string) {
     setErreur(null);
     if (numero.length < 10) setNumero(numero + d);
+  }
+
+  async function envoyer(code: string) {
+    if (code.length < MIN_ACCEPTE || occupe) return;
+    setOccupe(true);
+    try {
+      const r = await api.login(numero, code);
+      onConnecte(r.session, r.notice ?? null, r.isAdmin);
+    } catch (e) {
+      const err = e as api.ApiError;
+      setPin('');
+      setErreur(err.message);
+      // The 4th failed attempt warns that the next one locks the account.
+      const warning = (err.extra as any)?.warning;
+      setAvertissement(typeof warning === 'string' ? warning : null);
+    } finally {
+      setOccupe(false);
+    }
   }
 
   async function chiffrePin(d: string) {
@@ -53,24 +76,11 @@ export function Connexion({
     const suivant = pin + d;
     setPin(suivant);
 
-    // Submit automatically on the last digit. One less tap while holding coins,
-    // and there is nothing else the screen could be waiting for.
-    if (suivant.length === longueurPin) {
-      setOccupe(true);
-      try {
-        const r = await api.login(role, numero, suivant);
-        onConnecte(r.session, r.notice ?? null, r.isAdmin);
-      } catch (e) {
-        const err = e as api.ApiError;
-        setPin('');
-        setErreur(err.message);
-        // The 4th failed attempt warns that the next one locks the account.
-        const warning = (err.extra as any)?.warning;
-        setAvertissement(typeof warning === 'string' ? warning : null);
-      } finally {
-        setOccupe(false);
-      }
-    }
+    // Auto-submit on the SIXTH digit only. One less tap for everyone whose code
+    // is six, which is everyone who has ever registered under the current
+    // rules. A shorter legacy code is submitted with the button below, because
+    // auto-submitting at four would fire mid-typing for everybody else.
+    if (suivant.length === longueurPin) await envoyer(suivant);
   }
 
   return (
@@ -81,32 +91,6 @@ export function Connexion({
         {etape === 'numero' ? (
           <>
             <h1>Connexion</h1>
-
-            <div
-              className="pile"
-              role="group"
-              aria-label="Type de compte"
-              style={{ flexDirection: 'row', gap: 'var(--espace-3)' }}
-            >
-              <button
-                type="button"
-                className={`bouton ${role === 'vendor' ? 'bouton--primaire' : 'bouton--secondaire'}`}
-                onClick={() => changerRole('vendor')}
-                aria-pressed={role === 'vendor'}
-                style={{ fontSize: 'var(--texte-base)', minHeight: 'var(--cible-min)' }}
-              >
-                Je tiens le carnet
-              </button>
-              <button
-                type="button"
-                className={`bouton ${role === 'customer' ? 'bouton--primaire' : 'bouton--secondaire'}`}
-                onClick={() => changerRole('customer')}
-                aria-pressed={role === 'customer'}
-                style={{ fontSize: 'var(--texte-base)', minHeight: 'var(--cible-min)' }}
-              >
-                Je suis sur le carnet
-              </button>
-            </div>
 
             <Cadran etiquette="Numéro de téléphone">
               <span className="montant montant--grand" style={{ color: 'var(--craie)' }}>
@@ -125,9 +109,7 @@ export function Connexion({
         ) : (
           <>
             <h1>Votre code</h1>
-            <p className="discret">
-              {role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} · {formatPhoneLocal(numero)}
-            </p>
+            <p className="discret">{formatPhoneLocal(numero)}</p>
 
             <Cadran etiquette={`Code à ${longueurPin} chiffres`}>
               <PinPoints longueur={longueurPin} remplis={pin.length} />
@@ -141,6 +123,16 @@ export function Connexion({
               onEffacer={() => setPin(pin.slice(0, -1))}
               onToutEffacer={() => setPin('')}
             />
+
+            {/* For a code shorter than six. Enabled from four digits, so an
+                account created before the lengths were unified can still get
+                in — and then be told to change it. Invisible in practice to
+                anyone whose code is six: they never reach it. */}
+            {pin.length >= MIN_ACCEPTE && pin.length < longueurPin ? (
+              <BoutonPrimaire onClick={() => envoyer(pin)} disabled={!soumettable}>
+                {occupe ? 'Connexion…' : 'Continuer'}
+              </BoutonPrimaire>
+            ) : null}
           </>
         )}
       </div>

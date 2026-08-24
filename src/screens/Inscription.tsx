@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as api from '../lib/api';
-import type { Role, Session } from '../lib/api';
+import type { Session } from '../lib/api';
 import {
   Clavier, PinPoints, Entete, Message, Cadran, BoutonPrimaire, BoutonSecondaire, BoutonDiscret,
 } from '../components/ui';
@@ -34,7 +34,15 @@ const TEXTE_CONDITIONS =
   'client peut à tout moment demander le remboursement en espèces auprès du ' +
   'commerçant concerné.';
 
-type Etape = 'role' | 'numero' | 'nom' | 'boutique' | 'conditions' | 'code' | 'fait';
+/**
+ * No 'role' step any more.
+ *
+ * It asked which of two accounts you were before it knew anything about you,
+ * and both answers were wrong for somebody: a tailor owed 6 000 F is not a
+ * "commerçant", and picking "client" left them unable to write the debt down at
+ * all. There is one kind of account, so there is no question to ask.
+ */
+type Etape = 'numero' | 'nom' | 'quartier' | 'conditions' | 'code' | 'fait';
 
 export function Inscription({
   onInscrit,
@@ -43,8 +51,7 @@ export function Inscription({
   onInscrit: (s: Session) => void;
   onRetour: () => void;
 }) {
-  const [role, setRole] = useState<Role>('vendor');
-  const [etape, setEtape] = useState<Etape>('role');
+  const [etape, setEtape] = useState<Etape>('numero');
   const [numero, setNumero] = useState('');
   const [nom, setNom] = useState('');
   const [quartier, setQuartier] = useState('');
@@ -54,36 +61,28 @@ export function Inscription({
   const [occupe, setOccupe] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 
-  const longueurPin = pinLengthFor(role);
-  const regles = reglesPour(role);
-
-  function commencer(r: Role) {
-    setRole(r);
-    setPin('');
-    setNom('');
-    setQuartier('');
-    setAccepte(false);
-    setErreur(null);
-    setEtape('numero');
-  }
+  // One length, one rule set, for everyone.
+  const longueurPin = pinLengthFor();
+  const regles = reglesPour();
 
   async function creer() {
     setErreur(null);
     setOccupe(true);
     try {
       await api.register({
-        role,
         phone: numero,
         pin,
-        ...(role === 'customer'
-          ? { displayName: nom }
-          : { businessName: nom, quartier, termsAccepted: accepte }),
+        name: nom,
+        // Optional now. Sent only when given, so an empty field stores null
+        // rather than a space nobody chose.
+        ...(quartier.trim() ? { quartier: quartier.trim() } : {}),
+        termsAccepted: accepte,
       });
 
       // Log them straight in. Asking someone to re-enter the code they just
       // chose, on the screen after choosing it, is the kind of step that loses
       // people at the last moment.
-      const r = await api.login(role, numero, pin);
+      const r = await api.login(numero, pin);
 
       // Hold the session rather than handing it over immediately. Navigating
       // away now would skip past the install prompt, which is the one moment
@@ -100,41 +99,11 @@ export function Inscription({
     }
   }
 
-  // ---- role -------------------------------------------------------------
-  if (etape === 'role') {
-    return (
-      <div className="ecran">
-        <Entete sousTitre="Créer un compte" />
-        <div className="ecran__corps">
-          <h1>Vous êtes ?</h1>
-          <div className="pile" style={{ gap: 'var(--espace-4)' }}>
-            <BoutonPrimaire onClick={() => commencer('vendor')}>
-              Je tiens le carnet
-            </BoutonPrimaire>
-            <p className="discret centre">
-              Vous gardez la monnaie des autres et vous notez ce qu'on vous doit.
-            </p>
-            <BoutonSecondaire onClick={() => commencer('customer')}>
-              Je suis sur le carnet
-            </BoutonSecondaire>
-            <p className="discret centre">
-              Quelqu'un garde votre monnaie, ou note ce que vous devez. Vous
-              confirmez depuis votre téléphone.
-            </p>
-          </div>
-        </div>
-        <div className="ecran__pied pile">
-          <BoutonDiscret onClick={onRetour}>J'ai déjà un compte</BoutonDiscret>
-        </div>
-      </div>
-    );
-  }
-
   // ---- phone ------------------------------------------------------------
   if (etape === 'numero') {
     return (
       <div className="ecran">
-        <Entete sousTitre={role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} />
+        <Entete sousTitre="Créer un compte" />
         <div className="ecran__corps">
           <h1>Votre numéro</h1>
           <p className="discret">
@@ -157,7 +126,7 @@ export function Inscription({
           <BoutonPrimaire onClick={() => setEtape('nom')} disabled={numero.length !== 10}>
             Continuer
           </BoutonPrimaire>
-          <BoutonDiscret onClick={() => setEtape('role')}>Retour</BoutonDiscret>
+          <BoutonDiscret onClick={onRetour}>Retour</BoutonDiscret>
         </div>
       </div>
     );
@@ -165,20 +134,22 @@ export function Inscription({
 
   // ---- name -------------------------------------------------------------
   if (etape === 'nom') {
-    const suivant = role === 'vendor' ? 'boutique' : 'code';
+    // Everyone walks the same path now: name, quartier, terms, code. The
+    // disclosure is no longer vendor-only, because every account can now be
+    // holding somebody else's money — which is the whole thing it discloses.
+    const suivant: Etape = 'quartier';
     return (
       <div className="ecran">
-        <Entete sousTitre={role === 'vendor' ? 'Mon carnet' : 'Sur le carnet'} />
+        <Entete sousTitre="Créer un compte" />
         <div className="ecran__corps">
-          <h1>{role === 'vendor' ? 'Nom de votre carnet' : 'Votre prénom'}</h1>
+          <h1>Votre nom</h1>
           <p className="discret">
-            {role === 'vendor'
-              ? "C'est le nom que vos clients verront sur leur téléphone."
-              : 'Juste votre prénom, pour qu’on vous reconnaisse.'}
+            C’est le nom que les autres verront sur leur téléphone.
           </p>
           <label className="champ">
             <span className="champ__etiquette">
-              {role === 'vendor' ? 'Exemple : Chez Awa, Atelier Koffi, Garage Sud' : 'Exemple : Awa'}
+              Exemple : Chez Awa, Atelier Koffi, Awa
+
             </span>
             <input
               className="champ__saisie"
@@ -186,7 +157,7 @@ export function Inscription({
               value={nom}
               onChange={(e) => setNom(e.target.value)}
               autoCapitalize="words"
-              autoComplete={role === 'vendor' ? 'organization' : 'given-name'}
+              autoComplete="name"
               maxLength={60}
               inputMode="text"
             />
@@ -202,14 +173,16 @@ export function Inscription({
     );
   }
 
-  // ---- quartier (vendor only) -------------------------------------------
-  if (etape === 'boutique') {
+  // ---- quartier, optional -----------------------------------------------
+  if (etape === 'quartier') {
     return (
       <div className="ecran">
         <Entete sousTitre={nom} />
         <div className="ecran__corps">
           <h1>Votre quartier</h1>
-          <p className="discret">Où l’on vous trouve.</p>
+          <p className="discret">
+            Où l’on vous trouve. Facultatif — vous pouvez passer.
+          </p>
           <label className="champ">
             <span className="champ__etiquette">Exemple : Yopougon</span>
             <input
@@ -224,10 +197,7 @@ export function Inscription({
           </label>
         </div>
         <div className="ecran__pied pile">
-          <BoutonPrimaire
-            onClick={() => setEtape('conditions')}
-            disabled={quartier.trim().length < 2}
-          >
+          <BoutonPrimaire onClick={() => setEtape('conditions')}>
             Continuer
           </BoutonPrimaire>
           <BoutonDiscret onClick={() => setEtape('nom')}>Retour</BoutonDiscret>
@@ -236,7 +206,7 @@ export function Inscription({
     );
   }
 
-  // ---- terms (vendor only) ----------------------------------------------
+  // ---- terms, for everyone ---------------------------------------------
   if (etape === 'conditions') {
     return (
       <div className="ecran">
@@ -298,7 +268,7 @@ export function Inscription({
           <BoutonPrimaire onClick={() => setEtape('code')} disabled={!accepte}>
             Continuer
           </BoutonPrimaire>
-          <BoutonDiscret onClick={() => setEtape('boutique')}>Retour</BoutonDiscret>
+          <BoutonDiscret onClick={() => setEtape('quartier')}>Retour</BoutonDiscret>
         </div>
       </div>
     );
@@ -307,20 +277,20 @@ export function Inscription({
   // ---- PIN --------------------------------------------------------------
   if (etape === 'code') {
     const complet = pin.length === longueurPin;
-    const probleme = complet ? pinProbleme(pin, role) : null;
-    const bon = complet && pinValide(pin, role);
+    const probleme = complet ? pinProbleme(pin) : null;
+    const bon = complet && pinValide(pin);
 
     return (
       <div className="ecran">
-        <Entete sousTitre={role === 'vendor' ? nom : 'Client'} />
+        <Entete sousTitre={nom} />
         <div className="ecran__corps">
           <h1>Choisissez votre code</h1>
-          <p className="discret">{pourquoiPour(role)}</p>
+          <p className="discret">{pourquoiPour()}</p>
 
           {/* The rules, BEFORE typing and updating as they type. */}
           <ul className="pile" style={{ listStyle: 'none', gap: 'var(--espace-2)' }}>
             {regles.map((r) => {
-              const satisfait = r.ok(pin, role);
+              const satisfait = r.ok(pin);
               return (
                 <li
                   key={r.texte}
@@ -362,9 +332,7 @@ export function Inscription({
           <BoutonPrimaire onClick={creer} disabled={!bon || occupe}>
             {occupe ? 'Création…' : 'Créer mon compte'}
           </BoutonPrimaire>
-          <BoutonDiscret
-            onClick={() => setEtape(role === 'vendor' ? 'conditions' : 'nom')}
-          >
+          <BoutonDiscret onClick={() => setEtape('conditions')}>
             Retour
           </BoutonDiscret>
         </div>

@@ -28,10 +28,9 @@ Deno.serve(handler(async (req) => {
   const ip = clientIp(req);
   const db = serviceClient();
 
-  const role = body.role;
-  if (role !== 'vendor' && role !== 'customer') {
-    return fail('ROLE_INVALID', 'Type de compte invalide');
-  }
+  // NO ROLE. There is one kind of account. `body.role` may still arrive from a
+  // cached bundle and is ignored rather than rejected, so a phone that has not
+  // picked up the new build can still sign in.
 
   let msisdn: string;
   try {
@@ -75,13 +74,16 @@ Deno.serve(handler(async (req) => {
     }
   }
 
-  // ----- find the profile -------------------------------------------------
-  const table = role === 'vendor' ? 'vendors' : 'customers';
-  const { data: profile } = await db
-    .from(table)
-    .select('id, auth_user_id, pepper_version')
-    .eq('phone', msisdn)
-    .maybeSingle();
+  // ----- find the account -------------------------------------------------
+  // Both halves share one auth_user_id, so either will do to authenticate. Both
+  // are read because both may need their pepper_version moved, and because an
+  // account created before 0042 has only one of them.
+  const [{ data: moitieV }, { data: moitieC }] = await Promise.all([
+    db.from('vendors').select('id, auth_user_id, pepper_version').eq('phone', msisdn).maybeSingle(),
+    db.from('customers').select('id, auth_user_id, pepper_version').eq('phone', msisdn).maybeSingle(),
+  ]);
+
+  const profile = moitieV?.auth_user_id ? moitieV : moitieC;
 
   if (!profile?.auth_user_id) {
     // Same message as a wrong PIN, on purpose: distinguishing them turns this
@@ -182,12 +184,22 @@ Deno.serve(handler(async (req) => {
       );
       if (updErr) throw updErr;
 
-      const { error: recErr } = await db.rpc('record_pepper_upgrade', {
-        p_auth_user_id: profile.auth_user_id,
-        p_new_version: target,
-        p_role: role,
-      });
-      if (recErr) throw recErr;
+      // BOTH halves, because both carry a pepper_version and the auth password
+      // they describe is shared. Moving one and not the other would leave the
+      // next login trying a version that had already been rotated past, which
+      // still works — the login walks every configured pepper — but silently
+      // costs an extra HMAC on every sign-in, forever.
+      for (const r of [
+        moitieV?.auth_user_id ? 'vendor' : null,
+        moitieC?.auth_user_id ? 'customer' : null,
+      ].filter(Boolean) as string[]) {
+        const { error: recErr } = await db.rpc('record_pepper_upgrade', {
+          p_auth_user_id: profile.auth_user_id,
+          p_new_version: target,
+          p_role: r,
+        });
+        if (recErr) throw recErr;
+      }
 
       pepperUpgraded = true;
     } catch (err) {
@@ -197,18 +209,45 @@ Deno.serve(handler(async (req) => {
     }
   }
 
-  // ----- customer PIN hygiene  (amendment I) ------------------------------
+  // ----- PIN hygiene  (amendment I) ---------------------------------------
+  // Runs for every account now, not just customers: since 0042 anybody can have
+  // typed their code on somebody else's phone.
   let pinChangeRequired = false;
   let vendorDeviceEntries = 0;
+  /** 'vendor_device' | 'legacy_length' | null — what the banner should say. */
+  let raison: string | null = null;
 
-  if (role === 'customer') {
+  const idClient = moitieC?.auth_user_id ? moitieC.id : null;
+
+  if (idClient) {
     const { data: cust } = await db
       .from('customers')
-      .select('pin_change_required, vendor_device_notice_seen_at')
-      .eq('id', profile.id)
+      .select('pin_change_required, pin_change_reason, vendor_device_notice_seen_at')
+      .eq('id', idClient)
       .maybeSingle();
 
     pinChangeRequired = Boolean(cust?.pin_change_required);
+    raison = (cust?.pin_change_reason as string | null) ?? null;
+
+    // ---- THE 4-DIGIT UPGRADE PATH ----------------------------------------
+    // An account registered before 0042 has a 4-digit PIN, and its auth password
+    // is derived from it. Requiring 6 at this screen would not ask them to
+    // upgrade — it would lock them out of an account holding real money, with
+    // "code incorrect" as the only clue. So the shape check above still accepts
+    // 4..6, the PIN they have still works, and getting in on four digits flags
+    // the account for a change.
+    //
+    // The flag is what the persistent banner and Compte read, so they are told
+    // every time they open the app until they do it. Registration and change-pin
+    // require six, so the fours drain away and cannot come back.
+    if (pin.length !== 6 && !pinChangeRequired) {
+      pinChangeRequired = true;
+      raison = 'legacy_length';
+      await db
+        .from('customers')
+        .update({ pin_change_required: true, pin_change_reason: 'legacy_length' })
+        .eq('id', idClient);
+    }
 
     if (pinChangeRequired) {
       // Surface the vendor_device history prominently at this first own-device
@@ -216,7 +255,7 @@ Deno.serve(handler(async (req) => {
       const { count } = await db
         .from('ledger_entries')
         .select('id', { count: 'exact', head: true })
-        .eq('customer_id', profile.id)
+        .eq('customer_id', idClient)
         .eq('confirmation_method', 'vendor_device');
 
       vendorDeviceEntries = count ?? 0;
@@ -225,7 +264,7 @@ Deno.serve(handler(async (req) => {
         await db
           .from('customers')
           .update({ vendor_device_notice_seen_at: new Date().toISOString() })
-          .eq('id', profile.id);
+          .eq('id', idClient);
       }
     }
   }
@@ -247,15 +286,20 @@ Deno.serve(handler(async (req) => {
 
   return json({
     ok: true,
-    role,
     msisdn,
     session,
     isAdmin,
     pepperUpgraded,
     pinChangeRequired,
     vendorDeviceEntries,
-    notice: pinChangeRequired
-      ? "Votre code a déjà été saisi sur l'appareil d'un commerçant. Changez-le maintenant."
-      : null,
+    pinChangeReason: raison,
+    // Two causes, two sentences. One is a warning that somebody has seen the
+    // code; the other is housekeeping. Collapsing them would either cry wolf or
+    // lose the only warning a customer gets.
+    notice: !pinChangeRequired
+      ? null
+      : raison === 'legacy_length'
+        ? 'Les codes ont maintenant 6 chiffres. Changez le vôtre depuis « Compte ».'
+        : "Votre code a déjà été saisi sur l'appareil de quelqu'un d'autre. Changez-le maintenant.",
   });
 }));

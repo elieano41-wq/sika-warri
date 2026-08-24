@@ -37,7 +37,7 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
-  const longueurPin = pinLengthFor(role);
+  const longueurPin = pinLengthFor();
 
   async function demander() {
     setErreur(null);
@@ -198,8 +198,8 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
   // ---- the new PIN -------------------------------------------------------
   if (etape === 'pin') {
     const complet = pin.length === longueurPin;
-    const probleme = complet ? pinProbleme(pin, role) : null;
-    const bon = complet && pinValide(pin, role);
+    const probleme = complet ? pinProbleme(pin) : null;
+    const bon = complet && pinValide(pin);
 
     return (
       <div className="ecran">
@@ -211,8 +211,8 @@ export function ResetPin({ onTermine }: { onTermine: () => void }) {
           </p>
 
           <ul className="pile" style={{ listStyle: 'none', gap: 'var(--espace-2)' }}>
-            {reglesPour(role).map((r) => {
-              const ok = r.ok(pin, role);
+            {reglesPour().map((r) => {
+              const ok = r.ok(pin);
               return (
                 <li
                   key={r.texte}

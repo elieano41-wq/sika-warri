@@ -6,6 +6,7 @@ import {
 } from '../components/ui';
 import { Installer } from '../components/Installer';
 import { formatCfa, formatPhoneLocal } from '../lib/format';
+import { PIN_LENGTH } from '../lib/pinRules';
 
 /**
  * The support number, from the build environment.
@@ -162,7 +163,11 @@ export function ChangerCode({
   onTermine: () => void;
   onAnnuler: () => void;
 }) {
-  const longueur = session.role === 'vendor' ? 6 : 4;
+  // The NEW code is always six. The current one is whatever it is — an account
+  // from before the lengths were unified still has four, and the "actuel" step
+  // has to let those four be entered and submitted.
+  const longueur = PIN_LENGTH;
+  const MIN_ACTUEL = 4;
 
   const [etape, setEtape] = useState<'actuel' | 'nouveau' | 'confirmer'>('actuel');
   const [actuel, setActuel] = useState('');
@@ -210,7 +215,7 @@ export function ChangerCode({
 
     setOccupe(true);
     try {
-      await api.changePin(session.accessToken, session.role, actuel, nouveau);
+      await api.changePin(session.accessToken, actuel, nouveau);
       setFait(true);
     } catch (e) {
       // The server owns the real rules — sequential digits, repeated digits, a
@@ -269,9 +274,17 @@ export function ChangerCode({
           onEffacer={() => poser(courant.slice(0, -1))}
           onToutEffacer={() => poser('')}
         />
+        {/* The CURRENT code may be four digits, from before the lengths were
+            unified; the new one must be six. Gating both at six would leave a
+            legacy account unable to reach the screen that fixes it. */}
         <BoutonPrimaire
           onClick={suivant}
-          disabled={courant.length !== longueur || occupe}
+          disabled={
+            occupe ||
+            (etape === 'actuel'
+              ? courant.length < MIN_ACTUEL
+              : courant.length !== longueur)
+          }
         >
           {etape === 'confirmer' ? 'Changer mon code' : 'Continuer'}
         </BoutonPrimaire>

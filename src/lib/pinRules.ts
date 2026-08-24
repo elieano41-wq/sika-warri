@@ -8,17 +8,23 @@
 // Wording is deliberately concrete. "Évitez les codes trop simples" means
 // nothing; "pas 0000, pas 1234" is a rule someone can follow.
 
-import { checkPin, pinLengthFor, type Role } from '../../supabase/functions/_shared/identity';
+import { checkPin, PIN_LENGTH } from '../../supabase/functions/_shared/identity';
 
 export interface Regle {
   /** Short label, shown as a checklist item. */
   texte: string;
   /** Satisfied by the PIN typed so far. */
-  ok: (pin: string, role: Role) => boolean;
+  ok: (pin: string) => boolean;
 }
 
-export function reglesPour(role: Role): Regle[] {
-  const n = pinLengthFor(role);
+/**
+ * The rules, for everyone.
+ *
+ * `role` is gone from every signature in this module. It only ever selected a
+ * PIN length, and there is one length now — see PIN_LENGTH.
+ */
+export function reglesPour(): Regle[] {
+  const n = PIN_LENGTH;
 
   return [
     {
@@ -33,34 +39,43 @@ export function reglesPour(role: Role): Regle[] {
     },
     {
       texte: 'Pas des chiffres qui se suivent — pas 1234',
-      ok: (pin, r) => pin.length < pinLengthFor(r) || checkPin(pin, r)?.code !== 'PIN_SEQUENTIAL',
+      ok: (pin) => pin.length < n || checkPin(pin)?.code !== 'PIN_SEQUENTIAL',
     },
     {
       texte: 'Pas deux chiffres en alternance — pas 1212',
-      ok: (pin, r) => pin.length < pinLengthFor(r) || checkPin(pin, r)?.code !== 'PIN_REPEATED_PAIR',
+      ok: (pin) => pin.length < n || checkPin(pin)?.code !== 'PIN_REPEATED_PAIR',
     },
   ];
 }
 
-/** One sentence explaining WHY, before the checklist. */
-export function pourquoiPour(role: Role): string {
-  return role === 'vendor'
-    ? 'Ce code protège votre boutique. Vous le taperez à chaque ouverture.'
-    : 'Ce code vous sert à confirmer, sur votre propre téléphone, quand un commerçant utilise votre monnaie.';
+/**
+ * One sentence explaining WHY, before the checklist.
+ *
+ * One sentence now, not two. The two it replaced each described half of what
+ * this code does — "protects your shop" and "lets you confirm on your own
+ * phone" — because an account could only ever do one of those. It does both.
+ */
+export function pourquoiPour(): string {
+  return 'Ce code ouvre votre carnet, et c’est lui qui confirme ce que vous devez. Vous le taperez à chaque fois.';
 }
 
-/** The warning that matters most, in both flows. */
+/** The warning that matters most, everywhere. */
 export const NE_PARTAGEZ_JAMAIS =
-  'Ne donnez ce code à personne, même pas à un commerçant.';
+  'Ne donnez ce code à personne, même pas à qui tient le carnet.';
 
 /** Is this PIN acceptable, per the server's own policy? */
-export function pinValide(pin: string, role: Role): boolean {
-  return checkPin(pin, role) === null;
+export function pinValide(pin: string): boolean {
+  return checkPin(pin) === null;
 }
 
 /** The server's message for an unacceptable PIN, or null. */
-export function pinProbleme(pin: string, role: Role): string | null {
-  return checkPin(pin, role)?.message ?? null;
+export function pinProbleme(pin: string): string | null {
+  return checkPin(pin)?.message ?? null;
 }
 
-export { pinLengthFor };
+/** One length, for everyone. Re-exported so screens have one import. */
+export function pinLengthFor(): number {
+  return PIN_LENGTH;
+}
+
+export { PIN_LENGTH };

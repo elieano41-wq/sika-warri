@@ -8,7 +8,7 @@ import { ResetPin } from './screens/ResetPin';
 import { Admin } from './screens/admin/Admin';
 import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
 import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
-import { EspaceClient } from './screens/client/EspaceClient';
+import { Espace } from './screens/Espace';
 import { MesClients } from './screens/vendeur/MesClients';
 import { AccueilVendeur } from './screens/vendeur/Accueil';
 import { Historique as HistoriqueVendeur } from './screens/vendeur/Historique';
@@ -125,18 +125,39 @@ export default function App() {
 
     (async () => {
       try {
-        if (session.role === 'vendor') {
-          const v = await api.myVendor(session.accessToken);
-          if (annule) return;
-          setVendeur(v);
-          // Asked here rather than at login, so a reload and a fresh grant both
-          // pick it up without anyone signing out.
-          setEstAdmin(await api.amIAdmin(session.accessToken, v.authUserId));
-        } else {
-          const c = await api.myCustomer(session.accessToken);
-          if (annule) return;
-          setClient(c);
-          setEstAdmin(await api.amIAdmin(session.accessToken, c.authUserId));
+        // BOTH halves, and neither is fatal on its own. One account has a
+        // vendors row and a customers row since 0042; an account created before
+        // it has only one, and it must still be able to open its own app.
+        // Fetched in parallel and settled rather than awaited in sequence, so a
+        // missing half costs nothing and a slow one does not gate the other.
+        const [rv, rc] = await Promise.allSettled([
+          api.myVendor(session.accessToken),
+          api.myCustomer(session.accessToken),
+        ]);
+        if (annule) return;
+
+        const v = rv.status === 'fulfilled' ? rv.value : null;
+        const c = rc.status === 'fulfilled' ? rc.value : null;
+
+        if (!v && !c) {
+          // Neither half. Either the token is dead or this is not an account,
+          // and the two are told apart by the status underneath.
+          // Both rejected, so both carry a reason. Narrowed explicitly rather
+          // than asserted: the vendors side is reported first because its
+          // failure is the one that means "no account at all".
+          if (rv.status === 'rejected') throw rv.reason;
+          if (rc.status === 'rejected') throw rc.reason;
+          throw new api.ApiError('NO_PROFILE', 'Compte introuvable', 404);
+        }
+
+        setVendeur(v);
+        setClient(c);
+
+        // Asked here rather than at login, so a reload and a fresh grant both
+        // pick it up without anyone signing out.
+        const idActeur = v?.authUserId ?? c?.authUserId;
+        if (idActeur) {
+          setEstAdmin(await api.amIAdmin(session.accessToken, idActeur));
         }
       } catch (e) {
         if (annule) return;
@@ -236,143 +257,36 @@ export default function App() {
     return <Admin session={session} onQuitter={() => setVueAdmin(false)} />;
   }
 
-  // ---- customer ----------------------------------------------------------
-  if (session.role === 'customer') {
-    if (!client) {
-      return (
-        <div className="ecran">
-          <Entete />
-          <div className="ecran__corps">
-            <Message ton="erreur">{erreur ?? 'Compte client introuvable.'}</Message>
-            <BoutonSecondaire onClick={deconnexion}>Se reconnecter</BoutonSecondaire>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <>
-        {avis ? (
-          <div className="ecran" style={{ minHeight: 'auto', paddingBottom: 0 }}>
-            <Message ton="info">{avis}</Message>
-          </div>
-        ) : null}
-        {/* The admin entry point now lives on the Compte tab rather than
-            appended under the screen, which is where it ended up when there was
-            nowhere else to put it. */}
-        <EspaceClient
-          session={session}
-          client={client}
-          estAdmin={estAdmin}
-          onAdmin={estAdmin ? () => setVueAdmin(true) : undefined}
-          onDeconnexion={deconnexion}
-        />
-      </>
-    );
-  }
-
-  // ---- vendor ------------------------------------------------------------
-  if (!vendeur) {
+  // ---- ONE SHELL ---------------------------------------------------------
+  // There is no longer a branch here. Which side of a carnet somebody is on is
+  // a property of that carnet, not of their account, so there is nothing for
+  // this router to choose between.
+  if (!vendeur && !client) {
     return (
       <div className="ecran">
         <Entete />
         <div className="ecran__corps">
-          <Message ton="erreur">{erreur ?? 'Compte commerçant introuvable.'}</Message>
+          <Message ton="erreur">{erreur ?? 'Compte introuvable.'}</Message>
           <BoutonSecondaire onClick={deconnexion}>Se reconnecter</BoutonSecondaire>
         </div>
       </div>
     );
   }
 
-  // Tasks take the whole screen, with NO tab bar. See the Tache comment above:
-  // a half-recorded entry is worse than a slower route back to it.
-  if (tache === 'garder') {
-    return (
-      <GarderLaMonnaie
-        session={session}
-        vendeur={vendeur}
-        onTermine={() => setTache(null)}
-      />
-    );
-  }
-
-  if (tache === 'utiliser') {
-    return (
-      <UtiliserLaMonnaie
-        session={session}
-        vendeur={vendeur}
-        onTermine={() => setTache(null)}
-      />
-    );
-  }
-
-  if (tache === 'code') {
-    return (
-      <ChangerCode
-        session={session}
-        onTermine={() => setTache(null)}
-        onAnnuler={() => setTache(null)}
-      />
-    );
-  }
-
-  if (tache === 'dette') {
-    return (
-      <NoterUneDette
-        session={session}
-        vendeur={vendeur}
-        onTermine={() => setTache(null)}
-      />
-    );
-  }
-
   return (
     <>
-      {/* keyed on the tab so the entry animation replays per destination.
-          Without the key React reuses the node and the screen swaps with no
-          transition at all. */}
-      <div key={sousVue ?? onglet}>
-        {sousVue === 'corriger' ? (
-          <Corriger
-            session={session}
-            vendeur={vendeur}
-            onRetour={() => setSousVue(null)}
-          />
-        ) : sousVue === 'historique' ? (
-          <HistoriqueVendeur
-            session={session}
-            vendeur={vendeur}
-            onRetour={() => setSousVue(null)}
-          />
-        ) : onglet === 'accueil' ? (
-          <AccueilVendeur
-            session={session}
-            vendeur={vendeur}
-            onGarder={() => setTache('garder')}
-            onUtiliser={() => setTache('utiliser')}
-            onNoterDette={() => setTache('dette')}
-            onHistorique={() => setSousVue('historique')}
-            onCorriger={() => setSousVue('corriger')}
-          />
-        ) : onglet === 'clients' ? (
-          <MesClients session={session} vendeur={vendeur} />
-        ) : onglet === 'dettes' ? (
-          <MesDettes session={session} vendeur={vendeur} />
-        ) : (
-          <Compte
-            session={session}
-            vendeur={vendeur}
-            estAdmin={estAdmin}
-            onAdmin={estAdmin ? () => setVueAdmin(true) : undefined}
-            onChangerCode={() => setTache('code')}
-            onDeconnexion={deconnexion}
-          />
-        )}
-      </div>
-
-      <Navigation
-        onglets={ONGLETS_VENDEUR}
-        actif={onglet}
-        onChoisir={(c) => { setSousVue(null); setOnglet(c); }}
+      {avis ? (
+        <div className="ecran" style={{ minHeight: 'auto', paddingBottom: 0 }}>
+          <Message ton="info">{avis}</Message>
+        </div>
+      ) : null}
+      <Espace
+        session={session}
+        vendeur={vendeur}
+        client={client}
+        estAdmin={estAdmin}
+        onAdmin={estAdmin ? () => setVueAdmin(true) : undefined}
+        onDeconnexion={deconnexion}
       />
     </>
   );

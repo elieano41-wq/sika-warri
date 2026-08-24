@@ -78,11 +78,56 @@ export function authEmailFor(msisdn: string): string {
 // PIN policy
 // ---------------------------------------------------------------------------
 
+/**
+ * Still exported, still two values — but no longer a property of an ACCOUNT.
+ *
+ * One account can now be on either side of any pair, so `role` describes a
+ * position in one relationship, not a kind of user. It survives here because
+ * the ledger's two registers still need to know who is holding and who is
+ * owed; it no longer decides anything about credentials.
+ */
 export type Role = 'vendor' | 'customer';
 
-/** Vendors use 6 digits, customers 4. */
-export function pinLengthFor(role: Role): number {
-  return role === 'vendor' ? 6 : 4;
+/**
+ * ONE PIN LENGTH, for everyone.
+ *
+ * ============================================================================
+ * WHY THIS CHANGED. 6 digits for a vendor and 4 for a customer was the only
+ * thing keeping one phone number from holding both halves of the app. The auth
+ * password is derived from the PIN, so two lengths meant two passwords, so one
+ * identity could not be both — and register/index.ts refused the second one
+ * outright with PHONE_OTHER_ROLE.
+ *
+ * The consequence was worse than an inconvenience: an ordinary person could not
+ * write down a debt somebody owed THEM without opening a second, business-shaped
+ * account. A tailor owed 6 000 F had no way to record it. The split was never a
+ * feature; it was the shadow of this constant.
+ *
+ * WHY SIX AND NOT FOUR. The 4-digit PIN was justified in the spec by "exposure
+ * is capped at 3 000 F per vendor by design". That cap was a property of being a
+ * customer — of never holding anyone else's money. One account type removes the
+ * cap, so it removes the justification. Everyone can now be holding, so everyone
+ * gets the stronger credential.
+ * ============================================================================
+ */
+export const PIN_LENGTH = 6;
+
+/**
+ * What a login will still ACCEPT, as opposed to what a new PIN must be.
+ *
+ * Accounts registered under the old rules have a 4-digit PIN, and their auth
+ * password is derived from it. Requiring 6 digits at the login screen would not
+ * ask them to upgrade — it would lock them out of an account holding real
+ * money, with "code incorrect" as the only clue. So login takes either length,
+ * and an account that gets in on 4 is flagged pin_change_required on the way
+ * through. Registration and change-pin require 6, so the 4s drain away and
+ * never come back.
+ */
+export const PIN_LENGTHS_ACCEPTED = [4, 6];
+
+/** @deprecated Kept so old call sites fail loudly rather than silently. */
+export function pinLengthFor(_role?: Role): number {
+  return PIN_LENGTH;
 }
 
 export interface PinRejection {
@@ -93,22 +138,23 @@ export interface PinRejection {
 /**
  * Reject PINs that are trivially guessable.
  *
- * A 4-digit PIN is deliberately weak-but-appropriate: exposure is capped at
- * 3 000 F per vendor by design, and the alternative (SMS OTP) costs money the
- * product does not have. Given that, refusing the handful of PINs an attacker
- * would try first is cheap and worth doing.
+ * Six digits is a million codes, and the 5-attempt lockout does most of the
+ * work. Refusing the handful an attacker would try first is still cheap, and
+ * still worth doing: 123456 and 000000 are a meaningful share of real choices.
+ *
+ * `role` is no longer read. Kept in the signature so every existing call site
+ * keeps compiling while the roles are unwound, and so that removing it later is
+ * one mechanical change rather than a hunt.
  */
-export function checkPin(pin: string, role: Role): PinRejection | null {
-  const expected = pinLengthFor(role);
-
+export function checkPin(pin: string, _role?: Role): PinRejection | null {
   if (typeof pin !== 'string' || !/^\d+$/.test(pin)) {
     return { code: 'PIN_NOT_NUMERIC', message: 'Le code doit être uniquement des chiffres' };
   }
 
-  if (pin.length !== expected) {
+  if (pin.length !== PIN_LENGTH) {
     return {
       code: 'PIN_WRONG_LENGTH',
-      message: `Le code doit contenir ${expected} chiffres`,
+      message: `Le code doit contenir ${PIN_LENGTH} chiffres`,
     };
   }
 

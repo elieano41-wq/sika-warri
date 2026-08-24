@@ -25,16 +25,16 @@ Deno.serve(handler(async (req) => {
   const body = await readJson<Body>(req);
   const db = serviceClient();
 
-  const role = body.role;
-  if (role !== 'vendor' && role !== 'customer') {
-    return fail('ROLE_INVALID', 'Type de compte invalide');
-  }
+  // No role. `body.role` may still arrive from a cached bundle; ignored.
 
   const currentPin = body.currentPin ?? '';
   const newPin = body.newPin ?? '';
 
   // Policy on the NEW pin only. The current one is whatever it is.
-  const rejection = checkPin(newPin, role);
+  // Six digits, always. This is the gate the 4-digit accounts drain through:
+  // login still accepts theirs, but the replacement can only be six, so a code
+  // that was four can never be four again.
+  const rejection = checkPin(newPin);
   if (rejection) return fail(rejection.code, rejection.message);
 
   if (newPin === currentPin) {
@@ -42,15 +42,19 @@ Deno.serve(handler(async (req) => {
   }
 
   // ----- who is this ------------------------------------------------------
-  const table = role === 'vendor' ? 'vendors' : 'customers';
-  const { data: profile } = await db
-    .from(table)
-    .select('id, phone, pepper_version')
-    .eq('auth_user_id', caller.authUserId)
-    .maybeSingle();
+  // Both halves share one credential, so either identifies the account. Both are
+  // read: the pepper version has to be recorded on each, and the obligation is
+  // cleared on the customers row.
+  const [{ data: moitieV }, { data: moitieC }] = await Promise.all([
+    db.from('vendors').select('id, phone, pepper_version')
+      .eq('auth_user_id', caller.authUserId).maybeSingle(),
+    db.from('customers').select('id, phone, pepper_version')
+      .eq('auth_user_id', caller.authUserId).maybeSingle(),
+  ]);
+
+  const profile = moitieV ?? moitieC;
 
   if (!profile) {
-    // The session is valid but no profile of this role belongs to it.
     return fail('PROFILE_NOT_FOUND', 'Compte introuvable', 404);
   }
 
@@ -85,20 +89,29 @@ Deno.serve(handler(async (req) => {
   // Record the version the credential now uses. If this fails the credential
   // still works — verifyPin's candidate loop finds it — so the change is not
   // rolled back.
-  const { error: recErr } = await db.rpc('record_pepper_upgrade', {
-    p_auth_user_id: caller.authUserId,
-    p_new_version: target,
-    p_role: role,
-  });
-  if (recErr) console.error('PEPPER_VERSION_RECORD_FAILED', recErr.message);
+  for (const r of [
+    moitieV ? 'vendor' : null,
+    moitieC ? 'customer' : null,
+  ].filter(Boolean) as string[]) {
+    const { error: recErr } = await db.rpc('record_pepper_upgrade', {
+      p_auth_user_id: caller.authUserId,
+      p_new_version: target,
+      p_role: r,
+    });
+    if (recErr) console.error('PEPPER_VERSION_RECORD_FAILED', r, recErr.message);
+  }
 
   // ----- clear the obligation  (amendment I) ------------------------------
+  // Whatever the reason was — a code seen on somebody else's phone, or four
+  // digits from before there was one length — it has now been dealt with, so
+  // the reason is cleared alongside the flag. Leaving it set would make the
+  // next diagnosis of a stale banner considerably harder.
   let clearedPinWarning = false;
-  if (role === 'customer') {
+  if (moitieC) {
     const { error } = await db
       .from('customers')
-      .update({ pin_change_required: false })
-      .eq('id', profile.id);
+      .update({ pin_change_required: false, pin_change_reason: null })
+      .eq('id', moitieC.id);
 
     if (error) {
       // The PIN did change, so say so — but do not claim the flag cleared.
@@ -110,7 +123,6 @@ Deno.serve(handler(async (req) => {
 
   return json({
     ok: true,
-    role,
     pepperVersion: target,
     clearedPinWarning,
     // All existing sessions keep working: only the credential changed. The

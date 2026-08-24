@@ -203,43 +203,54 @@ h2 { font-size: var(--titre-s); }
 .message__titre { display: block; margin-bottom: var(--espace-2); }
 
 /* --------------------------------------------------------------------------
-   The four registers, as a 2x2
+   The registers, at whatever shape the data has
 
-   Two columns, two rows, one hairline down the middle. No box around the grid
-   and no box around a cell: the column heading and the space say which side a
-   figure is on, and outlining four cells would put four rectangles on the one
-   screen that has to be readable at arm's length.
+   Not a fixed 2x2. An empty row is not rendered and an empty column is not
+   rendered, heading and all — see the Matrice component for why: a grid that
+   announces two columns and fills one reads as an app with something missing,
+   and that was the shape shown to the very person this screen was rebuilt for.
 
-   A cell with nothing in it collapses to empty space rather than printing 0 F.
-   Most accounts use one or two of the four, and three zeros beside a real
-   figure suggest the app is mostly not for whoever is holding it.
+   No box around the grid and none around a cell. The column heading and the
+   space say which side a figure is on; outlining four cells would put four
+   rectangles on the one screen that has to be read at arm's length.
    -------------------------------------------------------------------------- */
 
 .matrice {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: var(--espace-5);
-  row-gap: var(--espace-6);
-  align-items: start;
-  /* The dividing rule, drawn once behind the whole grid rather than per cell,
-     so it survives a collapsed cell instead of leaving a gap in the line. */
-  background:
-    linear-gradient(var(--trait), var(--trait)) calc(50% - 0.5px) 0 / 1px 100% no-repeat;
-  padding-inline: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-4);
 }
 
-.matrice__entete {
+.matrice__tete,
+.matrice__ligne {
+  display: grid;
+  gap: 0;
+}
+
+.matrice--1 .matrice__tete,
+.matrice--1 .matrice__ligne { grid-template-columns: 1fr; }
+
+.matrice--2 .matrice__tete,
+.matrice--2 .matrice__ligne { grid-template-columns: 1fr 1fr; }
+
+.matrice__colonne {
   font-size: var(--texte-petit);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--sauge);
-  padding-bottom: var(--espace-1);
 }
 
-/* "Je dois" is the column that costs money. Named, not coloured red: a debt
-   you owe is not an error, and colouring the heading would make every screen
-   with a balance look like a warning. */
-.matrice__entete--dette { color: var(--sauge); }
+/* The rule between the columns, drawn PER ROW rather than behind the whole
+   grid, so it appears only where there really are two columns to divide and
+   stops where the last row does. */
+.matrice--2 .matrice__colonne:nth-child(2),
+.matrice--2 .matrice__ligne > :nth-child(2) {
+  border-left: 1px solid var(--trait);
+  padding-left: var(--espace-4);
+}
+
+.matrice--2 .matrice__colonne:nth-child(1),
+.matrice--2 .matrice__ligne > :nth-child(1) { padding-right: var(--espace-4); }
 
 .matrice__cell {
   font: inherit;
@@ -247,7 +258,6 @@ h2 { font-size: var(--titre-s); }
   text-align: left;
   background: none;
   border: 0;
-  padding: 0 var(--espace-3) 0 0;
   display: flex;
   flex-direction: column;
   gap: var(--espace-2);
@@ -258,30 +268,38 @@ h2 { font-size: var(--titre-s); }
   min-height: var(--cible-min);
 }
 
-.matrice__cell:nth-child(odd) { padding-right: var(--espace-4); }
-.matrice__cell:nth-child(even) { padding-left: var(--espace-4); padding-right: 0; }
-
 .matrice__cell:focus-visible { outline: var(--anneau); outline-offset: 4px; }
 .matrice__cell:active .montant { color: var(--or-clair); }
 
+/* One word. The column heading already says which direction the money runs, so
+   repeating it here ("Monnaie que je garde") wrapped to two lines in every cell
+   and said nothing the heading had not. */
 .matrice__etiquette {
   font-size: var(--texte-petit);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--sauge);
-  line-height: 1.25;
-  min-height: calc(2 * 1.25em);
 }
 
 .matrice__note { font-size: var(--texte-petit); color: var(--sauge); line-height: 1.35; }
 
-/* Gold marks what I hold; chalk marks what may never arrive. Same sizes on both
-   sides — set one larger and the pair starts reading as a figure and a
-   footnote, which is the first step towards reading them as one position. */
-.matrice__cell--dette .montant { color: var(--or-sika); }
-.matrice__cell--avoir .montant { color: var(--craie); }
+/*
+   GOLD IS WHAT IS COMING TO YOU. Chalk is what you owe.
 
-.matrice__vide { min-height: 0; }
+   The first version had it by register rather than by direction, which put the
+   accent on both cells of "Je dois" — so the brightest number on the screen was
+   a debt, and 47 500 F owed to the reader was the dullest thing on it. One
+   accent, one meaning, and the meaning is the one that matters.
+*/
+.matrice__cell--onmedoit .montant { color: var(--or-sika); }
+.matrice__cell--jedois .montant { color: var(--craie); }
+
+.matrice__creux { min-height: 0; }
+
+.accueil-vide { display: flex; flex-direction: column; gap: var(--espace-2); }
+
+/* The list the matrix falls back to when there is no pair to compare. Same
+   cells, same colours, stacked — and each one carries its whole label, because
+   there is no column heading above it to supply the direction. */
+.liste-registres { display: flex; flex-direction: column; gap: var(--espace-5); }
 
 /* The banner is a button on the home screen, so it needs the button reset. */
 button.banniere {

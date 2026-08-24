@@ -113,8 +113,7 @@ export function Accueil({
         {resume !== null && resume.aVerifier > 0 ? (
           <button type="button" className="banniere banniere--verif" onClick={onVerifier}>
             <span>
-              {resume.aVerifier} chose{resume.aVerifier === 1 ? '' : 's'} enregistrée
-              {resume.aVerifier === 1 ? '' : 's'} à votre nom à vérifier
+              {resume.aVerifier} chose{resume.aVerifier === 1 ? '' : 's'} à vérifier
             </span>
             <span className="banniere__action">Voir</span>
           </button>
@@ -123,18 +122,20 @@ export function Accueil({
         {/* THE FIRST SCREEN SOMEBODY EVER OPENS.
             Four zeros are accurate and useless: they look like an app that has
             been used and come up empty, not one waiting to be started. */}
+        {/* Two lines, no card.
+            The first version was a paragraph inside a raised surface, and it
+            pushed the three buttons off the first screen somebody ever opens —
+            so the one screen whose entire job is "start here" was the one
+            screen you had to scroll to start on. Somebody who just signed up
+            does not need the product explained again; they need to see what
+            they can do. The buttons say it. */}
         {vide ? (
-          <article className="carte">
-            <div className="carte__etiquette">Bienvenue</div>
-            <p style={{ fontSize: 'var(--texte-grand)' }}>
-              Votre carnet est vide. Commencez quand vous gardez la monnaie de
-              quelqu’un, ou quand quelqu’un vous doit quelque chose.
-            </p>
+          <div className="accueil-vide">
+            <p style={{ fontSize: 'var(--texte-grand)' }}>Votre carnet est vide.</p>
             <p className="discret">
-              Vous notez, l’autre confirme sur son téléphone. Sika Warri ne garde
-              pas d’argent — elle note seulement qui doit quoi.
+              Vous notez, l’autre confirme sur son téléphone.
             </p>
-          </article>
+          </div>
         ) : null}
 
         {resume === null ? (
@@ -144,64 +145,69 @@ export function Accueil({
             <div className="discret">Chargement…</div>
           </section>
         ) : vide ? null : (
-          <section className="matrice" aria-label="Vos quatre registres">
-            {/* Column headings, once. Each cell then needs only its own noun,
-                which is what keeps four figures readable at a glance. */}
-            <div className="matrice__entete matrice__entete--dette">Je dois</div>
-            <div className="matrice__entete">On me doit</div>
-
-            {/* ---- change ---------------------------------------------- */}
-            <Cellule
-              etiquette="Monnaie que je garde"
-              cfa={resume.gardeCfa}
-              note={
-                resume.gardePersonnes === 0
-                  ? null
-                  : `${resume.gardePersonnes} personne${resume.gardePersonnes === 1 ? '' : 's'}`
-              }
-              ton="dette"
-              onClick={onJeGarde}
-            />
-            <Cellule
-              etiquette="Gardé pour moi"
-              cfa={resume.gardePourMoiCfa}
-              /* NOT a spendable figure. Rule 1: change is only usable where it
-                 was kept, so the honest thing this cell can do is name the
-                 number of carnets and hand the reader to the list. */
-              note={
-                resume.gardePourMoiCarnets === 0
-                  ? null
-                  : `dans ${resume.gardePourMoiCarnets} carnet${resume.gardePourMoiCarnets === 1 ? '' : 's'} · pas cumulable`
-              }
-              ton="avoir"
-              onClick={onMesCarnets}
-            />
-
-            {/* ---- debt ------------------------------------------------- */}
-            <Cellule
-              etiquette="Dettes que je dois"
-              cfa={resume.jeDoisCfa}
-              note={
-                resume.jeDoisCreanciers === 0
-                  ? null
-                  : `à ${resume.jeDoisCreanciers} personne${resume.jeDoisCreanciers === 1 ? '' : 's'}`
-              }
-              ton="dette"
-              onClick={onMesCarnets}
-            />
-            <Cellule
-              etiquette="Dettes qu’on me doit"
-              cfa={resume.onMeDoitCfa}
-              note={
-                resume.onMeDoitDebiteurs === 0
-                  ? null
-                  : `${resume.onMeDoitDebiteurs} personne${resume.onMeDoitDebiteurs === 1 ? '' : 's'}`
-              }
-              ton="avoir"
-              onClick={onOnMeDoit}
-            />
-          </section>
+          <Matrice
+            cellules={[
+              {
+                ligne: 'monnaie', colonne: 'jedois', etiquette: 'Monnaie',
+                cfa: resume.gardeCfa,
+                note: resume.gardePersonnes === 0 ? null
+                  : `${resume.gardePersonnes} personne${resume.gardePersonnes === 1 ? '' : 's'}`,
+                onClick: onJeGarde,
+              },
+              {
+                ligne: 'monnaie', colonne: 'onmedoit', etiquette: 'Monnaie',
+                cfa: resume.gardePourMoiCfa,
+                note: resume.gardePourMoiCarnets === 0 ? null
+                  : `dans ${resume.gardePourMoiCarnets} carnet${resume.gardePourMoiCarnets === 1 ? '' : 's'}`,
+                onClick: onMesCarnets,
+              },
+              {
+                ligne: 'dettes', colonne: 'jedois', etiquette: 'Dettes',
+                cfa: resume.jeDoisCfa,
+                note: resume.jeDoisCreanciers === 0 ? null
+                  : `à ${resume.jeDoisCreanciers} personne${resume.jeDoisCreanciers === 1 ? '' : 's'}`,
+                onClick: onMesCarnets,
+              },
+              {
+                ligne: 'dettes', colonne: 'onmedoit', etiquette: 'Dettes',
+                cfa: resume.onMeDoitCfa,
+                note: resume.onMeDoitDebiteurs === 0 ? null
+                  : `${resume.onMeDoitDebiteurs} personne${resume.onMeDoitDebiteurs === 1 ? '' : 's'}`,
+                onClick: onOnMeDoit,
+              },
+            ]}
+          />
         )}
+
+        {/* THE THREE ACTIONS, AT EQUAL WEIGHT. None of them carries a fill —
+            gold belongs to the amounts. Recording a debt is as ordinary a
+            counter act as keeping change, and it is now available to every
+            account rather than only to whoever picked "commerçant" at signup. */}
+        <div className="actions-accueil">
+          <BoutonSecondaire onClick={onGarder}>Garder la monnaie</BoutonSecondaire>
+          <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
+          <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
+          {/* Today's activity used to live above these. It moved to the history
+              screen: with up to four registers above them there is no room for a
+              fifth block first, and an action below the fold is not equal in
+              weight to one above it whatever it is painted like. */}
+          <BoutonDiscret onClick={onHistorique}>Historique</BoutonDiscret>
+          <BoutonDiscret onClick={onCorriger}>Corriger une écriture</BoutonDiscret>
+        </div>
+        {/* CONTEXT, BELOW THE ACTIONS.
+            All three of these are things to know, not things to do, and above
+            the buttons they pushed the three actions off a 360x740 screen in
+            the one case where all four registers are live. Somebody opening the
+            app at a counter came to record something; the ageing of their book
+            is the next question, not the first. */}
+        {/* Rule 1, said once, where it applies — and only when that cell is on
+            screen. Inside the cell it was a wrapped "· pas cumulable" fragment
+            that read as a technical aside; as its own line it is a sentence. */}
+        {resume !== null && resume.gardePourMoiCfa > 0 ? (
+          <p className="discret">
+            Cette monnaie n’est utilisable que là où elle est gardée.
+          </p>
+        ) : null}
 
         {/* The share worth worrying about, beside the total rather than inside
             it. A 47 000 F book that is all recent is healthy; the same figure at
@@ -221,22 +227,6 @@ export function Accueil({
           </p>
         ) : null}
 
-        {/* THE THREE ACTIONS, AT EQUAL WEIGHT. None of them carries a fill —
-            gold belongs to the amounts. Recording a debt is as ordinary a
-            counter act as keeping change, and it is now available to every
-            account rather than only to whoever picked "commerçant" at signup. */}
-        <div className="actions-accueil">
-          <BoutonSecondaire onClick={onGarder}>Garder la monnaie</BoutonSecondaire>
-          <BoutonSecondaire onClick={onUtiliser}>Utiliser la monnaie</BoutonSecondaire>
-          <BoutonSecondaire onClick={onNoterDette}>Noter une dette</BoutonSecondaire>
-          <BoutonDiscret onClick={onHistorique}>Historique</BoutonDiscret>
-        </div>
-
-        {/* Today's activity used to live here. It moved out to the history
-            screen: with four registers above it there is no longer room for a
-            fifth block before the actions, and an action below the fold is not
-            equal in weight to one above it. */}
-        <BoutonDiscret onClick={onCorriger}>Corriger une écriture</BoutonDiscret>
       </div>
 
       <div className="ecran__pied pile">
@@ -249,34 +239,133 @@ export function Accueil({
   );
 }
 
-/**
- * One cell of the matrix.
- *
- * A button, because every figure here has a list behind it and a figure you
- * cannot open is a figure you cannot check. Zero renders nothing at all: the
- * cell collapses rather than printing 0 F, so an account using one register is
- * not shown three empty ones.
- */
-function Cellule({
-  etiquette,
-  cfa,
-  note,
-  ton,
-  onClick,
-}: {
+type Ligne = 'monnaie' | 'dettes';
+type Colonne = 'jedois' | 'onmedoit';
+
+interface Cellule {
+  ligne: Ligne;
+  colonne: Colonne;
   etiquette: string;
   cfa: number;
   note: string | null;
-  ton: 'dette' | 'avoir';
   onClick: () => void;
-}) {
-  if (cfa === 0) return <div className="matrice__vide" aria-hidden="true" />;
+}
+
+const NOM_COLONNE: Record<Colonne, string> = {
+  jedois: 'Je dois',
+  onmedoit: 'On me doit',
+};
+
+/**
+ * The whole sentence, for when there is no column heading to lean on.
+ *
+ * In the grid a cell says "Dettes" and the column above it says which
+ * direction; in a list there is no column, so the label has to carry both.
+ */
+function libelleComplet(c: Cellule): string {
+  if (c.ligne === 'dettes') {
+    return c.colonne === 'onmedoit' ? 'Dettes qu’on me doit' : 'Dettes que je dois';
+  }
+  return c.colonne === 'onmedoit' ? 'Monnaie gardée pour moi' : 'Monnaie que je garde';
+}
+
+/**
+ * The matrix, at whatever shape the data actually has.
+ *
+ * ============================================================================
+ * WHY THIS IS NOT A FIXED 2x2. Because a fixed 2x2 was wrong, and the case it
+ * was most wrong for is the one this whole change exists to serve.
+ *
+ * Somebody who only keeps a note of what people owe them — a tailor, somebody
+ * who lent to a neighbour — has ONE of the four figures. Rendered on a fixed
+ * grid, they got a column headed "Je dois" with nothing under it, an empty row
+ * reserved above their one number, and that number floating in the middle of the
+ * screen at a height determined by cells that did not exist. A grid that
+ * announces two columns and fills one is worse than a list: it reads as an app
+ * with something missing.
+ *
+ * So an empty ROW is not rendered and an empty COLUMN is not rendered, heading
+ * and all. The same component is a 1x1, a 1x2, a 2x1 or a 2x2 depending on what
+ * the account actually holds, and every shape is tight.
+ * ============================================================================
+ *
+ * The rule between the columns is drawn per row rather than behind the grid, so
+ * it appears only where there are genuinely two columns to divide.
+ */
+function Matrice({ cellules }: { cellules: Cellule[] }) {
+  const vivantes = cellules.filter((c) => c.cfa > 0);
+
+  const colonnes = (['jedois', 'onmedoit'] as Colonne[])
+    .filter((col) => vivantes.some((c) => c.colonne === col));
+  const lignes = (['monnaie', 'dettes'] as Ligne[])
+    .filter((l) => vivantes.some((c) => c.ligne === l));
+
+  if (colonnes.length === 0) return null;
+
+  // ---- IS THERE ANYTHING TO COMPARE? -----------------------------------
+  // A matrix earns its two columns by putting a pair side by side. If no row has
+  // both cells filled there is no pair, and the grid degenerates: one figure
+  // beside a hole, at a vertical position decided by a cell that does not exist,
+  // under a column heading with nothing under it.
+  //
+  // That covers one cell, two cells on a diagonal, and two in the same column —
+  // between them, most accounts. All of them read better as a short list with
+  // full labels, so that is what they get. The grid appears when it has
+  // something to say.
+  const compare = lignes.some(
+    (l) => colonnes.length === 2 && colonnes.every((col) => vivantes.some((c) => c.ligne === l && c.colonne === col))
+  );
+
+  if (!compare) {
+    return (
+      <section className="liste-registres" aria-label="Vos registres">
+        {vivantes.map((c) => (
+          <button
+            key={`${c.ligne}-${c.colonne}`}
+            type="button"
+            className={`matrice__cell matrice__cell--${c.colonne}`}
+            onClick={c.onClick}
+          >
+            <span className="matrice__colonne">{libelleComplet(c)}</span>
+            <Montant value={c.cfa} taille={vivantes.length === 1 ? 'geant' : 'grand'} />
+            {c.note ? <span className="matrice__note">{c.note}</span> : null}
+          </button>
+        ))}
+      </section>
+    );
+  }
 
   return (
-    <button type="button" className={`matrice__cell matrice__cell--${ton}`} onClick={onClick}>
-      <span className="matrice__etiquette">{etiquette}</span>
-      <Montant value={cfa} taille="grand" />
-      {note ? <span className="matrice__note">{note}</span> : null}
-    </button>
+    <section className={`matrice matrice--${colonnes.length}`} aria-label="Vos registres">
+      <div className="matrice__tete">
+        {colonnes.map((col) => (
+          <span key={col} className="matrice__colonne">{NOM_COLONNE[col]}</span>
+        ))}
+      </div>
+
+      {lignes.map((l) => (
+        <div key={l} className="matrice__ligne">
+          {colonnes.map((col) => {
+            const c = vivantes.find((x) => x.ligne === l && x.colonne === col);
+            // A hole INSIDE a live row is real information — this row has a
+            // figure on one side and not the other — so the slot is kept and
+            // left blank rather than closed up, which would misalign the row.
+            if (!c) return <div key={col} className="matrice__creux" aria-hidden="true" />;
+            return (
+              <button
+                key={col}
+                type="button"
+                className={`matrice__cell matrice__cell--${col}`}
+                onClick={c.onClick}
+              >
+                <span className="matrice__etiquette">{c.etiquette}</span>
+                <Montant value={c.cfa} taille="grand" />
+                {c.note ? <span className="matrice__note">{c.note}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </section>
   );
 }

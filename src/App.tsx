@@ -6,20 +6,7 @@ import { Connexion } from './screens/Connexion';
 import { Inscription } from './screens/Inscription';
 import { ResetPin } from './screens/ResetPin';
 import { Admin } from './screens/admin/Admin';
-import { GarderLaMonnaie } from './screens/vendeur/GarderLaMonnaie';
-import { UtiliserLaMonnaie } from './screens/vendeur/UtiliserLaMonnaie';
 import { Espace } from './screens/Espace';
-import { MesClients } from './screens/vendeur/MesClients';
-import { AccueilVendeur } from './screens/vendeur/Accueil';
-import { Historique as HistoriqueVendeur } from './screens/vendeur/Historique';
-import { MesDettes } from './screens/vendeur/MesDettes';
-import { Corriger } from './screens/vendeur/Corriger';
-import { NoterUneDette } from './screens/vendeur/NoterUneDette';
-import { Compte, ChangerCode } from './screens/Compte';
-import {
-  Navigation, IconeBoutique, IconeClients, IconeHistorique, IconeCompte,
-  type Onglet,
-} from './components/Navigation';
 import { Entete, Message, BoutonSecondaire } from './components/ui';
 
 const CLE_SESSION = 'sika.session';
@@ -46,41 +33,19 @@ function enregistrerSession(s: Session | null) {
 }
 
 /**
- * The vendor's four destinations, and separately the tasks.
+ * App owns the gates and the session. Nothing else.
  *
- * A task is not a destination: recording change and spending it begin, end, and
- * must not offer a tab-switch halfway through, because a vendor who taps away
- * from a half-recorded entry has lost it. So they live in `tache` and the tab bar
- * disappears while one is open. Accueil is where both are started, which is why
- * there is no fifth tab for them.
+ * The tab bar, the destinations and the tasks all moved into Espace when the two
+ * shells became one — App used to hold the vendor's tab state while EspaceClient
+ * held the customer's, which is exactly the duplication that let one side of the
+ * app grow a capability the other did not have.
  */
-type OngletVendeur = 'accueil' | 'clients' | 'dettes' | 'compte';
-
-/**
- * A destination without a tab, reached from Accueil.
- *
- * Distinct from a Tache: a task is a transaction that must not be abandoned
- * halfway, so the bar disappears for it. This is just a screen further in, and
- * the bar stays.
- */
-type SousVue = null | 'historique' | 'corriger';
-type Tache = null | 'garder' | 'utiliser' | 'code' | 'dette';
-
-const ONGLETS_VENDEUR: Array<Onglet<OngletVendeur>> = [
-  { cle: 'accueil', etiquette: 'Accueil', icone: IconeBoutique },
-  { cle: 'clients', etiquette: 'Mes clients', icone: IconeClients },
-  { cle: 'dettes', etiquette: 'Dettes', icone: IconeHistorique },
-  { cle: 'compte', etiquette: 'Compte', icone: IconeCompte },
-];
 type Porte = 'bienvenue' | 'connexion' | 'inscription' | 'oubli';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(chargerSession);
   const [vendeur, setVendeur] = useState<VendorProfile | null>(null);
   const [client, setClient] = useState<CustomerProfile | null>(null);
-  const [onglet, setOnglet] = useState<OngletVendeur>('accueil');
-  const [tache, setTache] = useState<Tache>(null);
-  const [sousVue, setSousVue] = useState<SousVue>(null);
   const [avis, setAvis] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
@@ -191,16 +156,11 @@ export default function App() {
     setAvis(notice);
     setSession(s);
     enregistrerSession(s);
-    setOnglet('accueil');
-    setTache(null);
-    setSousVue(null);
   }
 
   function deconnexion() {
     setEstAdmin(false);
     setVueAdmin(false);
-    setTache(null);
-    setSousVue(null);
     setSession(null);
     setVendeur(null);
     setClient(null);

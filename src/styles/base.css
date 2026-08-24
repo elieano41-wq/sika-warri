@@ -299,7 +299,20 @@ h2 { font-size: var(--titre-s); }
 /* The list the matrix falls back to when there is no pair to compare. Same
    cells, same colours, stacked — and each one carries its whole label, because
    there is no column heading above it to supply the direction. */
-.liste-registres { display: flex; flex-direction: column; gap: var(--espace-5); }
+.liste-registres { display: flex; flex-direction: column; gap: var(--espace-6); }
+
+/* One direction's worth. The hairline between groups is the only thing standing
+   in for the grid's column rule: without it two opposite directions sat in one
+   flat column and the second read as a detail of the first. */
+.groupe { display: flex; flex-direction: column; gap: var(--espace-4); }
+.groupe + .groupe { border-top: 1px solid var(--trait); padding-top: var(--espace-6); }
+
+.groupe__tete {
+  font-size: var(--texte-petit);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sauge);
+}
 
 /* The banner is a button on the home screen, so it needs the button reset. */
 button.banniere {

@@ -43,21 +43,41 @@ function code(src: string): string {
     .join('\n');
 }
 
-/** The two shells: the only components allowed to render the bar. */
+/**
+  * THE shell. Singular now, and that is the point.
+  *
+  * There were two — App.tsx held the vendor's tab state and EspaceClient held
+  * the customer's — and each one grew capabilities the other did not have. The
+  * clearest symptom was that only the vendor shell could reach "Noter une
+  * dette", so an ordinary person had no way to record a debt owed to them. Two
+  * shells for one product is how that happens, and it will happen again if this
+  * list ever has two entries in it.
+  *
+  * App.tsx now owns the session and the gates and renders no bar at all.
+  */
 const COQUILLES = [
-  'App.tsx',
-  path.join('screens', 'client', 'EspaceClient.tsx'),
+  path.join('screens', 'Espace.tsx'),
 ];
 
 /** Destinations. Reached from the bar, so each must leave room for it. */
 const DESTINATIONS = [
-  path.join('screens', 'vendeur', 'Accueil.tsx'),
+  path.join('screens', 'Accueil.tsx'),
   path.join('screens', 'vendeur', 'MesClients.tsx'),
-  path.join('screens', 'vendeur', 'Historique.tsx'),
-  path.join('screens', 'client', 'MaMonnaie.tsx'),
-  path.join('screens', 'client', 'Historique.tsx'),
+  path.join('screens', 'vendeur', 'MesDettes.tsx'),
   path.join('screens', 'client', 'MonCode.tsx'),
   path.join('screens', 'Compte.tsx'),
+];
+
+/**
+ * Screens that are BOTH, and are allowed to be.
+ *
+ * MaMonnaie is a destination when reached from the bar and a task when pushed
+ * from a home-screen figure, which is why it takes an optional onRetour and
+ * picks its own class. It is excluded from both lists rather than fudged into
+ * one: asserting it always leaves room for a bar would be false half the time.
+ */
+const LES_DEUX = [
+  path.join('screens', 'client', 'MaMonnaie.tsx'),
 ];
 
 /** Tasks. They take the whole screen and the bar is gone while they run. */
@@ -68,11 +88,24 @@ const TACHES = [
 ];
 
 describe('only a shell renders the tab bar', () => {
+  /**
+   * The preview harness, and the one reason it is allowed to render the bar.
+   *
+   * apercu.tsx renders the home screen against a stubbed network so it can be
+   * looked at before the data layer is deployed, and it draws the bar because
+   * whether a button falls behind the bar is the whole question it answers.
+   *
+   * Named, not pattern-matched, and the exemption is EARNED below: nothing under
+   * src imports it, so it cannot reach a bundle. Without that second assertion
+   * this would just be a hole.
+   */
+  const APERCU = 'apercu.tsx';
+
   it('nothing else imports Navigation', () => {
     const coupables = fichiers
       .filter((f) => {
         const rel = path.relative(SRC, f);
-        return !COQUILLES.includes(rel);
+        return !COQUILLES.includes(rel) && rel !== APERCU;
       })
       .filter((f) => /<Navigation/.test(code(readFileSync(f, 'utf8').replace(/\r\n/g, '\n'))))
       .map((f) => path.relative(SRC, f));
@@ -80,10 +113,29 @@ describe('only a shell renders the tab bar', () => {
     expect(coupables).toEqual([]);
   });
 
-  it('both shells actually render it, so the list is not stale', () => {
+  it('the shell actually renders it, so the list is not stale', () => {
     for (const c of COQUILLES) {
       expect(code(lire(c)), `${c} renders no bar`).toMatch(/<Navigation/);
     }
+  });
+
+  it('the exempted preview cannot reach the app', () => {
+    // What makes the exemption safe. If anything under src ever imports it, it
+    // stops being a preview and becomes a second shell by the back door.
+    const importeurs = fichiers
+      .filter((f) => path.relative(SRC, f) !== APERCU)
+      .filter((f) => /from\s+['"][^'"]*apercu/.test(readFileSync(f, 'utf8')))
+      .map((f) => path.relative(SRC, f));
+    expect(importeurs).toEqual([]);
+  });
+
+  it('and there is exactly ONE shell', () => {
+    // The assertion that would have caught the original problem. Two shells is
+    // not a style question: it is two places for a capability to exist in only
+    // one of.
+    expect(COQUILLES).toHaveLength(1);
+    // App holds the session and the gates and renders no bar of its own.
+    expect(code(lire('App.tsx'))).not.toMatch(/<Navigation/);
   });
 });
 
@@ -97,7 +149,7 @@ describe('a task is owned by a shell, never rendered inside a destination', () =
     expect(src).not.toMatch(/const \[changer,/);
   });
 
-  it('both shells own the code-change task', () => {
+  it('the shell owns the code-change task', () => {
     for (const c of COQUILLES) {
       expect(code(lire(c)), `${c} cannot start a code change`).toMatch(/<ChangerCode/);
     }
@@ -134,23 +186,17 @@ describe('every destination leaves room for the bar', () => {
   });
 });
 
-describe('the bar has three or four destinations per role', () => {
-  it('the vendor has at most four', () => {
-    const src = lire('App.tsx');
-    const bloc = /ONGLETS_VENDEUR[\s\S]*?\];/.exec(src);
-    expect(bloc).not.toBeNull();
+describe('the bar has three or four destinations', () => {
+  it('there are at most four, and one list of them', () => {
+    // Was two assertions, one per role, over two separate arrays. One account
+    // means one array — and the fact that this test needed two copies was the
+    // shape of the problem showing through the tests.
+    const src = lire(path.join('screens', 'Espace.tsx'));
+    const bloc = /const ONGLETS[\s\S]*?\];/.exec(src);
+    expect(bloc, 'ONGLETS not found').not.toBeNull();
     const n = (bloc![0].match(/cle:/g) ?? []).length;
     // Five items at 320px leave under the 56px target once labels are inset. A
     // fifth destination is a sign something belongs inside another one.
-    expect(n).toBeGreaterThanOrEqual(3);
-    expect(n).toBeLessThanOrEqual(4);
-  });
-
-  it('the customer has at most four', () => {
-    const src = lire(path.join('screens', 'client', 'EspaceClient.tsx'));
-    const bloc = /const ONGLETS[\s\S]*?\];/.exec(src);
-    expect(bloc).not.toBeNull();
-    const n = (bloc![0].match(/cle:/g) ?? []).length;
     expect(n).toBeGreaterThanOrEqual(3);
     expect(n).toBeLessThanOrEqual(4);
   });

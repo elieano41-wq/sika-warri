@@ -317,19 +317,52 @@ function Matrice({ cellules }: { cellules: Cellule[] }) {
   );
 
   if (!compare) {
+    // GROUPED BY DIRECTION, NOT BY REGISTER.
+    //
+    // The first version listed the live cells in their declaration order, which
+    // is register order — monnaie, then dettes. So an account with change held
+    // FOR it and a debt it OWES read:
+    //
+    //     MONNAIE GARDÉE POUR MOI      1 100 F
+    //     DETTES QUE JE DOIS             800 F
+    //
+    // Two opposite directions in one undifferentiated column, with the debt
+    // sitting directly under the credit as though it were a detail of it. The
+    // grid never had that problem because its columns did the separating; the
+    // list threw the columns away and kept nothing in their place.
+    //
+    // Now the direction comes first and the register second, in the same
+    // left-to-right order the grid uses, so the two modes agree.
+    const groupes = (['jedois', 'onmedoit'] as Colonne[])
+      .map((col) => ({ col, cellules: vivantes.filter((c) => c.colonne === col) }))
+      .filter((g) => g.cellules.length > 0);
+
     return (
       <section className="liste-registres" aria-label="Vos registres">
-        {vivantes.map((c) => (
-          <button
-            key={`${c.ligne}-${c.colonne}`}
-            type="button"
-            className={`matrice__cell matrice__cell--${c.colonne}`}
-            onClick={c.onClick}
-          >
-            <span className="matrice__colonne">{libelleComplet(c)}</span>
-            <Montant value={c.cfa} taille={vivantes.length === 1 ? 'geant' : 'grand'} />
-            {c.note ? <span className="matrice__note">{c.note}</span> : null}
-          </button>
+        {groupes.map((g) => (
+          <div key={g.col} className="groupe">
+            {/* A group of ONE describes itself — "Dettes qu'on me doit" needs no
+                heading above it saying "On me doit". A group of two gets the
+                heading, and its entries drop to one word each. */}
+            {g.cellules.length > 1 ? (
+              <span className="groupe__tete">{NOM_COLONNE[g.col]}</span>
+            ) : null}
+
+            {g.cellules.map((c) => (
+              <button
+                key={`${c.ligne}-${c.colonne}`}
+                type="button"
+                className={`matrice__cell matrice__cell--${c.colonne}`}
+                onClick={c.onClick}
+              >
+                <span className="matrice__colonne">
+                  {g.cellules.length > 1 ? c.etiquette : libelleComplet(c)}
+                </span>
+                <Montant value={c.cfa} taille={vivantes.length === 1 ? 'geant' : 'grand'} />
+                {c.note ? <span className="matrice__note">{c.note}</span> : null}
+              </button>
+            ))}
+          </div>
         ))}
       </section>
     );

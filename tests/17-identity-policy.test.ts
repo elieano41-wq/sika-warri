@@ -11,6 +11,8 @@ import {
   authEmailFor,
   checkPin,
   pinLengthFor,
+  PIN_LENGTH,
+  PIN_LENGTHS_ACCEPTED,
   NormalisationError,
 } from '../supabase/functions/_shared/identity.ts';
 
@@ -76,76 +78,116 @@ describe('phone normalisation', () => {
   });
 });
 
-describe('PIN policy', () => {
-  it('uses 6 digits for vendors and 4 for customers', () => {
+describe('PIN policy — one length, for everyone', () => {
+  // ==========================================================================
+  // THIS BLOCK USED TO ASSERT TWO LENGTHS: 6 for a vendor, 4 for a customer.
+  //
+  // That was not a policy about credentials. The auth password is derived from
+  // the PIN, so two lengths meant one phone number could not hold both halves
+  // of the app — and register/index.ts refused the second outright. The visible
+  // consequence was that an ordinary person could not write down a debt
+  // somebody owed THEM without opening a business-shaped account.
+  //
+  // Six was chosen over four because the 4-digit PIN was justified in the spec
+  // by "exposure is capped at 3 000 F per vendor by design". That cap was a
+  // property of being a customer — of never holding anyone else's money. One
+  // account type removes the cap, so it removes the justification.
+  //
+  // Every example below is therefore six digits. The four-digit ones were not
+  // deleted for tidiness: at four digits every one of them now returns
+  // PIN_WRONG_LENGTH before the pattern check it was written to exercise, so
+  // keeping them would have tested the length rule six times over and the
+  // guessability rules not at all.
+  // ==========================================================================
+
+  it('is one length, and does not depend on a role', () => {
+    expect(PIN_LENGTH).toBe(6);
+    // The old signature still resolves, so nothing silently kept two lengths.
+    expect(pinLengthFor()).toBe(6);
     expect(pinLengthFor('vendor')).toBe(6);
-    expect(pinLengthFor('customer')).toBe(4);
+    expect(pinLengthFor('customer')).toBe(6);
   });
 
   it('accepts a reasonable PIN', () => {
-    expect(checkPin('4821', 'customer')).toBeNull();
-    expect(checkPin('481627', 'vendor')).toBeNull();
+    expect(checkPin('481627')).toBeNull();
+    expect(checkPin('284605')).toBeNull();
   });
 
-  it('enforces the length per role', () => {
-    expect(checkPin('482', 'customer')?.code).toBe('PIN_WRONG_LENGTH');
-    expect(checkPin('48216', 'customer')?.code).toBe('PIN_WRONG_LENGTH');
-    expect(checkPin('4821', 'vendor')?.code).toBe('PIN_WRONG_LENGTH');
+  it('enforces the length, in both directions', () => {
+    expect(checkPin('4821')?.code).toBe('PIN_WRONG_LENGTH');
+    expect(checkPin('48162')?.code).toBe('PIN_WRONG_LENGTH');
+    expect(checkPin('4816270')?.code).toBe('PIN_WRONG_LENGTH');
+  });
+
+  it('a four-digit code is refused as a NEW code', () => {
+    // The upgrade path only works while this stays true. Login accepts four so
+    // an existing account is not locked out of its own money; everything that
+    // SETS a code requires six, which is what drains the fours away.
+    const r = checkPin('4821');
+    expect(r?.code).toBe('PIN_WRONG_LENGTH');
+    expect(r?.message).toMatch(/6 chiffres/);
+  });
+
+  it('but a four-digit code is still ACCEPTED at login', () => {
+    // The other half, and the one that matters more: requiring six at the login
+    // screen would not ask an existing account to upgrade, it would lock it out
+    // with "code incorrect" as the only clue.
+    expect(PIN_LENGTHS_ACCEPTED).toContain(4);
+    expect(PIN_LENGTHS_ACCEPTED).toContain(6);
   });
 
   it('rejects non-numeric PINs', () => {
-    expect(checkPin('48a1', 'customer')?.code).toBe('PIN_NOT_NUMERIC');
-    expect(checkPin('', 'customer')?.code).toBe('PIN_NOT_NUMERIC');
-    expect(checkPin('12 4', 'customer')?.code).toBe('PIN_NOT_NUMERIC');
+    expect(checkPin('48a162')?.code).toBe('PIN_NOT_NUMERIC');
+    expect(checkPin('')?.code).toBe('PIN_NOT_NUMERIC');
+    expect(checkPin('12 456')?.code).toBe('PIN_NOT_NUMERIC');
   });
 
   it('rejects repeated digits, as the spec requires', () => {
-    for (const pin of ['0000', '1111', '9999']) {
-      expect(checkPin(pin, 'customer')?.code).toBe('PIN_REPEATED');
+    for (const pin of ['000000', '111111', '999999']) {
+      expect(checkPin(pin)?.code).toBe('PIN_REPEATED');
     }
-    expect(checkPin('111111', 'vendor')?.code).toBe('PIN_REPEATED');
   });
 
   it('rejects sequences, as the spec requires', () => {
-    for (const pin of ['1234', '2345', '6789', '4321', '9876']) {
-      expect(checkPin(pin, 'customer')?.code).toBe('PIN_SEQUENTIAL');
+    for (const pin of ['123456', '234567', '456789', '654321', '987654']) {
+      expect(checkPin(pin)?.code).toBe('PIN_SEQUENTIAL');
     }
-    expect(checkPin('123456', 'vendor')?.code).toBe('PIN_SEQUENTIAL');
-    expect(checkPin('654321', 'vendor')?.code).toBe('PIN_SEQUENTIAL');
   });
 
   it('rejects sequences that wrap past zero', () => {
-    // 9012 and 1098 are exactly as guessable as 1234 but survive a naive
-    // ascending check that compares raw digit values.
-    expect(checkPin('9012', 'customer')?.code).toBe('PIN_SEQUENTIAL');
-    expect(checkPin('1098', 'customer')?.code).toBe('PIN_SEQUENTIAL');
+    // 901234 is exactly as guessable as 123456 but survives a naive ascending
+    // check that compares raw digit values.
+    expect(checkPin('901234')?.code).toBe('PIN_SEQUENTIAL');
+    expect(checkPin('109876')?.code).toBe('PIN_SEQUENTIAL');
   });
 
   it('rejects alternating pairs', () => {
-    // 1212 reads as varied but is two digits, so it falls in the first handful
-    // of guesses.
-    expect(checkPin('1212', 'customer')?.code).toBe('PIN_REPEATED_PAIR');
-    expect(checkPin('2727', 'customer')?.code).toBe('PIN_REPEATED_PAIR');
-    expect(checkPin('121212', 'vendor')?.code).toBe('PIN_REPEATED_PAIR');
+    // 121212 reads as varied but is two digits, so it falls in the first
+    // handful of guesses.
+    expect(checkPin('121212')?.code).toBe('PIN_REPEATED_PAIR');
+    expect(checkPin('272727')?.code).toBe('PIN_REPEATED_PAIR');
   });
 
   it('does not over-reject ordinary PINs', () => {
     // The policy has to leave a usable space, or people write the PIN down.
-    const fine = ['4821', '1357', '2846', '9137', '5062', '1023'];
+    // Six digits is a million codes; refusing the handful an attacker tries
+    // first must not cost more than that handful.
+    const fine = ['482165', '135792', '284605', '913746', '506218', '102384'];
     for (const pin of fine) {
-      expect(checkPin(pin, 'customer')).toBeNull();
+      expect(checkPin(pin), pin).toBeNull();
     }
   });
 
   it('never echoes the PIN in its message', () => {
     // Standing rule 11: a PIN must not appear in any error message.
-    const r = checkPin('1234', 'customer');
-    expect(r?.message).not.toContain('1234');
+    const r = checkPin('123456');
+    expect(r?.message).not.toContain('123456');
     expect(r?.message).toBe('Ce code est trop simple');
   });
 
   it('speaks French', () => {
-    expect(checkPin('482', 'customer')?.message).toMatch(/chiffres/);
-    expect(checkPin('0000', 'customer')?.message).toMatch(/simple/);
+    expect(checkPin('4821')?.message).toMatch(/chiffres/);
+    expect(checkPin('000000')?.message).toMatch(/simple/);
+
   });
 });

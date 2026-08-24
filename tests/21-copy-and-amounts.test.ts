@@ -385,14 +385,20 @@ describe('loading is distinguishable from zero', () => {
   // owing nothing — a wrong answer delivered with exactly the confidence of a
   // right one. Zero is a meaningful figure in a ledger, so it must never be
   // what "not yet known" looks like.
+  // vendeur/Accueil.tsx became screens/Accueil.tsx when the two shells became
+  // one: there is a single home screen now, and it is not under a role folder
+  // because it is not for a role.
+  // Full paths under src/, not [folder, file] pairs: the home screen is no
+  // longer inside a role folder — there is one home screen and it is not for a
+  // role — and a '..' segment in a join() silently collapses to the wrong file.
   const ECRANS = [
-    ['client', 'MaMonnaie.tsx'],
-    ['vendeur', 'MesClients.tsx'],
-    ['vendeur', 'Accueil.tsx'],
+    path.join('screens', 'client', 'MaMonnaie.tsx'),
+    path.join('screens', 'vendeur', 'MesClients.tsx'),
+    path.join('screens', 'Accueil.tsx'),
   ] as const;
 
-  it.each(ECRANS)('%s/%s guards its figures behind a null check', (dossier, fichier) => {
-    const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n'));
+  it.each(ECRANS)('%s guards its figures behind a null check', (rel) => {
+    const src = code(readFileSync(path.join(SRC, rel), 'utf8').replace(/\r\n/g, '\n'));
 
     // Data starts as null, not as an empty array or a zero: those are real
     // answers and cannot double as "still loading".
@@ -402,8 +408,8 @@ describe('loading is distinguishable from zero', () => {
     expect(src).toMatch(/===\s*null\s*\?/);
   });
 
-  it.each(ECRANS)('%s/%s shows a loading marker, not a number', (dossier, fichier) => {
-    const src = readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n');
+  it.each(ECRANS)('%s shows a loading marker, not a number', (rel) => {
+    const src = readFileSync(path.join(SRC, rel), 'utf8').replace(/\r\n/g, '\n');
     // Either the word or the em-dash placeholder — something that cannot be
     // mistaken for a balance.
     expect(src).toMatch(/Chargement|—/);
@@ -412,9 +418,9 @@ describe('loading is distinguishable from zero', () => {
   it('no screen renders a hardcoded 0 as an amount', () => {
     // A literal <Montant value={0} /> would be indistinguishable from a real
     // zero balance and is never the right thing to show.
-    for (const [dossier, fichier] of ECRANS) {
-      const src = code(readFileSync(path.join(SRC, 'screens', dossier, fichier), 'utf8').replace(/\r\n/g, '\n'));
-      expect(src, `${fichier} hardcodes a zero amount`).not.toMatch(/<Montant\s+value=\{0\}/);
+    for (const rel of ECRANS) {
+      const src = code(readFileSync(path.join(SRC, rel), 'utf8').replace(/\r\n/g, '\n'));
+      expect(src, `${rel} hardcodes a zero amount`).not.toMatch(/<Montant\s+value=\{0\}/);
     }
   });
 });

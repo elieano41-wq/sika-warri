@@ -101,34 +101,104 @@ describe('each side gets its own direction', () => {
 });
 
 describe('every call site declares which screen it is on', () => {
-  function appels(racine: string) {
-    return nonVide(
-      fichiersSource(racine).filter((f) => lireSource(f).includes('<DeuxRegistres')),
-      `screens under ${path.basename(racine)} rendering DeuxRegistres`
-    );
-  }
+  // Scoped to wherever DeuxRegistres is ACTUALLY rendered rather than to a
+  // folder with a floor. The vendor home stopped using it — the home screen is a
+  // four-register matrix now, with its own labels, asserted further down — and a
+  // per-folder floor then failed for the right reason: it found nothing under
+  // screens/vendeur and refused to pass on an empty set. Following the component
+  // keeps the guard honest without pinning it to a directory layout.
+  const rendus = nonVide(
+    fichiersSource(path.join(SRC, 'screens'))
+      .filter((f) => lireSource(f).includes('<DeuxRegistres')),
+    'screens rendering DeuxRegistres'
+  );
 
-  it('vendor screens pass vue="vendeur"', () => {
-    for (const f of appels(VENDEUR)) {
-      const src = lireSource(f);
-      const rendus = src.match(/<DeuxRegistres[\s\S]{0,1200}?\/>/g) ?? [];
-      nonVide(rendus, `DeuxRegistres renders in ${path.basename(f)}`);
-      for (const r of rendus) {
-        expect(r, `${path.basename(f)} renders DeuxRegistres without vue="vendeur"`)
-          .toMatch(/vue="vendeur"/);
+  it('every render passes a side', () => {
+    for (const f of rendus) {
+      const blocs = lireSource(f).match(/<DeuxRegistres[\s\S]{0,1200}?\/>/g) ?? [];
+      nonVide(blocs, `DeuxRegistres renders in ${path.basename(f)}`);
+      for (const b of blocs) {
+        expect(b, `${path.basename(f)} renders DeuxRegistres without a vue`)
+          .toMatch(/vue="(vendeur|client)"/);
       }
     }
   });
 
-  it('customer screens pass vue="client"', () => {
-    for (const f of appels(CLIENT)) {
-      const src = lireSource(f);
-      const rendus = src.match(/<DeuxRegistres[\s\S]{0,1200}?\/>/g) ?? [];
-      nonVide(rendus, `DeuxRegistres renders in ${path.basename(f)}`);
-      for (const r of rendus) {
-        expect(r, `${path.basename(f)} renders DeuxRegistres without vue="client"`)
-          .toMatch(/vue="client"/);
+  it('and the side it passes matches the folder it is in', () => {
+    // The cheap check that would have caught the original bug at any call site:
+    // a screen under client/ showing the vendor's labels, or the reverse.
+    for (const f of rendus) {
+      const attendu = f.includes(`${path.sep}client${path.sep}`) ? 'client' : 'vendeur';
+      const blocs = lireSource(f).match(/<DeuxRegistres[\s\S]{0,1200}?\/>/g) ?? [];
+      for (const b of blocs) {
+        expect(b, `${path.basename(f)} should pass vue="${attendu}"`)
+          .toMatch(new RegExp(`vue="${attendu}"`));
       }
+    }
+  });
+});
+
+describe('the home matrix labels its two directions correctly', () => {
+  // THE NEW PLACE THE SAME MISTAKE CAN HAPPEN. The vendor home no longer renders
+  // DeuxRegistres; it renders a matrix whose columns ARE the two directions. So
+  // the wording that used to be a prop is now a lookup table, and a table is
+  // just as easy to get backwards.
+  const accueil = lireSource(path.join(SRC, 'screens', 'Accueil.tsx'));
+
+  it('the column names say who owes whom', () => {
+    const table = /const NOM_COLONNE[\s\S]*?\n\};/.exec(accueil);
+    expect(table, 'NOM_COLONNE not found').not.toBeNull();
+    expect(table![0]).toMatch(/jedois:\s*'Je dois'/);
+    expect(table![0]).toMatch(/onmedoit:\s*'On me doit'/);
+    // Neither may claim the other's direction.
+    expect(/jedois:\s*'[^']*on me doit/i.test(table![0]), 'jedois says on me doit').toBe(false);
+    expect(/onmedoit:\s*'[^']*je dois/i.test(table![0]), 'onmedoit says je dois').toBe(false);
+  });
+
+  it('the full labels used in list mode point the right way', () => {
+    // In the grid a cell says "Dettes" and the column above supplies the
+    // direction; in list mode there is no column, so the label carries both —
+    // which is exactly where a direction gets lost.
+    const fn = /function libelleComplet[\s\S]*?\n\}/.exec(accueil);
+    expect(fn, 'libelleComplet not found').not.toBeNull();
+    const corps = fn![0];
+
+    // Every branch names a direction, and the four are all different.
+    // Anchored on a capital, so the branch conditions ('onmedoit') are not
+    // mistaken for labels. My first pass counted those and reported a duplicate
+    // that was really two copies of an identifier.
+    const libelles = corps.match(/'[A-ZÉ][^']*(?:dois|doit|garde|moi)[^']*'/g) ?? [];
+    nonVide(libelles, 'direction labels', 4);
+    expect(new Set(libelles).size, `duplicated label: ${libelles}`).toBe(libelles.length);
+
+    // The onmedoit branches must never say "je dois", and vice versa.
+    for (const l of libelles) {
+      const versMoi = /on me doit|pour moi/i.test(l);
+      const deMoi = /je dois|je garde/i.test(l);
+      expect(versMoi !== deMoi, `${l} points both ways or neither`).toBe(true);
+    }
+  });
+
+  it('gold marks what is owed to you, not what you owe', () => {
+    // Not cosmetic. The first version tied the accent to the register rather
+    // than the direction, so both cells of "Je dois" were gold — the brightest
+    // number on the screen was a debt, and the money owed to the reader was the
+    // dullest thing on it.
+    const css = lireSource(path.join(SRC, 'styles', 'base.css'));
+    expect(css).toMatch(/\.matrice__cell--onmedoit \.montant\s*\{[^}]*--or-sika/);
+    expect(css).toMatch(/\.matrice__cell--jedois \.montant\s*\{[^}]*--craie/);
+  });
+
+  it('and no cell is ever added to another', () => {
+    // The four figures come from one server row and are rendered one per cell.
+    // Any arithmetic joining two of them here would be inventing a fifth.
+    const code = sansCommentaires(accueil);
+    for (const paire of [
+      /gardeCfa\s*\+/, /jeDoisCfa\s*\+/, /onMeDoitCfa\s*\+/, /gardePourMoiCfa\s*\+/,
+      /\+\s*resume\.garde/, /\+\s*resume\.jeDois/, /\+\s*resume\.onMeDoit/,
+    ]) {
+      expect(code, `the home screen adds two registers together: ${paire}`)
+        .not.toMatch(paire);
     }
   });
 });

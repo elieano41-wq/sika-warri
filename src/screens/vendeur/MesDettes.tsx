@@ -217,7 +217,15 @@ export function MesDettes({
       <Entete sousTitre={vendeur.businessName} />
 
       <div className="ecran__corps">
-        <h1>Mes dettes</h1>
+        <h1>Les juru</h1>
+        {/* "Juru" names the DEBT, never the person. The symmetric coinage
+            (jurutigi, "le propriétaire de la dette") is widely heard for the
+            CREDITOR, so on a debtor list it would point the wrong way — and
+            confusing creditor with debtor is the one mistake this app cannot
+            make. The debt gets the word; the direction stays in the heading. */}
+        <p className="discret">
+          Juru : la dette. Ici, ce qu’on vous doit.
+        </p>
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
 
         {/* The headline figures, from the server aggregate. Total AND the share

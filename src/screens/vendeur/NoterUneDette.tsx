@@ -314,7 +314,7 @@ export function NoterUneDette({
         {/* ---- name a new customer ---------------------------------------- */}
         {etape === 'nom' && (
           <>
-            <h1>Qui est ce client ?</h1>
+            <h1>C’est qui ?</h1>
             <p className="discret">
               Un nom que vous reconnaîtrez. Vous seul le voyez — ni la personne
               concernée ni les autres carnets.
@@ -366,7 +366,7 @@ export function NoterUneDette({
         {/* ---- waiting for the customer ------------------------------------ */}
         {etape === 'attente' && attente && (
           <>
-            <h1>Donnez le téléphone au client</h1>
+            <h1>Donnez-lui le téléphone</h1>
             <Cadran etiquette="Le client doit confirmer">
               <Montant value={montant} taille="geant" />
             </Cadran>

@@ -130,7 +130,7 @@ export function Confirmation({
   if (fait) {
     return (
       <div className="ecran">
-        <Entete sousTitre="Client" />
+        <Entete sousTitre="Une demande pour vous" />
         <div className="ecran__corps">
           <h1>C'est confirmé</h1>
           <Cadran etiquette={fait && estRemboursement(fait) ? 'Rendu en espèces' : 'Montant utilisé'}>
@@ -162,7 +162,7 @@ export function Confirmation({
     return (
       <div className="ecran">
         <Entete
-          sousTitre="Client"
+          sousTitre="Une demande pour vous"
           action={<BoutonDiscret onClick={onDeconnexion}>Quitter</BoutonDiscret>}
         />
         <div className="ecran__corps" style={{ justifyContent: 'center' }}>
@@ -187,7 +187,7 @@ export function Confirmation({
   // ---- a request is waiting ----------------------------------------------
   return (
     <div className="ecran">
-      <Entete sousTitre="Client" />
+      <Entete sousTitre="Une demande pour vous" />
 
       <div className="ecran__corps">
         {/* WHAT is being confirmed, not just how much. A purchase and a cash

@@ -107,7 +107,7 @@ export function Corriger({
             La correction est enregistrée. L’écriture d’origine et la correction
             restent toutes les deux visibles.
           </Message>
-          <Cadran etiquette="Ce client a maintenant chez vous">
+          <Cadran etiquette="Ce sikatigi a maintenant chez vous">
             <Montant value={fait.nouveau} taille="geant" />
           </Cadran>
         </div>
@@ -139,11 +139,11 @@ export function Corriger({
           <Message ton="info">
             Cette écriture ne sera pas supprimée. Une correction du même montant
             sera ajoutée en face, et les deux resteront visibles — pour vous et
-            pour le client.
+            pour le sikatigi.
           </Message>
 
           <p className="discret">
-            Le client verra la correction dans son historique.
+            Le sikatigi verra la correction dans son historique.
           </p>
         </div>
         <div className="ecran__pied pile">
@@ -172,7 +172,7 @@ export function Corriger({
 
         <p className="discret">
           Vous pouvez corriger seul une écriture pendant 15 minutes, tant que le
-          client n’a pas utilisé la monnaie. Après, il faut son accord.
+          sikatigi n’a pas utilisé la monnaie. Après, il faut son accord.
         </p>
 
         {entrees === null ? (
@@ -200,12 +200,12 @@ export function Corriger({
                       to do instead. */}
                   {e.blocked_reason === 'expired' ? (
                     <div className="discret">
-                      Plus de 15 minutes. Demandez au client de confirmer une
+                      Plus de 15 minutes. Demandez au sikatigi de confirmer une
                       correction depuis « Utiliser la monnaie ».
                     </div>
                   ) : e.blocked_reason === 'spent' ? (
                     <div className="discret">
-                      Le client a déjà utilisé cette monnaie. Il doit confirmer
+                      Le sikatigi a déjà utilisé cette monnaie. Il doit confirmer
                       la correction sur son téléphone.
                     </div>
                   ) : e.blocked_reason === 'reversed' ? (

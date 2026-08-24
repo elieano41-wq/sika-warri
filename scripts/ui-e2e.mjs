@@ -437,7 +437,7 @@ try {
   // heading is the difference between testing the screen and testing a race.
   let nomDemande = true;
   try {
-    await pv.getByRole('heading', { name: 'Qui est ce client ?' })
+    await pv.getByRole('heading', { name: /C.est pour qui|C.est qui/ })
       .waitFor({ timeout: 20000 });
   } catch {
     nomDemande = false;
@@ -535,7 +535,7 @@ try {
   check('a named customer is not asked for a name again', true);
   await tapDigits(pv, '400');
   await pv.getByRole('button', { name: 'Demander la confirmation' }).click();
-  await pv.getByRole('heading', { name: 'En attente du client' }).waitFor({ timeout: 20000 });
+  await pv.getByRole('heading', { name: 'En attente du sikatigi' }).waitFor({ timeout: 20000 });
   check('vendor screen waits for the customer', true);
 
   const attente = await pv.textContent('body');
@@ -557,9 +557,25 @@ try {
 
   // ===== the customer confirms with their own PIN =========================
   await tapDigits(pc, CUSTOMER_PIN);
+
+  // WAIT FOR THE OUTCOME, NOT FOR ONE FRAME.
+  //
+  // This waited only on the receipt heading and went intermittent: on one run
+  // the screenshot it saved on failure showed a balance of 1 100 F — the debit
+  // had gone through perfectly and the harness had simply missed the frame that
+  // said so. A check that fails while the thing it checks succeeded is worse
+  // than no check, because the next person spends an afternoon on the product
+  // instead of on the test.
+  //
+  // Either signal proves the same fact: the customer confirmed on their own
+  // device. The heading is the one to prefer, since the receipt persisting is
+  // itself a fix worth guarding, and it is asserted separately below.
   let confirme = true;
   try {
-    await pc.getByRole('heading', { name: "C'est confirmé" }).waitFor({ timeout: 25000 });
+    await Promise.race([
+      pc.getByRole('heading', { name: "C'est confirmé" }).waitFor({ timeout: 25000 }),
+      pc.getByText(/Il vous reste/i).first().waitFor({ timeout: 25000 }),
+    ]);
   } catch {
     confirme = false;
   }
@@ -580,6 +596,12 @@ try {
     /C'est confirm/i.test(recu) && /Il vous reste/i.test(recu), recu.slice(0, 300));
   await pc.getByRole('button', { name: 'Retour' }).first().click().catch(() => {});
 
+  // Dismissing the receipt lands on the home screen, which then has to fetch
+  // its own figures. Reading the body straight after the tap catches the empty
+  // frame: this check passed on one run and failed on the next with no code
+  // change between them, which is the definition of a check nobody can trust.
+  // Wait for the amount, not for the navigation.
+  await pc.getByText(/1 ?100/).first().waitFor({ timeout: 25000 }).catch(() => {});
   const apres = (await pc.textContent('body')).replace(/ /g, ' ');
   check('customer told what remains (1 100 F)', apres.includes('1 100'), apres.slice(0, 200));
   await pc.screenshot({ path: 'artifacts/07-client-confirme.png' });
@@ -641,10 +663,10 @@ try {
     && /Noter une dette/.test(accueilVendeur), accueilVendeur.slice(0, 400));
   await pv.screenshot({ path: 'artifacts/v1-accueil.png' });
 
-  // ===== Mes clients — the vendor's own book =============================
+  // ===== Mes sikatigi — the vendor's own book ============================
   console.log('\n--- mes clients ---');
   await ongletVers(pv, 'Je garde');
-  await pv.getByRole('heading', { name: 'Mes clients' }).waitFor({ timeout: 20000 });
+  await pv.getByRole('heading', { name: 'Mes sikatigi' }).waitFor({ timeout: 20000 });
 
   // Wait for the list itself, not just the heading. Asserting on figures while
   // the fetch is in flight reads the loading placeholder.
@@ -656,6 +678,16 @@ try {
   // 1 500 credited, 400 spent, so the vendor still holds 1 100 for one customer.
   check('circulation figure is 1 100 F', montantPresent(livre, '1 100'), livre.slice(0, 250));
   check('one person is listed', livre.includes('1 personne concernée'), livre.slice(0, 250));
+  // "Client" left the interface. Two groups, two words: a sikatigi is the
+  // person whose money you keep, a juru is a debt. Each is glossed on the
+  // screen it lives on, because Dioula is the language of the market and not
+  // of everybody in it.
+  check('nobody is called a "client" on this screen',
+    !/clients?/i.test(livre), livre.slice(0, 300));
+  check('and sikatigi is explained where it first appears',
+    /Sikatigi *: *la personne à qui la monnaie appartient/i.test(livre),
+    livre.slice(0, 400));
+
   check('the client list shows the NAME, not just a number',
     livre.includes((PREFIXE_TEST + 'Nom')), livre.slice(0, 300));
   await pv.screenshot({ path: 'artifacts/c1-mes-clients.png' });
@@ -1028,7 +1060,7 @@ try {
   console.log('\n--- mes dettes ---');
 
   await ongletVers(pv, 'On me doit');
-  await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
+  await pv.getByRole('heading', { name: 'Les juru' }).waitFor({ timeout: 20000 });
   await pv.locator('.ligne-client').first().waitFor({ timeout: 25000 });
   const listeDettes = await pv.textContent('body');
   check('the debtor list shows the amount owed',
@@ -1093,7 +1125,7 @@ try {
 
   await pv.reload();
   await ongletVers(pv, 'On me doit');
-  await pv.getByRole('heading', { name: 'Mes dettes' }).waitFor({ timeout: 20000 });
+  await pv.getByRole('heading', { name: 'Les juru' }).waitFor({ timeout: 20000 });
   await pv.getByText(/contest/i).first().waitFor({ timeout: 25000 });
   const apresContestation = await pv.textContent('body');
   check('the vendor sees the dispute', /contest[ée]s/i.test(apresContestation),

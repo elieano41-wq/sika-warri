@@ -64,7 +64,7 @@ export function GarderLaMonnaie({
         // registration path this screen does not own yet. Say so plainly rather
         // than failing obscurely.
         setErreur(
-          "Ce numéro n'est pas encore enregistré. Le client doit s'inscrire avant de garder sa monnaie."
+          "Ce numéro n'est pas encore enregistré. Il faut s'inscrire avant de pouvoir garder sa monnaie."
         );
         return;
       }
@@ -176,7 +176,7 @@ export function GarderLaMonnaie({
       <div className="ecran__corps">
         {etape === 'nom' && (
           <>
-            <h1>Qui est ce client ?</h1>
+            <h1>C’est pour qui ?</h1>
             <p className="discret">
               {formatPhoneLocal(numero)} · un nom pour le reconnaître. Vous seul
               le voyez.
@@ -218,7 +218,7 @@ export function GarderLaMonnaie({
 
             {depasse ? (
               <Message ton="erreur">
-                Plafond dépassé. Ce client ne peut pas garder plus de{' '}
+                Plafond dépassé. Cette personne ne peut pas garder plus de{' '}
                 <Montant value={plafond} /> chez vous.
               </Message>
             ) : null}
@@ -255,16 +255,16 @@ export function GarderLaMonnaie({
                 <div className="carte__titre">{vendeur.businessName}</div>
                 <div className="carte__sous">{formatPhoneLocal(numero)}</div>
               </div>
-              <div className="carte__etiquette">Monnaie du client chez vous</div>
+              <div className="carte__etiquette">Sa monnaie chez vous</div>
               <Montant value={recu.nouveau} taille="geant" />
             </article>
 
-            <Cadran etiquette="Code du reçu — à noter par le client">
+            <Cadran etiquette="Code du reçu — à noter par le sikatigi">
               <span className="montant montant--geant">{recu.code}</span>
             </Cadran>
 
             <p className="discret centre">
-              La monnaie reste chez vous. Le client peut l'utiliser ou demander
+              La monnaie reste chez vous. Le sikatigi peut l'utiliser ou demander
               son remboursement en espèces à tout moment.
             </p>
           </>
@@ -306,13 +306,13 @@ export function GarderLaMonnaie({
             <BoutonPrimaire onClick={enregistrer} disabled={montant <= 0 || depasse || occupe}>
               {occupe ? 'Enregistrement…' : 'Garder la monnaie'}
             </BoutonPrimaire>
-            <BoutonDiscret onClick={() => setEtape('numero')}>Changer de client</BoutonDiscret>
+            <BoutonDiscret onClick={() => setEtape('numero')}>Changer de sikatigi</BoutonDiscret>
           </>
         )}
 
         {etape === 'fait' && (
           <>
-            <BoutonPrimaire onClick={recommencer}>Nouveau client</BoutonPrimaire>
+            <BoutonPrimaire onClick={recommencer}>Nouveau sikatigi</BoutonPrimaire>
             <BoutonSecondaire onClick={onTermine}>Terminer</BoutonSecondaire>
           </>
         )}

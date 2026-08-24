@@ -183,6 +183,15 @@ Use instead: *votre monnaie sur ce carnet*, *monnaie gardée*, *utiliser ma monn
 
 The one exception is the verbatim disclosure below, which keeps *commerçant* because it is a legal statement about a commercial debt and must not be paraphrased.
 
+**And nobody is a *client*.** The word describes one side of a shop counter, which is not the relationship the app records. Two groups, two words, both from Dioula — the language of the market:
+
+- **`sikatigi`** — the person whose money you are keeping. `sika` (argent) + `tigi` (le propriétaire): *celui à qui l'argent appartient*. It is standing rule 10 said in one word — you hold it, it was never yours.
+- **`juru`** — the debt itself. Never a person.
+
+The symmetry is deliberately incomplete. The obvious coinage for a debtor, `jurutigi`, means "the debt's owner" and is widely heard for the **creditor** — the opposite of what a debtor list needs. Confusing creditor with debtor is the single worst error this app can make, so the debt gets a name and the person does not; the direction stays in the screen's own heading (*On me doit* / *Je dois*).
+
+Each word is **glossed once, on the screen it lives on**. Dioula is the language of the market and not of everybody in it, and a screen about somebody's money is the wrong place to make them guess.
+
 The following must appear in the terms of use and in the vendor onboarding flow, verbatim:
 
 > Sika Warri est un service d'enregistrement. Sika Warri ne détient, ne reçoit et ne transfère aucun fonds. La monnaie enregistrée reste physiquement chez le commerçant et constitue une dette commerciale de ce commerçant envers son client. Elle est utilisable uniquement auprès de ce même commerçant. Le client peut à tout moment demander le remboursement en espèces auprès du commerçant concerné.

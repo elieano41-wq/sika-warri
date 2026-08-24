@@ -245,7 +245,7 @@ export function UtiliserLaMonnaie({
 
         {etape === 'attente' && (
           <>
-            <h1>En attente du client</h1>
+            <h1>En attente du sikatigi</h1>
             <Cadran etiquette="Le client confirme sur son téléphone">
               <Montant value={montant} taille="geant" />
               <p className="discret">
@@ -281,7 +281,7 @@ export function UtiliserLaMonnaie({
 
       {etape === 'montant' ? (
         <div className="pile" style={{ paddingInline: 'var(--espace-4)' }}>
-          <p className="discret">Pourquoi le client utilise-t-il sa monnaie ?</p>
+          <p className="discret">Pourquoi le sikatigi utilise-t-il sa monnaie ?</p>
           <div style={{ display: 'flex', gap: 'var(--espace-2)' }}>
             <BoutonSecondaire onClick={() => setMotif('purchase')}>
               {motif === 'purchase' ? '● ' : ''}Un achat
@@ -302,7 +302,7 @@ export function UtiliserLaMonnaie({
             <BoutonPrimaire onClick={proposer} disabled={montant <= 0 || trop || occupe}>
               {occupe ? 'Envoi…' : 'Demander la confirmation'}
             </BoutonPrimaire>
-            <BoutonDiscret onClick={() => setEtape('numero')}>Changer de client</BoutonDiscret>
+            <BoutonDiscret onClick={() => setEtape('numero')}>Changer de sikatigi</BoutonDiscret>
           </>
         )}
         {etape === 'attente' && <BoutonSecondaire onClick={annuler}>Annuler la demande</BoutonSecondaire>}

@@ -105,14 +105,14 @@ export function MesClients({
               </div>
               <div className="carte__sous">{formatPhoneLocal(ouvert.phone)}</div>
             </div>
-            <div className="carte__etiquette">Monnaie de ce client chez vous</div>
+            <div className="carte__etiquette">Sa monnaie chez vous</div>
             <Montant value={ouvert.balance_cfa} taille="geant" />
           </article>
 
           {/* Naming a customer is what makes this screen usable at a counter.
               The label is private to this vendor (amendment F). */}
           <label className="champ">
-            <span className="champ__etiquette">Nom de ce client (pour vous seul)</span>
+            <span className="champ__etiquette">Son nom (pour vous seul)</span>
             <input
               className="champ__saisie"
               style={{ fontFamily: 'var(--police-texte)' }}
@@ -152,7 +152,7 @@ export function MesClients({
               support desk, which verifies identity by telephone. */}
           {ouvert.is_registered ? (
             <Message ton="info">
-              Ce client a oublié son code ? Il doit appeler le support Sika Warri
+              Ce sikatigi a oublié son code ? Il doit appeler le support Sika Warri
               lui-même. Vous ne pouvez pas réinitialiser son code, et vous ne
               devez jamais le lui demander.
             </Message>
@@ -160,7 +160,7 @@ export function MesClients({
 
           {!ouvert.is_registered ? (
             <Message ton="info">
-              Ce client n'a pas encore de compte. Il ne pourra pas confirmer sur
+              Ce sikatigi n'a pas encore de compte. Il ne pourra pas confirmer sur
               son téléphone tant qu'il ne s'est pas inscrit.
             </Message>
           ) : null}
@@ -199,7 +199,7 @@ export function MesClients({
         </div>
         <div className="ecran__pied pile">
           <BoutonSecondaire onClick={() => setOuvert(null)}>
-            Tous mes clients
+            Tous mes sikatigi
           </BoutonSecondaire>
         </div>
       </div>
@@ -220,7 +220,16 @@ export function MesClients({
       <Entete sousTitre={vendeur.businessName} />
 
       <div className="ecran__corps">
-        <h1>Mes clients</h1>
+        <h1>Mes sikatigi</h1>
+        {/* GLOSSED, ONCE, WHERE THE WORD LIVES.
+            Dioula is the language of the market and not of everybody in it, and
+            a screen about somebody's money is the wrong place to make them
+            guess. One line, and it also states the rule the word encodes: the
+            money is theirs, you are only holding it. */}
+        <p className="discret">
+          Sikatigi : la personne à qui la monnaie appartient. Vous la gardez,
+          elle reste à elle.
+        </p>
         {erreur ? <Message ton="erreur">{erreur}</Message> : null}
 
         <div className="cadran">
@@ -266,12 +275,12 @@ export function MesClients({
         ) : filtres.length === 0 ? (
           clients && clients.length === 0 ? (
             <Vide titre="Aucun client pour le moment" icone={IconeAucunClient}>
-              Dès que vous gardez la monnaie d’un client, son nom apparaît ici
+              Dès que vous gardez la monnaie de quelqu’un, son nom apparaît ici
               avec ce que vous lui devez.
             </Vide>
           ) : (
             <Message ton="info">
-              Aucun client ne correspond à cette recherche.
+              Personne ne correspond à cette recherche.
             </Message>
           )
         ) : (
